@@ -25,16 +25,29 @@ const CONFIG = {
     
     // 广告相关关键词（用于识别可能的广告接口）
     adKeywords: [
-        "splash", "startup", "launch", "ad", "ads",
+        // 开屏广告核心关键词
+        "splash", "splashscreen", "screen",
+        "startup", "launch", "boot", "cold",
+        // 广告通用关键词
+        "ad", "ads", "adv", "idleadv",
         "banner", "promotion", "marketing", "commercial",
-        "advertise", "popup", "interstitial", "preload"
+        "advertise", "popup", "interstitial", "preload",
+        // 闲鱼特有关键词
+        "material", "creative", "exposure", "impression",
+        "click", "skip", "countdown", "duration"
+    ],
+    
+    // 高优先级接口关键词（开屏广告专用）
+    splashKeywords: [
+        "splash", "screen", "startup", "launch", "boot",
+        "preload", "cold", "init", "first"
     ],
     
     // 存储key
     storageKey: "xianyu_capture_log",
     
     // 最大记录条数
-    maxLogs: 50
+    maxLogs: 100
 };
 
 // ==================== 工具函数 ====================
@@ -52,6 +65,34 @@ function getTimeStr() {
 function isPossibleAdUrl(url) {
     const lowerUrl = url.toLowerCase();
     return CONFIG.adKeywords.some(kw => lowerUrl.includes(kw));
+}
+
+// 检查是否是高优先级开屏广告接口
+function isSplashUrl(url) {
+    const lowerUrl = url.toLowerCase();
+    return CONFIG.splashKeywords.some(kw => lowerUrl.includes(kw));
+}
+
+// 检查响应体是否包含开屏广告特征字段
+function checkSplashFields(body) {
+    const splashIndicators = [
+        "imageUrl", "imgUrl", "picUrl", "image_url", "pic_url",
+        "clickUrl", "click_url", "jumpUrl", "jump_url", "targetUrl",
+        "duration", "countdown", "showTime", "displayTime",
+        "skipText", "skip", "跳过",
+        "splashId", "splash_id", "screenId", "adId"
+    ];
+    
+    const lowerBody = body.toLowerCase();
+    const found = [];
+    
+    splashIndicators.forEach(indicator => {
+        if (lowerBody.includes(indicator.toLowerCase())) {
+            found.push(indicator);
+        }
+    });
+    
+    return found;
 }
 
 // 检查响应体是否包含广告相关字段
@@ -138,8 +179,11 @@ function main() {
     
     // 检查是否可能是广告接口
     const isPossibleAd = isPossibleAdUrl(url);
+    const isSplash = isSplashUrl(url);
     const adFields = checkAdFields(body);
     const hasAdFields = adFields.length > 0;
+    const splashFields = checkSplashFields(body);
+    const hasSplashFields = splashFields.length > 0;
     
     // 构建日志条目
     const logEntry = {
@@ -149,8 +193,10 @@ function main() {
         status: status,
         bodyLength: body.length,
         isPossibleAd: isPossibleAd,
+        isSplash: isSplash,
         adFields: adFields,
-        bodyPreview: truncate(body, 1000)
+        splashFields: splashFields,
+        bodyPreview: truncate(body, 2000)
     };
     
     // 控制台输出
@@ -159,21 +205,34 @@ function main() {
     console.log(`📡 URL: ${url}`);
     console.log(`📊 状态: ${status} | 大小: ${body.length} 字节`);
     
-    if (isPossibleAd) {
+    // 高优先级：开屏广告
+    if (isSplash) {
+        console.log(`🚨🚨🚨 可能是开屏广告接口！！！`);
+    } else if (isPossibleAd) {
         console.log(`⚠️ 可能是广告接口！(URL包含广告关键词)`);
+    }
+    
+    // 检查响应体中的开屏广告特征
+    if (hasSplashFields) {
+        console.log(`🎯🎯🎯 发现开屏广告特征字段:`);
+        console.log(`   ${splashFields.join(', ')}`);
     }
     
     if (hasAdFields) {
         console.log(`🎯 发现广告相关字段:`);
-        adFields.forEach(field => {
+        adFields.slice(0, 10).forEach(field => {
             console.log(`   - ${field.path} (${field.type}${field.isArray ? '[]' : ''})`);
         });
+        if (adFields.length > 10) {
+            console.log(`   ... 还有 ${adFields.length - 10} 个字段`);
+        }
     }
     
-    // 输出响应体预览
+    // 输出响应体预览（开屏广告相关的输出更多）
     if (body) {
         console.log(`📄 响应预览:`);
-        console.log(truncate(body, 2000));
+        const previewLen = (isSplash || hasSplashFields) ? 5000 : 2000;
+        console.log(truncate(body, previewLen));
     }
     
     console.log(`${'='.repeat(60)}\n`);
@@ -181,8 +240,15 @@ function main() {
     // 保存日志
     saveLog(logEntry);
     
-    // 如果是可能的广告接口，发送通知
-    if (isPossibleAd || hasAdFields) {
+    // 发送通知
+    if (isSplash || hasSplashFields) {
+        // 开屏广告 - 高优先级通知
+        $notification.post(
+            "🚨 发现开屏广告接口！",
+            urlPath.substring(0, 50),
+            `大小: ${body.length}字节\n特征: ${splashFields.join(', ').substring(0, 80)}`
+        );
+    } else if (isPossibleAd || hasAdFields) {
         const title = isPossibleAd ? "🎯 发现可能的广告接口" : "📋 发现广告字段";
         const subtitle = urlPath.substring(0, 50);
         let message = `大小: ${body.length}字节`;

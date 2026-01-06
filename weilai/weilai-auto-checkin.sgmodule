@@ -1,0 +1,19 @@
+#!name=蔚来自动签到
+#!desc=蔚来APP全自动签到，支持Token自动抓取、定时签到、签到统计
+#!author=Kiro Assistant
+#!homepage=https://github.com/wfcaidio/SurgeScripts
+#!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/NIO.png
+#!category=签到
+
+[Script]
+# Token自动抓取 - 拦截蔚来APP请求，自动提取并保存token
+蔚来Token抓取 = type=http-request,pattern=^https://(gateway-front-external\.nio\.com|app\.nio\.com|api\.nio\.com)/.*,script-path=https://raw.githubusercontent.com/wfcaidio/SurgeScripts/main/weilai/weilai-auto-checkin.js,timeout=10
+
+# 定时签到任务 - 每天早上9点自动签到
+蔚来自动签到 = type=cron,cronexp=0 9 * * *,script-path=https://raw.githubusercontent.com/wfcaidio/SurgeScripts/main/weilai/weilai-auto-checkin.js,timeout=30,wake-system=1
+
+# 手动签到 - 访问指定URL手动触发签到
+蔚来手动签到 = type=http-request,pattern=^https://weilai\.checkin\.local/,script-path=https://raw.githubusercontent.com/wfcaidio/SurgeScripts/main/weilai/weilai-auto-checkin.js,timeout=30
+
+[MITM]
+hostname = %APPEND% gateway-front-external.nio.com, app.nio.com, api.nio.com

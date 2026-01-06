@@ -8,10 +8,10 @@
 
 基于抓包分析，精准屏蔽闲鱼APP各类广告。
 
-**一键安装：** [点击安装模块](https://raw.githubusercontent.com/wfcaidio/SurgeScripts/main/xianyu/xianyu-ad-block.sgmodule)
+**一键安装：** [点击安装模块](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.sgmodule)
 
 ```
-https://raw.githubusercontent.com/wfcaidio/SurgeScripts/main/xianyu/xianyu-ad-block.sgmodule
+https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.sgmodule
 ```
 
 **屏蔽内容：**
@@ -31,10 +31,10 @@ https://raw.githubusercontent.com/wfcaidio/SurgeScripts/main/xianyu/xianyu-ad-bl
 
 蔚来APP全自动签到脚本，支持Token自动抓取。
 
-**一键安装：** [点击安装模块](https://raw.githubusercontent.com/wfcaidio/SurgeScripts/main/weilai/weilai-auto-checkin.sgmodule)
+**一键安装：** [点击安装模块](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/weilai/weilai-auto-checkin.sgmodule)
 
 ```
-https://raw.githubusercontent.com/wfcaidio/SurgeScripts/main/weilai/weilai-auto-checkin.sgmodule
+https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/weilai/weilai-auto-checkin.sgmodule
 ```
 
 **功能特性：**

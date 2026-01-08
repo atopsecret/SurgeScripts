@@ -1,10 +1,38 @@
 # Surge 脚本集合
 
-个人使用的 Surge 脚本合集，包含自动签到、去广告等功能。
+个人使用的 Surge 脚本合集，包含自动签到、去广告、路由优化等功能。
 
 ## 📦 模块列表
 
-### 1. 闲鱼去广告 🆕
+### 1. Google AI 路由优化 🆕
+
+让所有 Google AI 相关请求走美国节点，提升访问稳定性。
+
+**一键安装：** [点击安装模块](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/google-ai-routing.sgmodule)
+
+```
+https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/google-ai-routing.sgmodule
+```
+
+**优化服务：**
+- ✅ Google AI Studio (aistudio.google.com)
+- ✅ Gemini API (generativelanguage.googleapis.com)
+- ✅ Google Bard/Gemini (bard.google.com, gemini.google.com)
+- ✅ Google Cloud AI Platform
+- ✅ Google Vertex AI
+
+**使用方法：**
+1. 安装模块，选择你的美国节点名称
+2. 重新加载 Surge 配置
+3. 访问 Google AI 服务时会自动走美国节点
+
+**相关文件：**
+- 模块文件: `google-ai-routing.sgmodule`
+- 配置文件: `google-ai-routing.conf`
+
+---
+
+### 2. 闲鱼去广告
 
 基于抓包分析，精准屏蔽闲鱼APP各类广告。
 
@@ -27,7 +55,7 @@ https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-
 
 ---
 
-### 2. 蔚来自动签到
+### 3. 蔚来自动签到
 
 蔚来APP全自动签到脚本，支持Token自动抓取。
 
@@ -56,7 +84,7 @@ https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/weilai/weilai-aut
 
 ---
 
-### 3. 闲鱼抓包辅助
+### 4. 闲鱼抓包辅助
 
 用于分析闲鱼APP的广告接口，为去广告脚本提供数据支持。
 
@@ -106,6 +134,12 @@ https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/weilai/weilai-aut
 ---
 
 ## 📝 更新日志
+
+### 2026-01-08
+- 🆕 新增 Google AI 路由优化模块
+- 让所有 Google AI 相关请求走美国节点
+- 支持 Google AI Studio、Gemini API、Bard 等服务
+- 提供 .sgmodule 模块和 .conf 配置两种方式
 
 ### 2026-01-06
 - 🆕 新增 `.sgmodule` 模块格式，支持一键安装

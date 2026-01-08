@@ -1,0 +1,28 @@
+#!name=Google AI 路由优化
+#!desc=让所有 Google AI 相关请求走美国节点，提升访问稳定性
+#!author=weilai
+#!homepage=https://github.com/your-repo/SurgeScripts
+#!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Google.png
+#!select=美国节点,🇺🇸 美国,US,United States,美国-洛杉矶,美国-纽约
+
+[Rule]
+# Google AI Studio 和 Gemini API
+DOMAIN-SUFFIX,generativelanguage.googleapis.com,美国节点
+DOMAIN-SUFFIX,ai.google.dev,美国节点
+DOMAIN-SUFFIX,aistudio.google.com,美国节点
+DOMAIN-SUFFIX,makersuite.google.com,美国节点
+
+# Google Bard/Gemini
+DOMAIN-SUFFIX,bard.google.com,美国节点
+DOMAIN-SUFFIX,gemini.google.com,美国节点
+
+# Google Cloud AI Platform
+DOMAIN-SUFFIX,aiplatform.googleapis.com,美国节点
+DOMAIN-SUFFIX,ml.googleapis.com,美国节点
+
+# Google Vertex AI
+DOMAIN-SUFFIX,vertex-ai.googleapis.com,美国节点
+
+[MITM]
+# 如果需要 HTTPS 解密（通常不需要）
+# hostname = *.googleapis.com, *.google.dev, *.google.com

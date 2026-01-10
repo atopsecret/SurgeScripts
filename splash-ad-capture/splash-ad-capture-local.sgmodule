@@ -1,0 +1,42 @@
+#!name=开屏广告抓包分析(本地版)
+#!desc=京东/拼多多/闲鱼 开屏广告请求抓包分析工具 - 使用本地脚本
+#!author=Kiro Assistant
+#!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Advertising.png
+#!date=2026-01-10
+
+# ============================================================
+# 📋 使用说明：
+# 1. 将 splash-ad-capture.js 放到 Surge 的脚本目录
+#    - iOS: iCloud Drive/Surge/Script/
+#    - Mac: ~/Library/Application Support/Surge/Script/
+# 2. 卸载京东、拼多多、闲鱼三个App
+# 3. 重启手机（清除系统缓存）
+# 4. 在 Surge 中安装此模块
+# 5. 开启 HTTP 抓包 和 MITM 解密
+# 6. 重新安装App，打开时观察 Surge 日志
+# 7. 搜索 [SPLASH-AD] 或 🔴 标记的请求
+# ============================================================
+
+[Script]
+# ==================== 京东 JD ====================
+jd-api-capture = type=http-request,pattern=^https?://api\.m\.jd\.com/client\.action,script-path=splash-ad-capture.js,requires-body=1,max-size=2097152
+jd-ad-capture = type=http-request,pattern=^https?://(bdsp-x|ads|dsp)\.jd\.com/,script-path=splash-ad-capture.js,requires-body=1,max-size=1048576
+jd-other-capture = type=http-request,pattern=^https?://(un)?api\.m\.jd\.com/,script-path=splash-ad-capture.js,requires-body=1,max-size=1048576
+
+# ==================== 拼多多 PDD ====================
+pdd-api-capture = type=http-request,pattern=^https?://api\.pinduoduo\.com/api/,script-path=splash-ad-capture.js,requires-body=1,max-size=2097152
+pdd-mobile-capture = type=http-request,pattern=^https?://mobile\.yangkeduo\.com/,script-path=splash-ad-capture.js,requires-body=1,max-size=1048576
+pdd-other-capture = type=http-request,pattern=^https?://.*\.(pinduoduo|yangkeduo)\.com/,script-path=splash-ad-capture.js,requires-body=1,max-size=1048576
+
+# ==================== 闲鱼 Xianyu ====================
+xianyu-mtop-capture = type=http-request,pattern=^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.,script-path=splash-ad-capture.js,requires-body=1,max-size=2097152
+xianyu-splash-capture = type=http-request,pattern=^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.taobao\.idlecommerce\.splash,script-path=splash-ad-capture.js,requires-body=1,max-size=1048576
+xianyu-ad-capture = type=http-request,pattern=^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.idle\.idleadv,script-path=splash-ad-capture.js,requires-body=1,max-size=1048576
+
+# ==================== 通用广告SDK ====================
+chuanshanjia-capture = type=http-request,pattern=^https?://.*\.(pangle|pangolin-sdk-toutiao)\.com/,script-path=splash-ad-capture.js,requires-body=1,max-size=1048576
+gdt-capture = type=http-request,pattern=^https?://.*\.gdt\.qq\.com/,script-path=splash-ad-capture.js,requires-body=1,max-size=1048576
+bd-ad-capture = type=http-request,pattern=^https?://.*mobads.*\.baidu\.com/,script-path=splash-ad-capture.js,requires-body=1,max-size=1048576
+
+[MITM]
+hostname = %APPEND% api.m.jd.com, unapi.m.jd.com, bdsp-x.jd.com, ads.jd.com, dsp.jd.com, api.pinduoduo.com, mobile.yangkeduo.com, *.pinduoduo.com, *.yangkeduo.com, acs.m.goofish.com, acs.m.taobao.com, *.pangle.com, *.pangolin-sdk-toutiao.com, *.gdt.qq.com, mobads.baidu.com

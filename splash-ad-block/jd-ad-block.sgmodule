@@ -1,0 +1,43 @@
+#!name=京东去开屏广告
+#!desc=屏蔽京东App开屏广告、弹窗广告
+#!author=Kiro Assistant
+#!homepage=https://github.com/atopsecret/SurgeScripts
+#!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/JD.png
+#!date=2026-01-10
+
+# ============================================================
+# 📋 基于抓包分析的京东去广告规则
+# ============================================================
+
+[Rule]
+# 穿山甲广告SDK
+DOMAIN-SUFFIX,pangolin-sdk-toutiao.com,REJECT
+DOMAIN-SUFFIX,pangolin-sdk-toutiao1.com,REJECT
+DOMAIN-SUFFIX,pglstatp-toutiao.com,REJECT
+DOMAIN,gromore.pangolin-sdk-toutiao.com,REJECT
+DOMAIN,log-api.pangolin-sdk-toutiao.com,REJECT
+DOMAIN,api-access.pangolin-sdk-toutiao.com,REJECT
+DOMAIN,api-access.pangolin-sdk-toutiao1.com,REJECT
+
+# 京东广告相关域名
+DOMAIN,bdsp-x.jd.com,REJECT
+DOMAIN,dsp.jd.com,REJECT
+DOMAIN,ads.jd.com,REJECT
+
+[URL Rewrite]
+# 京东开屏广告接口 - 直接拒绝
+^https?://api\.m\.jd\.com/client\.action\?functionId=start - reject-dict
+^https?://api\.m\.jd\.com/client\.action\?functionId=queryMaterialAdverts - reject-dict
+
+[Script]
+# 京东开屏广告处理
+jd-splash-block = type=http-response,pattern=^https?://api\.m\.jd\.com/client\.action\?functionId=(start|queryMaterialAdverts|getAdConfig|getAdvertising),requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/jd-ad-block.js,timeout=30
+
+# 京东配置接口（清理广告配置）
+jd-config-block = type=http-response,pattern=^https?://api\.m\.jd\.com/client\.action\?functionId=basicConfig,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/jd-ad-block.js,timeout=30
+
+# 京东弹窗广告
+jd-popup-block = type=http-response,pattern=^https?://api\.m\.jd\.com/client\.action\?functionId=(getBubbleInfo|switchQuery|xview2Config),requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/jd-ad-block.js,timeout=30
+
+[MITM]
+hostname = %APPEND% api.m.jd.com

@@ -1,0 +1,39 @@
+#!name=拼多多去开屏广告
+#!desc=屏蔽拼多多App开屏广告、弹窗广告
+#!author=Kiro Assistant
+#!homepage=https://github.com/atopsecret/SurgeScripts
+#!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Pinduoduo.png
+#!date=2026-01-10
+
+# ============================================================
+# 📋 基于抓包分析的拼多多去广告规则
+# ============================================================
+
+[Rule]
+# 穿山甲广告SDK（拼多多也在用）
+DOMAIN-SUFFIX,pangolin-sdk-toutiao.com,REJECT
+DOMAIN-SUFFIX,pangolin-sdk-toutiao1.com,REJECT
+DOMAIN,log-api.pangolin-sdk-toutiao.com,REJECT
+DOMAIN,api-access.pangolin-sdk-toutiao.com,REJECT
+DOMAIN,api-access.pangolin-sdk-toutiao1.com,REJECT
+
+# 广点通广告SDK
+DOMAIN-SUFFIX,gdt.qq.com,REJECT
+DOMAIN,mi.gdt.qq.com,REJECT
+
+[URL Rewrite]
+# 拼多多开屏广告相关（根据抓包分析）
+# 注意：拼多多的开屏广告配置混在 abtest 和 experiment 接口中
+
+[Script]
+# 拼多多 AB测试接口（包含开屏广告配置）
+pdd-abtest-block = type=http-response,pattern=^https?://meta\.pinduoduo\.com/api/app/v2/(abtest|experiment),requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/pdd-ad-block.js,timeout=30
+
+# 拼多多配置接口
+pdd-config-block = type=http-response,pattern=^https?://cfg-\d\.pddpic\.com/api/one/mobile_config/,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/pdd-ad-block.js,timeout=30
+
+# 拼多多首页接口（清理广告）
+pdd-home-block = type=http-response,pattern=^https?://api\.pinduoduo\.com/api/alexa/(homepage|cells)/,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/pdd-ad-block.js,timeout=30
+
+[MITM]
+hostname = %APPEND% meta.pinduoduo.com, cfg-1.pddpic.com, cfg-2.pddpic.com, api.pinduoduo.com

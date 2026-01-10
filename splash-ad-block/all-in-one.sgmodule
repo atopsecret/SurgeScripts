@@ -1,0 +1,70 @@
+#!name=京东/拼多多/闲鱼去开屏广告合集
+#!desc=一键屏蔽京东、拼多多、闲鱼三大App的开屏广告、弹窗广告
+#!author=Kiro Assistant
+#!homepage=https://github.com/atopsecret/SurgeScripts
+#!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Advertising.png
+#!date=2026-01-10
+
+# ============================================================
+# 📋 基于抓包分析的去广告规则合集
+# 
+# 🎯 屏蔽内容：
+#    ✅ 京东开屏广告、弹窗广告
+#    ✅ 拼多多开屏广告、弹窗广告
+#    ✅ 闲鱼开屏广告、悬浮球、弹窗广告
+#    ✅ 穿山甲广告SDK
+#    ✅ 广点通广告SDK
+# ============================================================
+
+[Rule]
+# ==================== 广告SDK ====================
+# 穿山甲广告SDK（字节跳动）
+DOMAIN-SUFFIX,pangolin-sdk-toutiao.com,REJECT
+DOMAIN-SUFFIX,pangolin-sdk-toutiao1.com,REJECT
+DOMAIN-SUFFIX,pglstatp-toutiao.com,REJECT
+DOMAIN,gromore.pangolin-sdk-toutiao.com,REJECT
+DOMAIN,log-api.pangolin-sdk-toutiao.com,REJECT
+DOMAIN,api-access.pangolin-sdk-toutiao.com,REJECT
+DOMAIN,api-access.pangolin-sdk-toutiao1.com,REJECT
+
+# 广点通广告SDK（腾讯）
+DOMAIN,mi.gdt.qq.com,REJECT
+
+# 京东广告域名
+DOMAIN,bdsp-x.jd.com,REJECT
+DOMAIN,dsp.jd.com,REJECT
+DOMAIN,ads.jd.com,REJECT
+
+[URL Rewrite]
+# ==================== 京东 ====================
+^https?://api\.m\.jd\.com/client\.action\?functionId=start - reject-dict
+^https?://api\.m\.jd\.com/client\.action\?functionId=queryMaterialAdverts - reject-dict
+
+# ==================== 闲鱼 ====================
+^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.taobao\.idlecommerce\.splash - reject-dict
+^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.idle\.idleadv - reject-dict
+
+[Script]
+# ==================== 京东脚本 ====================
+jd-splash-block = type=http-response,pattern=^https?://api\.m\.jd\.com/client\.action\?functionId=(start|queryMaterialAdverts|getAdConfig|getAdvertising),requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/jd-ad-block.js,timeout=30
+jd-config-block = type=http-response,pattern=^https?://api\.m\.jd\.com/client\.action\?functionId=basicConfig,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/jd-ad-block.js,timeout=30
+jd-popup-block = type=http-response,pattern=^https?://api\.m\.jd\.com/client\.action\?functionId=(getBubbleInfo|switchQuery|xview2Config),requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/jd-ad-block.js,timeout=30
+
+# ==================== 拼多多脚本 ====================
+pdd-abtest-block = type=http-response,pattern=^https?://meta\.pinduoduo\.com/api/app/v2/(abtest|experiment),requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/pdd-ad-block.js,timeout=30
+pdd-config-block = type=http-response,pattern=^https?://cfg-\d\.pddpic\.com/api/one/mobile_config/,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/pdd-ad-block.js,timeout=30
+pdd-home-block = type=http-response,pattern=^https?://api\.pinduoduo\.com/api/alexa/(homepage|cells)/,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/pdd-ad-block.js,timeout=30
+
+# ==================== 闲鱼脚本 ====================
+xianyu-splash-async = type=http-response,pattern=^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.taobao\.idlecommerce\.splash\.async\.ads,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/xianyu-ad-block.js,timeout=30
+xianyu-splash-sync = type=http-response,pattern=^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.taobao\.idlecommerce\.splash\.ads,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/xianyu-ad-block.js,timeout=30
+xianyu-ad-report = type=http-response,pattern=^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.idle\.idleadv\.app\.launch\.report,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/xianyu-ad-block.js,timeout=30
+xianyu-ad-scene = type=http-response,pattern=^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.idle\.idleadv\.scene\.restore,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/xianyu-ad-block.js,timeout=30
+xianyu-strategy = type=http-response,pattern=^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.taobao\.idle\.user\.strategy\.list,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/xianyu-ad-block.js,timeout=30
+xianyu-circle = type=http-response,pattern=^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.taobao\.idlehome\.home\.circle\.list,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/xianyu-ad-block.js,timeout=30
+xianyu-refresh = type=http-response,pattern=^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.taobao\.idlehome\.home\.nextfresh,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/xianyu-ad-block.js,timeout=30
+xianyu-activity = type=http-response,pattern=^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.taobao\.idle\.activity\.query,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/xianyu-ad-block.js,timeout=30
+xianyu-home-config = type=http-response,pattern=^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.taobao\.idle\.home\.config,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/xianyu-ad-block.js,timeout=30
+
+[MITM]
+hostname = %APPEND% api.m.jd.com, meta.pinduoduo.com, cfg-1.pddpic.com, cfg-2.pddpic.com, api.pinduoduo.com, acs.m.goofish.com, acs.m.taobao.com

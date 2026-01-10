@@ -35,14 +35,20 @@ DOMAIN,bdsp-x.jd.com,REJECT
 DOMAIN,dsp.jd.com,REJECT
 DOMAIN,ads.jd.com,REJECT
 
+# ==================== 闲鱼 ====================
+# 广点通广告SDK
+DOMAIN,mi.gdt.qq.com,REJECT
+# 广告曝光上报
+DOMAIN,g-acs.m.goofish.com,REJECT
+
 [URL Rewrite]
 # ==================== 京东 ====================
 ^https?://api\.m\.jd\.com/client\.action\?functionId=start - reject-dict
 ^https?://api\.m\.jd\.com/client\.action\?functionId=queryMaterialAdverts - reject-dict
 
 # ==================== 闲鱼 ====================
-^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.taobao\.idlecommerce\.splash - reject-dict
-^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.idle\.idleadv - reject-dict
+# 广告曝光接口
+^https?://g-acs\.m\.goofish\.com/gw/mtop\.idle\.ad\.expose - reject-dict
 
 [Script]
 # ==================== 京东脚本 ====================
@@ -56,15 +62,26 @@ pdd-config-block = type=http-response,pattern=^https?://cfg-\d\.pddpic\.com/api/
 pdd-home-block = type=http-response,pattern=^https?://api\.pinduoduo\.com/api/alexa/(homepage|cells)/,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/pdd-ad-block.js,timeout=30
 
 # ==================== 闲鱼脚本 ====================
-xianyu-splash-async = type=http-response,pattern=^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.taobao\.idlecommerce\.splash\.async\.ads,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/xianyu-ad-block.js,timeout=30
+# 开屏广告（同步）- 关键接口！
 xianyu-splash-sync = type=http-response,pattern=^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.taobao\.idlecommerce\.splash\.ads,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/xianyu-ad-block.js,timeout=30
+# 开屏广告（异步）
+xianyu-splash-async = type=http-response,pattern=^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.taobao\.idlecommerce\.splash\.async\.ads,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/xianyu-ad-block.js,timeout=30
+# 广告上报
 xianyu-ad-report = type=http-response,pattern=^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.idle\.idleadv\.app\.launch\.report,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/xianyu-ad-block.js,timeout=30
+# 广告场景恢复
 xianyu-ad-scene = type=http-response,pattern=^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.idle\.idleadv\.scene\.restore,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/xianyu-ad-block.js,timeout=30
+# AB配置（关闭广告AB测试）
+xianyu-ab-config = type=http-response,pattern=^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.taobao\.idle\.ab\.config\.get,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/xianyu-ad-block.js,timeout=30
+# 用户策略（悬浮球/弹窗）
 xianyu-strategy = type=http-response,pattern=^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.taobao\.idle\.user\.strategy\.list,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/xianyu-ad-block.js,timeout=30
+# 首页圈子列表
 xianyu-circle = type=http-response,pattern=^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.taobao\.idlehome\.home\.circle\.list,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/xianyu-ad-block.js,timeout=30
+# 首页刷新
 xianyu-refresh = type=http-response,pattern=^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.taobao\.idlehome\.home\.nextfresh,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/xianyu-ad-block.js,timeout=30
+# 活动查询
 xianyu-activity = type=http-response,pattern=^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.taobao\.idle\.activity\.query,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/xianyu-ad-block.js,timeout=30
+# 首页配置
 xianyu-home-config = type=http-response,pattern=^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.taobao\.idle\.home\.config,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/xianyu-ad-block.js,timeout=30
 
 [MITM]
-hostname = %APPEND% api.m.jd.com, meta.pinduoduo.com, cfg-1.pddpic.com, cfg-2.pddpic.com, api.pinduoduo.com, acs.m.goofish.com, acs.m.taobao.com
+hostname = %APPEND% api.m.jd.com, meta.pinduoduo.com, cfg-1.pddpic.com, cfg-2.pddpic.com, api.pinduoduo.com, acs.m.goofish.com, acs.m.taobao.com, g-acs.m.goofish.com

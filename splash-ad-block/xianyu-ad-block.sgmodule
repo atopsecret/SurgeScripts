@@ -21,23 +21,32 @@ DOMAIN,api-access.pangolin-sdk-toutiao1.com,REJECT
 # 广点通广告SDK
 DOMAIN,mi.gdt.qq.com,REJECT
 
+[Rule]
+# 广点通广告SDK
+DOMAIN,mi.gdt.qq.com,REJECT
+
+# 广告曝光上报
+DOMAIN,g-acs.m.goofish.com,REJECT
+
 [URL Rewrite]
-# 闲鱼开屏广告 - 直接拒绝返回空
-^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.taobao\.idlecommerce\.splash - reject-dict
-^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.idle\.idleadv - reject-dict
+# 闲鱼广告曝光接口 - 直接拒绝
+^https?://g-acs\.m\.goofish\.com/gw/mtop\.idle\.ad\.expose - reject-dict
 
 [Script]
-# 闲鱼开屏广告（异步加载）
-xianyu-splash-async = type=http-response,pattern=^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.taobao\.idlecommerce\.splash\.async\.ads,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/xianyu-ad-block.js,timeout=30
-
-# 闲鱼开屏广告（同步）
+# 开屏广告（同步）- 关键接口！返回4KB+数据
 xianyu-splash-sync = type=http-response,pattern=^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.taobao\.idlecommerce\.splash\.ads,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/xianyu-ad-block.js,timeout=30
+
+# 开屏广告（异步）
+xianyu-splash-async = type=http-response,pattern=^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.taobao\.idlecommerce\.splash\.async\.ads,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/xianyu-ad-block.js,timeout=30
 
 # 闲鱼广告上报（阻止上报）
 xianyu-ad-report = type=http-response,pattern=^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.idle\.idleadv\.app\.launch\.report,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/xianyu-ad-block.js,timeout=30
 
 # 闲鱼广告场景恢复
 xianyu-ad-scene = type=http-response,pattern=^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.idle\.idleadv\.scene\.restore,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/xianyu-ad-block.js,timeout=30
+
+# 闲鱼AB配置（关闭广告AB测试）
+xianyu-ab-config = type=http-response,pattern=^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.taobao\.idle\.ab\.config\.get,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/xianyu-ad-block.js,timeout=30
 
 # 闲鱼用户策略（悬浮球/弹窗）
 xianyu-strategy = type=http-response,pattern=^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.taobao\.idle\.user\.strategy\.list,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/xianyu-ad-block.js,timeout=30
@@ -55,4 +64,4 @@ xianyu-activity = type=http-response,pattern=^https?://acs\.m\.(goofish|taobao)\
 xianyu-home-config = type=http-response,pattern=^https?://acs\.m\.(goofish|taobao)\.com/gw/mtop\.taobao\.idle\.home\.config,requires-body=1,max-size=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/splash-ad-block/xianyu-ad-block.js,timeout=30
 
 [MITM]
-hostname = %APPEND% acs.m.goofish.com, acs.m.taobao.com
+hostname = %APPEND% acs.m.goofish.com, acs.m.taobao.com, g-acs.m.goofish.com

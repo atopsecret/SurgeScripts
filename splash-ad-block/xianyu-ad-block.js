@@ -9,40 +9,93 @@ let body = $response.body;
 try {
   let obj = JSON.parse(body);
   
-  // 开屏广告接口
-  if (url.includes('idlecommerce.splash')) {
-    // 清空广告数据
-    if (obj.data) {
-      if (obj.data.ads) obj.data.ads = [];
-      if (obj.data.adList) obj.data.adList = [];
-      if (obj.data.splashAds) obj.data.splashAds = [];
-      if (obj.data.splash) obj.data.splash = null;
-      if (obj.data.result) {
-        if (obj.data.result.ads) obj.data.result.ads = [];
-        if (obj.data.result.adList) obj.data.result.adList = [];
+  // 开屏广告接口 - 同步版本 (mtop.taobao.idlecommerce.splash.ads)
+  if (url.includes('idlecommerce.splash.ads')) {
+    console.log('[闲鱼] 拦截开屏广告接口(同步)');
+    // 返回空广告数据
+    obj = {
+      "api": "mtop.taobao.idlecommerce.splash.ads",
+      "ret": ["SUCCESS::调用成功"],
+      "v": "2.0",
+      "data": {
+        "result": {
+          "success": true,
+          "ads": [],
+          "adList": [],
+          "splashAds": []
+        }
       }
-    }
-    // mtop 接口格式
-    if (obj.ret && obj.ret[0] === 'SUCCESS::调用成功') {
-      if (obj.data) {
-        obj.data = {};
+    };
+    body = JSON.stringify(obj);
+    $done({ body });
+    return;
+  }
+  
+  // 开屏广告接口 - 异步版本 (mtop.taobao.idlecommerce.splash.async.ads)
+  if (url.includes('idlecommerce.splash.async.ads')) {
+    console.log('[闲鱼] 拦截开屏广告接口(异步)');
+    obj = {
+      "api": "mtop.taobao.idlecommerce.splash.async.ads",
+      "ret": ["SUCCESS::调用成功"],
+      "v": "1.0",
+      "data": {
+        "result": {
+          "success": true,
+          "ads": [],
+          "adList": [],
+          "splashAds": []
+        }
       }
-    }
-    console.log('[闲鱼] 已清理开屏广告');
+    };
+    body = JSON.stringify(obj);
+    $done({ body });
+    return;
   }
   
   // 广告上报接口 - 返回成功但不做任何事
   if (url.includes('idleadv.app.launch.report')) {
-    obj = { ret: ['SUCCESS::调用成功'], data: {} };
+    obj = { 
+      "api": "mtop.idle.idleadv.app.launch.report",
+      "ret": ["SUCCESS::调用成功"], 
+      "v": "1.0",
+      "data": { "success": true } 
+    };
     console.log('[闲鱼] 已拦截广告上报');
+    body = JSON.stringify(obj);
+    $done({ body });
+    return;
   }
   
-  // 广告场景恢复
+  // 广告场景恢复 - 返回空数据
   if (url.includes('idleadv.scene.restore')) {
-    if (obj.data) {
-      obj.data = {};
-    }
+    obj = {
+      "api": "mtop.idle.idleadv.scene.restore",
+      "ret": ["SUCCESS::调用成功"],
+      "v": "1.0",
+      "data": { "result": { "success": true } }
+    };
     console.log('[闲鱼] 已清理广告场景');
+    body = JSON.stringify(obj);
+    $done({ body });
+    return;
+  }
+  
+  // AB配置接口 - 关闭广告相关AB测试
+  if (url.includes('idle.ab.config.get')) {
+    if (obj.data && obj.data.result) {
+      // 遍历关闭广告相关配置
+      const result = obj.data.result;
+      for (let key in result) {
+        const keyLower = key.toLowerCase();
+        if (keyLower.includes('ad') || 
+            keyLower.includes('splash') ||
+            keyLower.includes('banner') ||
+            keyLower.includes('popup')) {
+          result[key] = false;
+        }
+      }
+    }
+    console.log('[闲鱼] 已关闭AB测试中的广告配置');
   }
   
   // 用户策略（悬浮球/弹窗）

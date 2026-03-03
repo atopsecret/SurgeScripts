@@ -8,6 +8,8 @@
 const scriptName = "Discord Remove Gift Button";
 let body = $response.body;
 
+$notification.post("Discord 脚本触发 ✅", $request.url, "脚本已运行");
+
 try {
     let obj = JSON.parse(body);
     
@@ -16,27 +18,17 @@ try {
         obj.premium_type = 2;
         
         // 标记为已购买状态
-        if ("purchased_flags" in obj) {
-            obj.purchased_flags = 5;
-        } else {
-            obj.purchased_flags = 5;
-        }
+        obj.purchased_flags = 5;
         
         // 清除推广使用标记
         obj.premium_usage_flags = 0;
         
-        // 添加 Nitro 订阅相关 flags
-        // 用户 flags 中启用 HAS_UNREAD_URGENT_MESSAGES 以外的高级功能位
-        if (obj.flags !== undefined) {
-            obj.flags = obj.flags | (1 << 1); // PARTNER - 不太重要但标记为高级用户
-        }
-        
-        console.log(`[${scriptName}] 已修改 premium_type=2, purchased_flags=5`);
+        $notification.post("Discord 修改成功 ✅", `premium_type: ${obj.premium_type}`, `原始keys: ${Object.keys(obj).join(", ").substring(0, 200)}`);
     }
     
     body = JSON.stringify(obj);
 } catch (e) {
-    console.log(`[${scriptName}] 解析失败: ${e.message}`);
+    $notification.post("Discord 脚本错误 ❌", e.message, body ? body.substring(0, 200) : "empty body");
 }
 
 $done({ body });

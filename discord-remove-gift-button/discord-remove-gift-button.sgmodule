@@ -1,6 +1,6 @@
-#!name=Discord 移除礼物按钮
-#!desc=移除 Discord 聊天输入框旁边的 Gift/Nitro 推广按钮
-#!author=wf
+#!name=Discord 净化
+#!desc=全面屏蔽 Discord 广告、推广、会员引导、数据追踪等无用请求
+#!author=skernelx
 #!homepage=https://github.com/skernelx/SurgeScripts
 #!category=Utilities
 #!icon=https://cdn.discordapp.com/embed/avatars/0.png
@@ -9,35 +9,72 @@
 force-http-engine-hosts = %APPEND% *.discord.com, *.discordapp.com
 
 [Map Local]
-# 收藏品/商城营销 → 返回空对象
+# ===== 推广 & 营销 =====
+# 推广活动
+^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/promotions data-type=text data="[]" status-code=200
+# 外部推广
+^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/outbound-promotions data-type=text data="[]" status-code=200
+# 收藏品/装饰品营销
 ^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/users\/@me\/collectibles-marketing data-type=text data="{}" status-code=200
 
-# 推广活动 → 返回空数组
-^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/promotions data-type=text data="[]" status-code=200
-
-# 任务/活动 → 返回空数组
+# ===== 任务 & 活动 =====
+# 任务系统（Quests）
 ^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/quests\/@me data-type=text data="[]" status-code=200
 ^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/quests\/decision data-type=text data="{}" status-code=200
 
-# 付费推广 → 返回404（与原始行为一致）
+# ===== 付费 & 订阅推广 =====
+# 会员推广弹窗 / 付费优惠
 ^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/users\/@me\/billing\/user-offer data-type=text data="{\"message\":\"404: Not Found\",\"code\":0}" status-code=404
-
-# 订阅信息 → 返回空
+# 试用推广
+^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/users\/@me\/billing\/user-trial-offer data-type=text data="{\"message\":\"404: Not Found\",\"code\":0}" status-code=404
+# 订阅信息
 ^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/users\/@me\/billing\/subscriptions$ data-type=text data="[]" status-code=200
+# 付费方案
+^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/users\/@me\/billing\/payment-sources data-type=text data="[]" status-code=200
+# 会员优惠计划
+^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/users\/@me\/billing\/country-code data-type=text data="{}" status-code=200
 
-# 礼物/entitlements → 返回空
+# ===== 商店 & 礼物 & 权益 =====
+# 礼物/权益
 ^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/users\/@me\/entitlements data-type=text data="[]" status-code=200
-
-# 商店列表 → 返回空
+# 商店 SKU 列表
 ^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/store\/published-listings\/skus data-type=text data="[]" status-code=200
+# 商店 SKU 详情（正则匹配所有 /store 路径）
+^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/store data-type=text data="[]" status-code=200
+# 应用商店内购推广
+^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/store\/price-tiers data-type=text data="[]" status-code=200
+
+# ===== Nitro / Premium 相关 =====
+# Premium 使用统计（用于触发 upsell）
+^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/users\/@me\/premium-usage data-type=text data="{}" status-code=200
+# Premium 营销页
+^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/premium-marketing data-type=text data="{}" status-code=200
+# Nitro 活动
+^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/users\/@me\/harvest data-type=text data="{}" status-code=200
+
+# ===== 调查 & 用户画像 =====
+# 内部调查/问卷
+^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/users\/@me\/survey data-type=text data="{}" status-code=200
+# 用户亲和度/偏好（用于精准推广）
+^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/users\/@me\/affinities data-type=text data="{}" status-code=200
+
+# ===== 游戏活动 & 检测 =====
+# 游戏活动统计（与 Activity 推广相关）
+^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/activities\/statistics data-type=text data="[]" status-code=200
+# 可检测应用列表（游戏检测推广）
+^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/applications\/detectable data-type=text data="[]" status-code=200
 
 [URL Rewrite]
-# 屏蔽数据追踪
+# ===== 数据追踪 & 遥测 =====
+# 行为追踪（最大的追踪接口）
 ^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/science - reject
-
-[Script]
-# 修改 /users/@me 响应：伪装为 Nitro 用户 + 注入功能标记
-discord-user = type=http-response, pattern=^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/users\/@me$, requires-body=1, max-size=262144, script-path=https://raw.githubusercontent.com/skernelx/SurgeScripts/master/discord-remove-gift-button/discord-remove-gift-button.js, timeout=15
+# 错误上报
+^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/track - reject
+# Sentry 错误追踪
+^https?:\/\/sentry\.io\/api - reject
+^https?:\/\/.*\.sentry\.io - reject
+# 指标上报
+^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/metrics - reject
 
 [MITM]
-hostname = %APPEND% discord.com, *.discord.com, discordapp.com, *.discordapp.com
+hostname = %APPEND% discord.com, *.discord.com, discordapp.com, *.discordapp.com, sentry.io, *.sentry.io

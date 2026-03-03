@@ -1,0 +1,32 @@
+#!name=Discord 抓包分析
+#!desc=抓取 Discord 关键 API 请求，用于分析礼物按钮控制逻辑
+#!author=wf
+#!category=Debug
+
+[General]
+force-http-engine-hosts = %APPEND% *.discord.com, *.discordapp.com
+
+[Script]
+# 抓取用户信息
+discord-capture-me = type=http-response, pattern=^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/users\/@me$, requires-body=1, max-size=524288, script-path=https://raw.githubusercontent.com/skernelx/SurgeScripts/master/discord-remove-gift-button/discord-capture.js, timeout=30
+
+# 抓取用户设置
+discord-capture-settings = type=http-response, pattern=^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/users\/@me\/settings, requires-body=1, max-size=524288, script-path=https://raw.githubusercontent.com/skernelx/SurgeScripts/master/discord-remove-gift-button/discord-capture.js, timeout=30
+
+# 抓取实验/功能开关
+discord-capture-experiments = type=http-response, pattern=^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/(experiments|auth\/sessions), requires-body=1, max-size=524288, script-path=https://raw.githubusercontent.com/skernelx/SurgeScripts/master/discord-remove-gift-button/discord-capture.js, timeout=30
+
+# 抓取 entitlements
+discord-capture-entitlements = type=http-response, pattern=^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/users\/@me\/entitlements, requires-body=1, max-size=524288, script-path=https://raw.githubusercontent.com/skernelx/SurgeScripts/master/discord-remove-gift-button/discord-capture.js, timeout=30
+
+# 抓取 billing/订阅
+discord-capture-billing = type=http-response, pattern=^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/users\/@me\/billing, requires-body=1, max-size=524288, script-path=https://raw.githubusercontent.com/skernelx/SurgeScripts/master/discord-remove-gift-button/discord-capture.js, timeout=30
+
+# 抓取 library/商店
+discord-capture-store = type=http-response, pattern=^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/(store|library|promotions|premium), requires-body=1, max-size=524288, script-path=https://raw.githubusercontent.com/skernelx/SurgeScripts/master/discord-remove-gift-button/discord-capture.js, timeout=30
+
+# 抓取所有 discord 请求的 URL（仅记录路径，不记录body）
+discord-capture-all = type=http-request, pattern=^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/, requires-body=0, script-path=https://raw.githubusercontent.com/skernelx/SurgeScripts/master/discord-remove-gift-button/discord-capture-url.js, timeout=10
+
+[MITM]
+hostname = %APPEND% discord.com, *.discord.com, discordapp.com, *.discordapp.com

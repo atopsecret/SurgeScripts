@@ -1,0 +1,200 @@
+# AI Services Domain Rules for Surge
+# Generated: 2026-01-27
+# Author: skernelx
+# Usage: RULE-SET,https://raw.githubusercontent.com/skernelx/SurgeScripts/main/AI.list,YourPolicyName
+
+# ============ OpenAI / ChatGPT ============
+DOMAIN-SUFFIX,openai.com
+DOMAIN-SUFFIX,chatgpt.com
+DOMAIN-SUFFIX,chat.com
+DOMAIN-SUFFIX,oaistatic.com
+DOMAIN-SUFFIX,oaiusercontent.com
+DOMAIN-SUFFIX,openaimerge.com
+DOMAIN-SUFFIX,openaiapi-site.azureedge.net
+DOMAIN-SUFFIX,sora.com
+
+# ============ Anthropic / Claude ============
+DOMAIN-SUFFIX,anthropic.com
+DOMAIN-SUFFIX,claude.ai
+
+# ============ Google AI / Gemini / DeepMind ============
+DOMAIN-SUFFIX,gemini.google.com
+DOMAIN-SUFFIX,bard.google.com
+DOMAIN-SUFFIX,ai.google.dev
+DOMAIN-SUFFIX,aistudio.google.com
+DOMAIN-SUFFIX,makersuite.google.com
+DOMAIN-SUFFIX,alkalimakersuite-pa.clients6.google.com
+DOMAIN-SUFFIX,generativelanguage.googleapis.com
+DOMAIN,notebooklm.google.com
+DOMAIN,notebooklm.google
+DOMAIN,ai.google
+DOMAIN,labs.google
+DOMAIN,deepmind.google
+DOMAIN,deepmind.com
+DOMAIN-SUFFIX,google.com
+DOMAIN-SUFFIX,googleapis.com
+DOMAIN-SUFFIX,gstatic.com
+DOMAIN-SUFFIX,googleusercontent.com
+DOMAIN-SUFFIX,ggpht.com
+DOMAIN-SUFFIX,google-analytics.com
+DOMAIN-KEYWORD,google
+
+# ============ Microsoft / Copilot / Azure OpenAI ============
+DOMAIN,copilot.microsoft.com
+DOMAIN,copilot.cloud.microsoft
+DOMAIN,copilot.github.com
+DOMAIN-SUFFIX,bing.com
+DOMAIN,sydney.bing.com
+DOMAIN-SUFFIX,bingapis.com
+DOMAIN-SUFFIX,microsoftcopilot.com
+
+# ============ Midjourney ============
+DOMAIN-SUFFIX,midjourney.com
+
+# ============ Stability AI / Stable Diffusion ============
+DOMAIN-SUFFIX,stability.ai
+DOMAIN-SUFFIX,stabilityai.com
+DOMAIN-SUFFIX,dreamstudio.ai
+
+# ============ Perplexity AI ============
+DOMAIN-SUFFIX,perplexity.ai
+
+# ============ Meta AI / LLaMA ============
+DOMAIN-SUFFIX,meta.ai
+DOMAIN,ai.meta.com
+DOMAIN,llama.meta.com
+
+# ============ xAI / Grok ============
+DOMAIN-SUFFIX,x.ai
+DOMAIN-SUFFIX,grok.com
+
+# ============ Mistral AI ============
+DOMAIN-SUFFIX,mistral.ai
+
+# ============ Cohere ============
+DOMAIN-SUFFIX,cohere.ai
+DOMAIN-SUFFIX,cohere.com
+
+# ============ Hugging Face ============
+DOMAIN-SUFFIX,huggingface.co
+DOMAIN-SUFFIX,hf.co
+
+# ============ Replicate ============
+DOMAIN-SUFFIX,replicate.com
+
+# ============ Runway ============
+DOMAIN-SUFFIX,runwayml.com
+
+# ============ Pika Labs ============
+DOMAIN-SUFFIX,pika.art
+
+# ============ ElevenLabs (Voice AI) ============
+DOMAIN-SUFFIX,elevenlabs.io
+
+# ============ Suno (Music AI) ============
+DOMAIN-SUFFIX,suno.ai
+DOMAIN-SUFFIX,suno.com
+
+# ============ Character AI ============
+DOMAIN-SUFFIX,character.ai
+
+# ============ Inflection AI / Pi ============
+DOMAIN-SUFFIX,inflection.ai
+DOMAIN-SUFFIX,pi.ai
+
+# ============ Together AI ============
+DOMAIN-SUFFIX,together.ai
+DOMAIN-SUFFIX,together.xyz
+
+# ============ Groq ============
+DOMAIN-SUFFIX,groq.com
+
+# ============ Jasper AI ============
+DOMAIN-SUFFIX,jasper.ai
+
+# ============ Copy.ai ============
+DOMAIN-SUFFIX,copy.ai
+
+# ============ Cursor AI ============
+DOMAIN-SUFFIX,cursor.com
+DOMAIN-SUFFIX,cursor.sh
+
+# ============ GitHub Copilot ============
+DOMAIN-SUFFIX,githubcopilot.com
+
+# ============ Vercel AI ============
+DOMAIN-SUFFIX,v0.dev
+
+# ============ Notion AI ============
+DOMAIN-SUFFIX,notion.so
+DOMAIN-SUFFIX,notion.site
+
+# ============ Writesonic ============
+DOMAIN-SUFFIX,writesonic.com
+
+# ============ Descript ============
+DOMAIN-SUFFIX,descript.com
+
+# ============ Synthesia ============
+DOMAIN-SUFFIX,synthesia.io
+
+# ============ D-ID ============
+DOMAIN-SUFFIX,d-id.com
+
+# ============ Leonardo AI ============
+DOMAIN-SUFFIX,leonardo.ai
+
+# ============ Ideogram ============
+DOMAIN-SUFFIX,ideogram.ai
+
+# ============ Krea AI ============
+DOMAIN-SUFFIX,krea.ai
+
+# ============ Civitai ============
+DOMAIN-SUFFIX,civitai.com
+
+# ============ NVIDIA AI ============
+DOMAIN-SUFFIX,nvidia.com
+
+# ============ AWS Bedrock / Amazon AI ============
+DOMAIN-SUFFIX,bedrock.aws
+
+# ============ Other AI Tools ============
+DOMAIN-SUFFIX,openrouter.ai
+DOMAIN-SUFFIX,poe.com
+DOMAIN-SUFFIX,you.com
+DOMAIN-SUFFIX,phind.com
+DOMAIN-SUFFIX,forefront.ai
+DOMAIN-SUFFIX,chatbot.com
+DOMAIN-SUFFIX,otter.ai
+DOMAIN-SUFFIX,fireflies.ai
+DOMAIN-SUFFIX,assemblyai.com
+DOMAIN-SUFFIX,deepl.com
+DOMAIN-SUFFIX,wordtune.com
+DOMAIN-SUFFIX,grammarly.com
+DOMAIN-SUFFIX,quillbot.com
+DOMAIN-SUFFIX,tome.app
+DOMAIN-SUFFIX,gamma.app
+DOMAIN-SUFFIX,beautiful.ai
+DOMAIN-SUFFIX,canva.com
+DOMAIN-SUFFIX,remove.bg
+DOMAIN-SUFFIX,photoroom.com
+DOMAIN-SUFFIX,clipdrop.co
+DOMAIN-SUFFIX,luma.ai
+DOMAIN-SUFFIX,heygen.com
+DOMAIN-SUFFIX,invideo.io
+
+# ============ AI Research / Papers ============
+DOMAIN-SUFFIX,arxiv.org
+DOMAIN-SUFFIX,paperswithcode.com
+DOMAIN-SUFFIX,semanticscholar.org
+
+# ============ Third-party Dependencies ============
+DOMAIN-SUFFIX,intercom.io
+DOMAIN-SUFFIX,intercomcdn.com
+DOMAIN-SUFFIX,statsig.com
+DOMAIN-SUFFIX,statsigapi.net
+DOMAIN-SUFFIX,featuregates.org
+DOMAIN-SUFFIX,featureassets.org
+DOMAIN-SUFFIX,sentry.io
+DOMAIN-SUFFIX,browser-intake-datadoghq.com

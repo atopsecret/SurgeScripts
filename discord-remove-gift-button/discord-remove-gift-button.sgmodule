@@ -1,0 +1,37 @@
+#!name=Discord 移除礼物按钮
+#!desc=移除 Discord 聊天输入框旁边的 Gift/Nitro 推广按钮
+#!author=wf
+#!homepage=https://github.com/skernelx/SurgeScripts
+#!category=Utilities
+#!icon=https://cdn.discordapp.com/embed/avatars/0.png
+
+[General]
+force-http-engine-hosts = %APPEND% *.discord.com, *.discordapp.com
+
+[Rule]
+# 屏蔽 Discord 商店/礼物相关请求
+URL-REGEX,^https?:\/\/discord\.com\/api\/v\d+\/users\/@me\/entitlements\/gifts,REJECT
+URL-REGEX,^https?:\/\/discord\.com\/api\/v\d+\/store\/published-listings\/skus,REJECT
+URL-REGEX,^https?:\/\/discord\.com\/api\/v\d+\/users\/@me\/billing\/user-trial-offer,REJECT
+URL-REGEX,^https?:\/\/discord\.com\/api\/v\d+\/users\/@me\/promotions,REJECT
+URL-REGEX,^https?:\/\/discordapp\.com\/api\/v\d+\/users\/@me\/entitlements\/gifts,REJECT
+URL-REGEX,^https?:\/\/discordapp\.com\/api\/v\d+\/store\/published-listings\/skus,REJECT
+
+[URL Rewrite]
+# 重写礼物/商店相关 API 请求为拒绝
+^https?:\/\/discord\.com\/api\/v\d+\/users\/@me\/entitlements\/gift-codes - reject
+^https?:\/\/discord\.com\/api\/v\d+\/store\/published-listings\/skus - reject
+^https?:\/\/discord\.com\/api\/v\d+\/users\/@me\/billing\/user-trial-offer - reject
+^https?:\/\/discordapp\.com\/api\/v\d+\/users\/@me\/entitlements\/gift-codes - reject
+
+[Map Local]
+# 将 Nitro 推广相关 API 返回空数据
+^https?:\/\/discord\.com\/api\/v\d+\/users\/@me\/billing\/subscriptions$ data-type=text data="{}" status-code=200
+^https?:\/\/discordapp\.com\/api\/v\d+\/users\/@me\/billing\/subscriptions$ data-type=text data="{}" status-code=200
+
+[Script]
+# 修改用户设置响应，隐藏礼物按钮
+discord-settings = type=http-response, pattern=^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/users\/@me$, requires-body=1, max-size=262144, script-path=https://raw.githubusercontent.com/skernelx/SurgeScripts/master/discord-remove-gift-button/discord-remove-gift-button.js, timeout=15
+
+[MITM]
+hostname = %APPEND% discord.com, *.discord.com, discordapp.com, *.discordapp.com

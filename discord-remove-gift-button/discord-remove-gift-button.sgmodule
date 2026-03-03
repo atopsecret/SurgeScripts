@@ -8,30 +8,36 @@
 [General]
 force-http-engine-hosts = %APPEND% *.discord.com, *.discordapp.com
 
-[Rule]
-# 屏蔽 Discord 商店/礼物相关请求
-URL-REGEX,^https?:\/\/discord\.com\/api\/v\d+\/users\/@me\/entitlements\/gifts,REJECT
-URL-REGEX,^https?:\/\/discord\.com\/api\/v\d+\/store\/published-listings\/skus,REJECT
-URL-REGEX,^https?:\/\/discord\.com\/api\/v\d+\/users\/@me\/billing\/user-trial-offer,REJECT
-URL-REGEX,^https?:\/\/discord\.com\/api\/v\d+\/users\/@me\/promotions,REJECT
-URL-REGEX,^https?:\/\/discordapp\.com\/api\/v\d+\/users\/@me\/entitlements\/gifts,REJECT
-URL-REGEX,^https?:\/\/discordapp\.com\/api\/v\d+\/store\/published-listings\/skus,REJECT
+[Map Local]
+# 收藏品/商城营销 → 返回空对象
+^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/users\/@me\/collectibles-marketing data-type=text data="{}" status-code=200
+
+# 推广活动 → 返回空数组
+^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/promotions data-type=text data="[]" status-code=200
+
+# 任务/活动 → 返回空数组
+^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/quests\/@me data-type=text data="[]" status-code=200
+^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/quests\/decision data-type=text data="{}" status-code=200
+
+# 付费推广 → 返回404（与原始行为一致）
+^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/users\/@me\/billing\/user-offer data-type=text data="{\"message\":\"404: Not Found\",\"code\":0}" status-code=404
+
+# 订阅信息 → 返回空
+^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/users\/@me\/billing\/subscriptions$ data-type=text data="[]" status-code=200
+
+# 礼物/entitlements → 返回空
+^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/users\/@me\/entitlements data-type=text data="[]" status-code=200
+
+# 商店列表 → 返回空
+^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/store\/published-listings\/skus data-type=text data="[]" status-code=200
 
 [URL Rewrite]
-# 重写礼物/商店相关 API 请求为拒绝
-^https?:\/\/discord\.com\/api\/v\d+\/users\/@me\/entitlements\/gift-codes - reject
-^https?:\/\/discord\.com\/api\/v\d+\/store\/published-listings\/skus - reject
-^https?:\/\/discord\.com\/api\/v\d+\/users\/@me\/billing\/user-trial-offer - reject
-^https?:\/\/discordapp\.com\/api\/v\d+\/users\/@me\/entitlements\/gift-codes - reject
-
-[Map Local]
-# 将 Nitro 推广相关 API 返回空数据
-^https?:\/\/discord\.com\/api\/v\d+\/users\/@me\/billing\/subscriptions$ data-type=text data="{}" status-code=200
-^https?:\/\/discordapp\.com\/api\/v\d+\/users\/@me\/billing\/subscriptions$ data-type=text data="{}" status-code=200
+# 屏蔽数据追踪
+^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/science - reject
 
 [Script]
-# 修改用户设置响应，隐藏礼物按钮
-discord-settings = type=http-response, pattern=^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/users\/@me$, requires-body=1, max-size=262144, script-path=https://raw.githubusercontent.com/skernelx/SurgeScripts/master/discord-remove-gift-button/discord-remove-gift-button.js, timeout=15
+# 修改 /users/@me 响应：伪装为 Nitro 用户 + 注入功能标记
+discord-user = type=http-response, pattern=^https?:\/\/(discord|discordapp)\.com\/api\/v\d+\/users\/@me$, requires-body=1, max-size=262144, script-path=https://raw.githubusercontent.com/skernelx/SurgeScripts/master/discord-remove-gift-button/discord-remove-gift-button.js, timeout=15
 
 [MITM]
 hostname = %APPEND% discord.com, *.discord.com, discordapp.com, *.discordapp.com

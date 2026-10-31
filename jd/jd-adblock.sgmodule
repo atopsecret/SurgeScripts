@@ -1,5 +1,5 @@
 #!name=京东去广告
-#!desc=京东 App 全量去广告：开屏（含缓存回闪根除）/首屏浮层/购物车推荐/物流页 banner/极速版广告位/ADX 竞价，另关闭 socket 监控与 httpdns；页面停留弹窗与二楼推荐楼层拦截（2026-11-01 抓包实证补充）。重构自 Thelongdarkorg/loon-plugins（2026-09-19 版），Loon 原生改写全部翻译为自托管脚本与 Surge 等价语法。
+#!desc=京东 App 全量去广告：开屏（含缓存回闪根除）/首屏浮层/购物车推荐/物流页 banner/极速版广告位/ADX 竞价，另关闭 socket 监控与 httpdns；页面停留弹窗与二楼推荐楼层拦截 + 底部短视频组件包阻断（2026-11-01 抓包实证补充）。重构自 Thelongdarkorg/loon-plugins（2026-09-19 版），Loon 原生改写全部翻译为自托管脚本与 Surge 等价语法。
 #!author=skernelx · FFDNS
 #!homepage=https://github.com/skernelx/SurgeScripts
 #!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Advertising.png
@@ -26,6 +26,12 @@
 [Rule]
 # 京东诊断域名（32 位十六进制子域），直接拒绝
 URL-REGEX,^http:\/\/\w{32}\.jddebug\.com\/diagnose\?,REJECT
+
+# 京东底部短视频：动态下载的小程序组件包（.xji，抓包实证：
+# short_video-1.136.0.xji 主包 1.2MB + 弹幕/短剧/反馈组件包，
+# 视频流走 vod.300hu.com）。拦组件包下载 = 短视频功能整体失效。
+# 只拦 mpaas2-public 路径下的短视频包，不碰整个 apk.360buyimg.com（其他功能共用）
+URL-REGEX,^https?:\/\/apk\.360buyimg\.com\/mpaas2-public\/[^/]*\/(short_video|XJI-short-video),REJECT
 
 [Script]
 # 六接口合一：start / welcomeHome / deliverLayer / basicConfig / cart / lite_advertising

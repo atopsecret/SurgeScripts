@@ -1,5 +1,5 @@
 #!name=拼多多去广告
-#!desc=开屏广告 + 底栏多多视频 + 首页横幅/搜索热词 + 个人中心精简 + 会场入口/直播浮层 + 订单页推广 + 聊天页推荐 + 19 个推荐接口 + 埋点域名。融合 Thelongdarkorg（开屏/素材/QUIC）与 Loon Hub RuCu6 系（tab 过滤/页面精简）两源，Loon 原生改写翻译为自托管脚本。
+#!desc=开屏广告 + 底栏多多视频 + 首页横幅/搜索热词 + 个人中心精简 + 会场入口/直播浮层 + 订单页推广 + 聊天页推荐 + 19 个推荐接口 + 埋点域名 + 多多视频素材直连拦截。融合 Thelongdarkorg（开屏/素材/QUIC）与 Loon Hub RuCu6 系（tab 过滤/页面精简）两源，Loon 原生改写翻译为自托管脚本。
 #!author=skernelx · FFDNS · RuCu6 · ZenmoFeiShi
 #!homepage=https://github.com/skernelx/SurgeScripts
 #!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Advertising.png
@@ -27,6 +27,11 @@ AND,((URL-REGEX,"^http:\/\/((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]
 AND,((URL-REGEX,"^http:\/\/\[[0-9a-fA-F:]+\]\/d(\d)?\?"),(USER-AGENT,"*com.xunmeng.pinduoduo*")),REJECT
 # 开屏接口 QUIC 阻断（配套 MITM：只解 TCP，拦 QUIC 逼回 TCP 路径）
 AND,((DOMAIN,api.pinduoduo.com),(PROTOCOL,QUIC)),REJECT
+
+# 多多视频/直播推广素材直连（promotion / promo 路径，抓包实证为视频卡片封面与切片）
+# 不拦整个 pddpic（评价图片同域），只拦明确的多多视频推广路径
+DOMAIN,promotion-2.pddpic.com,REJECT
+DOMAIN,video-snapshot01.pddpic.com,REJECT
 
 # 埋点 / 上报域名（纯遥测，REJECT 安全）
 DOMAIN,titan.pinduoduo.com,REJECT

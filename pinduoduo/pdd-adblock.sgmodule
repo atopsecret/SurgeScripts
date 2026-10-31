@@ -1,0 +1,39 @@
+#!name=拼多多去广告
+#!desc=过滤拼多多开屏广告：cappuccino/splash 接口返回空体 200（App 直接跳过开屏）+ IP 直连素材拦截（限拼多多 UA）+ 开屏接口 QUIC 阻断。纯本地规则零脚本。重构自 Thelongdarkorg/loon-plugins（2026-10-07 更新版）。
+#!author=skernelx · FFDNS
+#!homepage=https://github.com/skernelx/SurgeScripts
+#!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Advertising.png
+#!category=去广告
+#!tag=去广告,拼多多,pdd
+#!openUrl=https://apps.apple.com/cn/app/id1044283059
+# ------------------------------------------------------------
+# 规则来源：Thelongdarkorg/loon-plugins pinduoduo_splash_ad_block.plugin
+# （Loon 格式，本模块为 Surge 语法适配版）
+#   https://github.com/Thelongdarkorg/loon-plugins
+#
+# 原理：
+#   1. 开屏广告接口 api/cappuccino/splash 返回空体 200 —— App 认为无开屏，
+#      跳过广告直接进主界面
+#   2. 开屏素材走「裸 IP + /d 路径」直连下发，用 URL-REGEX + 拼多多 UA
+#      双条件拦截（UA 限定避免误伤其他 App 的同形请求）
+#   3. QUIC 阻断：该域已开 MITM（MITM 只解 TCP），拦掉 QUIC 逼流量走
+#      TCP 路径，保证改写生效
+#
+# ⚠️ 只处理开屏。拼多多 App 内的运营弹窗/红包雨属于运营内容非广告 SDK，
+#    拦它们容易误伤签到/领券功能，刻意不碰。
+# ------------------------------------------------------------
+
+[Rule]
+# 开屏素材直连下发（IPv4 裸 IP + /d 路径，限拼多多 UA）
+AND,((URL-REGEX,"^http:\/\/((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\/d(\d)?"),(USER-AGENT,"*com.xunmeng.pinduoduo*")),REJECT
+# 开屏素材直连下发（IPv6 裸 IP + /d 路径，限拼多多 UA）
+AND,((URL-REGEX,"^http:\/\/\[[0-9a-fA-F:]+\]\/d(\d)?\?"),(USER-AGENT,"*com.xunmeng.pinduoduo*")),REJECT
+# 开屏接口 QUIC 阻断（配套 MITM：只解 TCP，拦 QUIC 逼回 TCP 路径）
+AND,((DOMAIN,api.pinduoduo.com),(PROTOCOL,QUIC)),REJECT
+
+[Map Local]
+# 开屏广告接口：空体 200，App 跳过开屏
+^https?:\/\/api\.(pinduoduo|yangkeduo)\.com\/api\/cappuccino\/splash data-type=text data="" status-code=200
+
+[MITM]
+hostname = %APPEND% api.pinduoduo.com, api.yangkeduo.com

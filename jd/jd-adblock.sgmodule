@@ -1,0 +1,60 @@
+#!name=京东去广告
+#!desc=京东 App 全量去广告：开屏（含缓存回闪根除）/首屏浮层/购物车推荐/物流页 banner/极速版广告位/ADX 竞价，另关闭 socket 监控与 httpdns。重构自 Thelongdarkorg/loon-plugins（2026-09-19 版），Loon 原生改写全部翻译为自托管脚本与 Surge 等价语法。
+#!author=skernelx · FFDNS
+#!homepage=https://github.com/skernelx/SurgeScripts
+#!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Advertising.png
+#!category=去广告
+#!tag=去广告,京东,jd
+#!openUrl=https://apps.apple.com/cn/app/id413245046
+# ------------------------------------------------------------
+# 规则来源：Thelongdarkorg/loon-plugins jd_splash_ad_block.plugin
+#   https://github.com/Thelongdarkorg/loon-plugins
+# Loon → Surge 转换说明：
+#   - response-body-json-jq / json-replace / json-del / replace-regex
+#     → 自托管脚本 jd-ad-block.js（六接口合一分发）
+#   - reject-dict（返回 {}）→ Map Local data="{}"
+#   - reject-200（空体 200）→ Map Local data="" status-code=200
+#
+# 关键工程决策（沿用原仓库的 A/B 实证结论）：
+#   1. start 接口不清整个响应、只剥开屏字段 —— App 收到 {} 会判异常
+#      并回退展示本地缓存开屏（表现为隔几天偶发闪一次），
+#      拔掉 JSON 里的开屏配置才是根除法
+#   2. 开屏大图只拦 s1125x2436_jfs 精确尺寸 —— 360buyimg 是京东全站
+#      图片 CDN，通配 jfs 会把商品图一并打死（首页大面积空白）
+# ------------------------------------------------------------
+
+[Rule]
+# 京东诊断域名（32 位十六进制子域），直接拒绝
+URL-REGEX,^http:\/\/\w{32}\.jddebug\.com\/diagnose\?,REJECT
+
+[Script]
+# 六接口合一：start / welcomeHome / deliverLayer / basicConfig / cart / lite_advertising
+京东去广告 = type=http-response,pattern=^https?:\/\/api\.m\.jd\.com\/client\.action\?functionId=(start|welcomeHome|deliverLayer|basicConfig|cart|lite_advertising)(&|$),requires-body=1,max-size=131072,script-update-interval=86400,script-path=https://raw.githubusercontent.com/skernelx/SurgeScripts/master/jd/jd-ad-block.js,timeout=30
+
+[URL Rewrite]
+# 京东广告交换平台（ADX）实时竞价：直接拒绝
+^https?:\/\/(bdsp-x|dsp-x)\.jd\.com\/adx\/ - reject
+# 首页小组件广告：直接拒绝
+^https?:\/\/api\.m\.jd\.com\/client\.action\?functionId=getWidgetV1052 - reject
+
+[Map Local]
+# 物料广告接口（开屏/信息流物料下发）→ 空 JSON
+^https?:\/\/api\.m\.jd\.com\/client\.action\?functionId=queryMaterialAdverts data-type=text data="{}" status-code=200 header="Content-Type:application/json"
+# 开屏大图（仅精确到开屏专用尺寸 s1125x2436_jfs，严禁通配 jfs——会打死商品图）→ 空体 200
+^https?:\/\/m\.360buyimg\.com\/mobilecms\/s1125x2436_jfs data-type=text data="" status-code=200
+# 登录页推广位 → 空 JSON
+^https?:\/\/api\.m\.jd\.com\/\?loginType=11 data-type=text data="{}" status-code=200 header="Content-Type:application/json"
+# 推荐/推广接口批 → 空 JSON
+^https?:\/\/api\.m\.jd\.com\/client\.action\?functionId=(cartCouponRecommendGoods|intelligentRecommendSku|obtainGrowingInfo|recommendShop|searchBoxWord|stationPullService|uniformRecommend) data-type=text data="{}" status-code=200 header="Content-Type:application/json"
+
+[MITM]
+hostname = %APPEND% api.m.jd.com, m.360buyimg.com
+
+# ────────────────────────────────────────────────────────────
+# 备注：
+# 1. 360buyimg 只 MITM m.360buyimg.com 单主机（原仓库实证：
+#    整域解密无必要，且京东 App 正常使用不受影响）
+# 2. 比价用户注意：start 接口规则可能使「比价」失效，
+#    不需要可删除 [Script] 中的 start（原仓库同样警示）
+# 3. 搜索、下单、物流查询等核心接口不在拦截列表
+# ────────────────────────────────────────────────────────────

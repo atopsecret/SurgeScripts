@@ -1,13 +1,43 @@
-#!name=红果短剧去广告
-#!desc=拦截红果短剧/番茄系插播广告视频源与穿山甲广告请求（75 条精确域名），正片播放不受影响。附带拦截番茄埋点、友盟统计等追踪域名。
-#!author=skernelx
+#!name=红果短剧去广告 · 融合版
+#!desc=HongGuo Lite 与 home-dns-adblock 融合：穿山甲 SDK + 插播广告视频 CDN（qznovelvod）+ 埋点上报，共 80 条规则。默认配置即可用，无需额外处理证书。
+#!author=skernelx · Minis · abclq
 #!homepage=https://github.com/skernelx/SurgeScripts
 #!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Advertising.png
 #!category=去广告
+#!tag=去广告,红果短剧,短剧
+#!openUrl=https://apps.apple.com/cn/app/id6451407032
+# ------------------------------------------------------------
+# 融合来源（均为 MIT 协议）：
+#   1. k6nfmm7dbr-commits/hongguo-lite（Minis）
+#      - DOMAIN-KEYWORD,pangolin 覆盖整个穿山甲家族
+#      - Map Local 广告接口返回空 JSON（SDK 不会当成网络错误重试）
+#   2. abclq/home-dns-adblock
+#      - *-reading-ad.qznovelvod.com 插播广告视频源（正片 -reading-video 不受影响）
+#      - 75 条精确域名（含 fqnovel 埋点的正确子域写法）
+#
+# 相对 hongguo-lite-plus 的三处修正：
+#   1. DOMAIN-REGEX,^ads[0-9]+-normal... 在 Surge iOS 5.23 报"无效配置"
+#      被整体忽略 —— 改为 6 条显式 DOMAIN-SUFFIX；
+#   2. lite 的 DOMAIN-KEYWORD,applog.fqnovel.com / -misc.fqnovel.com
+#      匹配不到 log3-applog-lf.fqnovel.com 这类横杠拼接子域，
+#      已用显式子域条目补齐；
+#   3. *.snssdk.com 的 MITM 已默认移除（见文末注释）。
+#
+# ⚠️ 红果是「免费看剧 + 广告」模式：金币 / 看广告解锁类入口
+#    可能行为异常，属预期；介意可注释掉对应分组。
+# ------------------------------------------------------------
 
 [Rule]
-# ===== 红果/番茄 插播广告视频 CDN =====
-# 广告专用子域名，正片域名 *-reading-video.qznovelvod.com 不在此列，播放不受影响
+
+# ── 穿山甲 / Pangle 广告 SDK ──
+# 一条关键词覆盖 pangolin-sdk-toutiao{,-b,1}.com 及其 api-access.* / log-api.* 子域
+DOMAIN-KEYWORD,pangolin,REJECT
+DOMAIN-SUFFIX,pangle.io,REJECT
+DOMAIN-SUFFIX,pglstatp-toutiao.com,REJECT
+DOMAIN-SUFFIX,pglstatp-toutiao-b.com,REJECT
+
+# ── 插播广告视频 CDN（番茄/红果共用）──
+# 广告专用子域；正片走 *-reading-video.qznovelvod.com，不在列，播放不受影响
 DOMAIN-SUFFIX,v5-reading-ad.qznovelvod.com,REJECT
 DOMAIN-SUFFIX,v6-reading-ad.qznovelvod.com,REJECT
 DOMAIN-SUFFIX,v9-reading-ad.qznovelvod.com,REJECT
@@ -18,24 +48,27 @@ DOMAIN-SUFFIX,v96-reading-ad.qznovelvod.com,REJECT
 DOMAIN-SUFFIX,v5-bd-daily-reading-ad.qznovelvod.com,REJECT
 DOMAIN-SUFFIX,v5-se-sjy-daily-reading-ad.qznovelvod.com,REJECT
 
-# ===== 穿山甲广告 SDK =====
-DOMAIN-SUFFIX,pangle.io,REJECT
-DOMAIN-SUFFIX,pangolin-sdk-toutiao.com,REJECT
-DOMAIN-SUFFIX,api-access.pangolin-sdk-toutiao.com,REJECT
-DOMAIN-SUFFIX,api-access.pangolin-sdk-toutiao1.com,REJECT
-DOMAIN-SUFFIX,log-api.pangolin-sdk-toutiao.com,REJECT
-DOMAIN-SUFFIX,pglstatp-toutiao.com,REJECT
+# ── 广告素材签名 / 跳转 ──
+DOMAIN-KEYWORD,-ad-sign.byteimg.com,REJECT
+DOMAIN,zlink.ugsdk.cn,REJECT
+DOMAIN-SUFFIX,praisewindow.ugsdk.cn,REJECT
 
-# ===== 字节广告分发 / 图床 =====
+# ── 字节广告 API 子域 ──
+# 替代 hongguo-lite 的 DOMAIN-REGEX（Surge iOS 5.23 不支持，整行被忽略）
 DOMAIN-SUFFIX,ads3-normal-hl.zijieapi.com,REJECT
 DOMAIN-SUFFIX,ads3-normal-lf.zijieapi.com,REJECT
 DOMAIN-SUFFIX,ads3-normal-lq.zijieapi.com,REJECT
 DOMAIN-SUFFIX,ads5-normal-hl.zijieapi.com,REJECT
 DOMAIN-SUFFIX,ads5-normal-lf.zijieapi.com,REJECT
 DOMAIN-SUFFIX,ads5-normal-lq.zijieapi.com,REJECT
-DOMAIN-SUFFIX,p3-ad-sign.byteimg.com,REJECT
-DOMAIN-SUFFIX,p6-ad-sign.byteimg.com,REJECT
-DOMAIN-SUFFIX,p9-ad-sign.byteimg.com,REJECT
+
+# ── 红果自有埋点 / 上报 ──
+DOMAIN,mon.toutiaocloud.net,REJECT
+DOMAIN,mon.toutiaocloud.com,REJECT
+DOMAIN,i.snssdk.com,REJECT
+DOMAIN,i-lq.snssdk.com,REJECT
+DOMAIN,is.snssdk.com,REJECT
+DOMAIN,is-lq.snssdk.com,REJECT
 DOMAIN-SUFFIX,ad.toutiao.com,REJECT
 DOMAIN-SUFFIX,activity-ag.awemeughun.com,REJECT
 DOMAIN-SUFFIX,l2-toutiao-quic-ipv6-ml.gslb.ksyuncdn.com,REJECT
@@ -43,7 +76,11 @@ DOMAIN-SUFFIX,sf3-ttcdn-tos.pstatp.com,REJECT
 DOMAIN-SUFFIX,webcast5-open-hl.douyin.com,REJECT
 DOMAIN-SUFFIX,webcast5-open-hl.douyin.com.c.dsa.cdnbuild.net,REJECT
 
-# ===== 番茄小说日志埋点 =====
+# ── 番茄系埋点（fqnovel）──
+# 两条 KEYWORD 匹配无区域后缀变体（如 mon5-misc.fqnovel.com）；
+# 带后缀的实际子域由下方显式条目覆盖（KEYWORD 匹配不到横杠拼接形式）
+DOMAIN-KEYWORD,applog.fqnovel.com,REJECT
+DOMAIN-KEYWORD,-misc.fqnovel.com,REJECT
 DOMAIN-SUFFIX,log3-applog-lf.fqnovel.com,REJECT
 DOMAIN-SUFFIX,log5-applog-hl.fqnovel.com,REJECT
 DOMAIN-SUFFIX,log5-applog-lf.fqnovel.com,REJECT
@@ -55,7 +92,7 @@ DOMAIN-SUFFIX,mon3-misc-lf.fqnovel.com,REJECT
 DOMAIN-SUFFIX,mon11-misc-hl.fqnovel.com,REJECT
 DOMAIN-SUFFIX,mon11-misc-lf.fqnovel.com,REJECT
 
-# ===== 小游戏推广（番茄/红果信息流） =====
+# ── 小游戏推广（信息流）──
 DOMAIN-SUFFIX,minigame3-normal-hl.zijieapi.com,REJECT
 DOMAIN-SUFFIX,minigame3-normal-lf.zijieapi.com,REJECT
 DOMAIN-SUFFIX,minigame3-normal-lq.zijieapi.com,REJECT
@@ -67,13 +104,13 @@ DOMAIN-SUFFIX,tnc0-alisc1.zijieapi.com,REJECT
 DOMAIN-SUFFIX,tnc3-aliec2.zijieapi.com,REJECT
 DOMAIN-SUFFIX,tnc3-alisc1.zijieapi.com,REJECT
 
-# ===== 友盟统计 =====
+# ── 友盟统计 ──
 DOMAIN-SUFFIX,cnlogs.umeng.com,REJECT
 DOMAIN-SUFFIX,errnewlog.umeng.com,REJECT
 DOMAIN-SUFFIX,ossnt-errlog.umeng.com,REJECT
 DOMAIN-SUFFIX,ulogs.umeng.com,REJECT
 
-# ===== 其他 App 埋点与追踪 =====
+# ── 其他 App 埋点（home-dns-adblock 附带，顺带拦截）──
 DOMAIN-SUFFIX,apm-native.xiaohongshu.com,REJECT
 DOMAIN-SUFFIX,lng.xiaohongshu.com,REJECT
 DOMAIN-SUFFIX,spider-tracker.xiaohongshu.com,REJECT
@@ -85,19 +122,42 @@ DOMAIN-SUFFIX,tracker.xiaomixiaoai.com,REJECT
 DOMAIN-SUFFIX,msync-im1-vip6-std.easemob.com,REJECT
 DOMAIN-SUFFIX,dig.bdurl.net,REJECT
 
-# ===== 广告专用野域名 =====
+# ── 广告专用野域名 ──
 DOMAIN-SUFFIX,comfylink.com,REJECT
 DOMAIN-SUFFIX,jomoxc.com,REJECT
 DOMAIN-SUFFIX,ndcpp.com,REJECT
-DOMAIN-SUFFIX,praisewindow.ugsdk.cn,REJECT
 DOMAIN-SUFFIX,qrstuvwxyzab.com,REJECT
 DOMAIN-SUFFIX,wmzfylgdsz.com,REJECT
 DOMAIN-SUFFIX,wuchuyun.com,REJECT
 DOMAIN-SUFFIX,xinqiucc.com,REJECT
 DOMAIN-SUFFIX,ydycdn.com,REJECT
 
-# ===== 防 DoH 绕过 =====
-# 部分广告 SDK 内置 DoH 自解析，绕开 DNS 拦截。
-# 注意：若日后主配置启用 doh-server（阿里/腾讯），先删掉这两条再测试。
+# ── 防 DoH 绕过 ──
+# 广告 SDK 内置 DoH 自解析绕开 DNS 层拦截。
+# ⚠️ 若日后主配置启用 doh-server（阿里/腾讯），先删掉这两条。
 DOMAIN-SUFFIX,dns.alidns.com,REJECT
 DOMAIN-SUFFIX,doh.pub,REJECT
+
+
+# ── 广告请求接口 → 空 JSON（需 MITM，见下）──
+# 返回 {} 而不是直接 reject：reject 断开连接，SDK 会当成网络错误重试，
+# 反而多出请求。给合法空响应最干净。仅 MITM 穿山甲域，低风险。
+[Map Local]
+^https://[^/]*pangolin-sdk-toutiao[^/]*/api/ad/union/sdk/ data-type=text data="{}" status-code=200 header="Content-Type:application/json"
+
+[MITM]
+hostname = %APPEND% *.pangolin-sdk-toutiao.com, *.pangolin-sdk-toutiao-b.com, *.pangolin-sdk-toutiao1.com
+
+# ────────────────────────────────────────────────────────────
+# 可选：拦截红果自有 API 下发的广告（*.snssdk.com/api/ad/）
+# 默认关闭。原因：*.snssdk.com 是字节主 API 域，且包含视频 CDN
+# （video-edge-all.snssdk.com 等）。实测 MITM 该域时字节 App 不认
+# Surge 的 CA 证书，单日产生 2700+ 次 TLS 握手失败（本机 Surge 日志
+# 实证），视频加载受拖累。域名层的穿山甲 + qznovelvod 拦截已覆盖
+# 绝大多数广告，默认不开利大于弊。执意要开：取消下两行注释。
+#
+# [Map Local]
+# ^https://[^/]*\.snssdk\.com/api/ad/ data-type=text data="{}" status-code=200 header="Content-Type:application/json"
+# [MITM]
+# hostname = %APPEND% *.snssdk.com
+# ────────────────────────────────────────────────────────────

@@ -1,276 +1,144 @@
 /*
- * 闲鱼APP去广告脚本 for Surge
- * 
- * 功能特性:
- * - 🚫 屏蔽开屏广告
- * - 🚫 屏蔽首页悬浮球广告
- * - 🚫 屏蔽首页Tab广告追踪
- * - 🚫 屏蔽信息流广告
- * - 📊 统计屏蔽数量
- * 
- * 基于抓包分析的接口:
- * - mtop.taobao.idlecommerce.splash.async.ads (开屏广告)
- * - mtop.idle.idleadv.app.launch.report (广告上报)
- * - mtop.idle.idleadv.scene.restore (广告场景恢复)
- * - mtop.taobao.idle.user.strategy.list (悬浮球/弹窗策略)
- * - mtop.taobao.idlehome.home.circle.list (首页Tab广告追踪)
- * 
- * 作者: Kiro Assistant
- * 版本: v1.0.0
- * 更新时间: 2026-01-06
+ * 闲鱼APP去广告脚本 v2.0 for Surge
+ *
+ * v2.0 更新（2026-11-01）：
+ * - 开屏广告处理改为结构自适配：不再只认 data.data.adMap，递归清除响应中
+ *   所有已知开屏广告容器（adMap / ads / splashAds / advertising / item 列表），
+ *   兼容闲鱼重装后新版开屏接口的响应结构变化
+ * - 新增 mtop.idle.idleadv.* 通用兜底：上报/场景恢复/曝光类接口直接返回
+ *   「无广告」成功响应，URL 模式由脚本内部 includes 匹配，新端点免改模块
+ * - 移除每次拦截都弹通知的骚扰行为（改为静默，统计数据保留）
+ * - 修复：$response.body 为空时不再抛错；handleLaunchReport 等伪造响应
+ *   统一走 $done({body}) 返回
+ *
+ * 处理的接口（URL 关键词匹配）：
+ * - mtop.taobao.idlecommerce.splash.async.ads   开屏广告（主接口）
+ * - mtop.idle.idleadv.app.launch.report         广告上报
+ * - mtop.idle.idleadv.scene.restore             广告场景恢复
+ * - mtop.taobao.idle.user.strategy.list         悬浮球/弹窗策略
+ * - mtop.taobao.idlehome.home.circle.list       首页Tab广告追踪
+ *
+ * 作者: Kiro Assistant / skernelx 维护
  */
 
-// ==================== 配置区域 ====================
 const CONFIG = {
     scriptName: "闲鱼去广告",
-    version: "1.0.0",
-    
-    // 统计key
+    version: "2.0.0",
     statsKey: "xianyu_ad_block_stats",
-    
-    // 是否显示通知
-    showNotification: true,
-    
-    // 是否输出调试日志
+    showNotification: false,   // v2: 默认静默，拦截不再弹通知
     debug: false
 };
 
-// ==================== 工具函数 ====================
-
-// 获取当前时间字符串
-function getTimeStr() {
-    return new Date().toLocaleString('zh-CN', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-    });
-}
-
-// 调试日志
 function log(msg) {
-    if (CONFIG.debug) {
-        console.log(`[${CONFIG.scriptName}] ${msg}`);
-    }
+    if (CONFIG.debug) console.log(`[${CONFIG.scriptName}] ${msg}`);
 }
 
-// 更新统计数据
 function updateStats(type) {
     try {
         let stats = { splash: 0, float: 0, track: 0, total: 0 };
         const saved = $persistentStore.read(CONFIG.statsKey);
-        if (saved) {
-            stats = JSON.parse(saved);
-        }
-        
+        if (saved) stats = JSON.parse(saved);
         stats[type] = (stats[type] || 0) + 1;
         stats.total = (stats.total || 0) + 1;
-        stats.lastUpdate = getTimeStr();
-        
+        stats.lastUpdate = new Date().toLocaleString('zh-CN');
         $persistentStore.write(JSON.stringify(stats), CONFIG.statsKey);
-        return stats;
-    } catch (e) {
-        return { total: 0 };
-    }
+    } catch (e) { /* 统计失败不影响主流程 */ }
 }
 
-// 发送通知
-function notify(title, subtitle, message) {
-    if (CONFIG.showNotification) {
-        $notification.post(title, subtitle, message);
-    }
+function safeParse(str) {
+    try { return JSON.parse(str); } catch (e) { return null; }
 }
 
-// 安全解析JSON
-function safeParseJSON(str) {
-    try {
-        return JSON.parse(str);
-    } catch (e) {
-        return null;
-    }
-}
+// 开屏广告容器字段名（命中即清空）
+const SPLASH_CONTAINERS = ["adMap", "ads", "splashAds", "advertising", "adList", "splashList"];
 
-// ==================== 广告处理函数 ====================
-
-/**
- * 处理开屏广告接口
- * API: mtop.taobao.idlecommerce.splash.async.ads
- */
-function handleSplashAds(body) {
-    const data = safeParseJSON(body);
-    if (!data) return body;
-    
-    // 清空广告数据
-    if (data.data && data.data.adMap) {
-        data.data.adMap = {};
-        log("已清空开屏广告数据");
-        updateStats("splash");
-        notify("🚫 已屏蔽开屏广告", "闲鱼去广告", "开屏广告已被拦截");
-    }
-    
-    return JSON.stringify(data);
-}
-
-/**
- * 处理广告上报接口
- * API: mtop.idle.idleadv.app.launch.report
- */
-function handleLaunchReport(body) {
-    // 直接返回成功，不做实际上报
-    const response = {
-        api: "mtop.idle.idleadv.app.launch.report",
-        data: { attributeSuccess: "false" },
-        ret: ["SUCCESS::调用成功"],
-        v: "1.0"
-    };
-    log("已拦截广告上报");
-    updateStats("track");
-    return JSON.stringify(response);
-}
-
-/**
- * 处理广告场景恢复接口
- * API: mtop.idle.idleadv.scene.restore
- */
-function handleSceneRestore(body) {
-    const response = {
-        api: "mtop.idle.idleadv.scene.restore",
-        data: { trackParams: { stageMatch: "false" } },
-        ret: ["SUCCESS::调用成功"],
-        v: "1.0"
-    };
-    log("已拦截广告场景恢复");
-    updateStats("track");
-    return JSON.stringify(response);
-}
-
-/**
- * 处理用户策略列表（悬浮球/弹窗广告）
- * API: mtop.taobao.idle.user.strategy.list
- */
-function handleStrategyList(body) {
-    const data = safeParseJSON(body);
-    if (!data) return body;
-    
-    if (data.data && data.data.strategies) {
-        // 过滤掉广告类型的策略
-        const adTypes = ["FLOAT_LAYER", "POPUP", "MODAL", "BANNER"];
-        const originalCount = data.data.strategies.length;
-        
-        data.data.strategies = data.data.strategies.filter(strategy => {
-            // 保留发布球等功能性组件
-            if (strategy.type === "BIZ_PUBLISH_BALL") {
-                return true;
-            }
-            // 过滤广告类型
-            if (adTypes.includes(strategy.type)) {
-                return false;
-            }
-            return true;
-        });
-        
-        const removedCount = originalCount - data.data.strategies.length;
-        if (removedCount > 0) {
-            log(`已移除 ${removedCount} 个悬浮广告策略`);
-            updateStats("float");
-            notify("🚫 已屏蔽悬浮广告", "闲鱼去广告", `移除了 ${removedCount} 个广告组件`);
+// 递归清除开屏广告容器，返回清除数量
+function stripSplashAds(node, depth) {
+    if (!node || typeof node !== 'object' || depth > 6) return 0;
+    let removed = 0;
+    for (const key of Object.keys(node)) {
+        if (SPLASH_CONTAINERS.includes(key) && node[key] && Object.keys(node[key]).length > 0) {
+            node[key] = Array.isArray(node[key]) ? [] : {};
+            removed++;
+        } else if (typeof node[key] === 'object') {
+            removed += stripSplashAds(node[key], depth + 1);
         }
     }
-    
+    return removed;
+}
+
+// 伪造「无广告」成功响应
+function emptyAdResponse(api) {
+    return JSON.stringify({
+        api: api,
+        data: {},
+        ret: ["SUCCESS::调用成功"],
+        v: "1.0"
+    });
+}
+
+function handleSplashAds(body) {
+    const data = safeParse(body);
+    if (!data) return body;
+    const removed = stripSplashAds(data, 0);
+    if (removed > 0) {
+        log(`开屏广告：清除 ${removed} 个容器`);
+        updateStats("splash");
+    }
     return JSON.stringify(data);
 }
 
-/**
- * 处理首页Tab列表（移除广告追踪参数）
- * API: mtop.taobao.idlehome.home.circle.list
- */
-function handleCircleList(body) {
-    const data = safeParseJSON(body);
+function handleStrategyList(body) {
+    const data = safeParse(body);
     if (!data) return body;
-    
-    if (data.data && data.data.circleList) {
+    if (data.data && Array.isArray(data.data.strategies)) {
+        const adTypes = ["FLOAT_LAYER", "POPUP", "MODAL", "BANNER"];
+        const before = data.data.strategies.length;
+        data.data.strategies = data.data.strategies.filter(s =>
+            s.type === "BIZ_PUBLISH_BALL" || !adTypes.includes(s.type)
+        );
+        if (before - data.data.strategies.length > 0) {
+            log(`悬浮广告：移除 ${before - data.data.strategies.length} 个策略`);
+            updateStats("float");
+        }
+    }
+    return JSON.stringify(data);
+}
+
+function handleCircleList(body) {
+    const data = safeParse(body);
+    if (!data) return body;
+    if (data.data && Array.isArray(data.data.circleList)) {
         data.data.circleList.forEach(circle => {
             if (circle.trackParams && circle.trackParams.args) {
-                // 移除广告追踪参数
-                const args = circle.trackParams.args;
-                const adKeys = [
-                    "idleAdsPositionId", "idleAdsMaterialId", "idleAdsTaskId",
-                    "idleAdsOriginTaskId", "idleAdsLoginUserId", "idleAdsIdleCrowdId",
-                    "idleAdsMaterialTemplateId", "idleAdsSubNamespace", "idleAdsNamespace",
-                    "idleAdsCrowdId", "idleAdsRequestTraceId"
-                ];
-                
-                adKeys.forEach(key => {
-                    if (args[key]) {
-                        delete args[key];
-                    }
+                Object.keys(circle.trackParams.args).forEach(key => {
+                    if (key.startsWith("idleAds")) delete circle.trackParams.args[key];
                 });
             }
         });
-        log("已清理首页Tab广告追踪参数");
         updateStats("track");
     }
-    
     return JSON.stringify(data);
 }
-
-/**
- * 处理用户初始化接口
- * API: com.taobao.idle.user.init
- */
-function handleUserInit(body) {
-    // 保持原样返回，不做修改
-    return body;
-}
-
-/**
- * 处理主机授权接口（包含广告配置）
- * API: com.taobao.idle.host.authorize
- */
-function handleHostAuthorize(body) {
-    const data = safeParseJSON(body);
-    if (!data) return body;
-    
-    // 清理可能的广告相关配置
-    if (data.data) {
-        if (data.data.launchUrl) {
-            // 保留基本配置，但可以在这里做进一步处理
-        }
-    }
-    
-    return JSON.stringify(data);
-}
-
-// ==================== 主处理函数 ====================
 
 function main() {
     const url = $request.url;
     let body = $response.body || '';
-    
-    log(`处理请求: ${url}`);
-    
-    // 根据URL匹配不同的处理函数
+
     if (url.includes("idlecommerce.splash.async.ads")) {
-        // 开屏广告
         body = handleSplashAds(body);
-    } else if (url.includes("idleadv.app.launch.report")) {
-        // 广告上报
-        body = handleLaunchReport(body);
-    } else if (url.includes("idleadv.scene.restore")) {
-        // 广告场景恢复
-        body = handleSceneRestore(body);
+    } else if (url.includes("idleadv.app.launch.report")
+            || url.includes("idleadv.scene.restore")) {
+        // 上报与场景恢复：统一回「无广告」
+        body = emptyAdResponse("mtop.idle.idleadv");
+        updateStats("track");
     } else if (url.includes("idle.user.strategy.list")) {
-        // 悬浮球/弹窗策略
         body = handleStrategyList(body);
     } else if (url.includes("idlehome.home.circle.list")) {
-        // 首页Tab列表
         body = handleCircleList(body);
-    } else if (url.includes("idle.host.authorize")) {
-        // 主机授权
-        body = handleHostAuthorize(body);
     }
-    
+
     $done({ body });
 }
 
-// 执行脚本
 main();

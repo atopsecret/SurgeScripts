@@ -1,0 +1,73 @@
+#!name=高德地图去广告
+#!desc=重构自墨鱼版（ddgksf2013）：开屏广告、首页信息流、搜索热词、打车页推广、底部角标等 17 条规则。脚本走 jsDelivr 镜像国内直连可更新。
+#!author=skernelx · ddgksf2013
+#!homepage=https://github.com/skernelx/SurgeScripts
+#!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Advertising.png
+#!category=去广告
+#!tag=去广告,高德地图,导航
+#!openUrl=https://apps.apple.com/cn/app/id461703208
+# ------------------------------------------------------------
+# 规则来源：ddgksf2013/Rewrite AmapAds.conf V1.0.28（2025-12 更新，MIT）
+# https://github.com/ddgksf2013/Rewrite/blob/master/AdBlock/AmapAds.conf
+#
+# 为什么重做：流传的 Surge 版（含手机上已装的「高德地图去广告」）
+# 把 URL 模式写进了 script-path 参数（Shadowrocket 容忍此写法），
+# 在 Surge 上 6 条脚本全部报「无效配置」被忽略，模块从未生效。
+# 本模块按 Surge 正确语法重写：脚本 9 条 + 拦截 8 条。
+#
+# 需要 MITM + 已安装并信任 Surge CA 证书（主配置已含 ca-p12，无需操作）。
+# 脚本本体是墨鱼的 amap.js（混淆分发），按作者要求注明出处。
+# ------------------------------------------------------------
+
+[Script]
+# 底部 tab 栏角标
+amap-notice = type=http-response, pattern=^https?:\/\/.*\.amap\.com\/ws\/message\/notice\/list, requires-body=1, script-update-interval=86400, script-path=https://fastly.jsdelivr.net/gh/ddgksf2013/Scripts@master/amap.js
+# 首页底部信息流（导航主页卡片）
+amap-mainpage = type=http-response, pattern=^https?:\/\/.*\.amap\.com\/ws\/faas\/amap-navigation\/main-page, requires-body=1, script-update-interval=86400, script-path=https://fastly.jsdelivr.net/gh/ddgksf2013/Scripts@master/amap.js
+# 开屏广告（valueadded 通道）
+amap-splash = type=http-response, pattern=^https?:\/\/.*\.amap\.com\/ws\/valueadded\/alimama\/splash_screen, requires-body=1, script-update-interval=86400, script-path=https://fastly.jsdelivr.net/gh/ddgksf2013/Scripts@master/amap.js
+# 首页顶部推广（消息盒子）
+amap-msgbox = type=http-response, pattern=^https?:\/\/.*\.amap\.com\/ws\/msgbox\/pull, requires-body=1, script-update-interval=86400, script-path=https://fastly.jsdelivr.net/gh/ddgksf2013/Scripts@master/amap.js
+# 我的页面推广卡片
+amap-profile = type=http-response, pattern=^https?:\/\/.*\.amap\.com\/ws\/shield\/dsp\/profile\/index\/nodefaas, requires-body=1, script-update-interval=86400, script-path=https://fastly.jsdelivr.net/gh/ddgksf2013/Scripts@master/amap.js
+# 搜索框热词 / AI 推荐
+amap-hotword = type=http-response, pattern=^https?:\/\/.*\.amap\.com\/ws\/shield\/search\/new_hotword, requires-body=1, script-update-interval=86400, script-path=https://fastly.jsdelivr.net/gh/ddgksf2013/Scripts@master/amap.js
+# 首页右中广告（frogserver aocs）
+amap-aocs = type=http-response, pattern=^https?:\/\/.*\.amap\.com\/ws\/shield\/frogserver\/aocs\/updatable, requires-body=1, script-update-interval=86400, script-path=https://fastly.jsdelivr.net/gh/ddgksf2013/Scripts@master/amap.js
+# 附近页面推荐
+amap-nearby = type=http-response, pattern=^https?:\/\/.*\.amap\.com\/ws\/shield\/search\/nearbyrec_smart, requires-body=1, script-update-interval=86400, script-path=https://fastly.jsdelivr.net/gh/ddgksf2013/Scripts@master/amap.js
+# 打车页推广资源
+amap-promotion = type=http-response, pattern=^https?:\/\/.*\.amap\.com\/ws\/promotion-web\/resource, requires-body=1, script-update-interval=86400, script-path=https://fastly.jsdelivr.net/gh/ddgksf2013/Scripts@master/amap.js
+
+[URL Rewrite]
+# 通用广告归因上报 —— 直接拒绝
+^https?:\/\/.*\.amap\.com\/ws\/asa\/ads_attribution - reject
+# 首页左上角广告 gif —— 直接拒绝
+^https?:\/\/.*\.amap\.com\/uploadimg\/\w+\.gif - reject
+
+[Map Local]
+# 开屏请求（aos 通道）→ 空 JSON
+^https?:\/\/.*\.amap\.com\/ws\/aos\/alimama\/splash_screen data-type=text data="{}" status-code=200 header="Content-Type:application/json"
+# 首页底部信息流（ai_rec）→ 空 JSON
+^https?:\/\/.*\.amap\.com\/v\d\/ai_rec\/ data-type=text data="{}" status-code=200 header="Content-Type:application/json"
+# 路线规划下方广告卡片 → 空 JSON
+^https?:\/\/.*\.amap\.com\/ws\/faas\/amap-navigation\/card-service-route-plan\? data-type=text data="{}" status-code=200 header="Content-Type:application/json"
+# 打车订单页 Tip 推广 → 空 JSON
+^https?:\/\/.*\.amap\.com\/ws\/boss\/order_web\/\w{8}_information data-type=text data="{}" status-code=200 header="Content-Type:application/json"
+# 搜索框 scene 推荐 → 空 JSON
+^https?:\/\/.*\.amap\.com\/ws\/shield\/scene\/recommend data-type=text data="{}" status-code=200 header="Content-Type:application/json"
+# 左下角推广版天气卡片 → 空 JSON
+^https?:\/\/.*\.amap\.com\/ws\/valueadded\/weather data-type=text data="{}" status-code=200 header="Content-Type:application/json"
+
+[MITM]
+hostname = %APPEND% *.amap.com
+
+# ────────────────────────────────────────────────────────────
+# 备注：
+# 1. 墨鱼原版还有一条 amdc.m.taobao.com 的脚本（阿里调度域，
+#    防广告 CDN 调度），需要额外 MITM 淘宝域，收益小风险面大，
+#    默认不带；需要的话参考原仓库 AmapAds.conf。
+# 2. 高德若某天加了证书固定，表现为地图打不开/一直转圈 —— 关掉
+#    本模块即可恢复（无持久改动）。
+# 3. 导航、定位、检索等核心功能域名不在拦截列表，不受影响。
+# ────────────────────────────────────────────────────────────

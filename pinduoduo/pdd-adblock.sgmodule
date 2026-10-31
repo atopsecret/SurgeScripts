@@ -55,7 +55,7 @@ DOMAIN,meta.pinduoduo.com,REJECT
 # pattern 说明：拼多多 App 现用自建 HTTPDNS 解析后直连裸 IP（抓包实证
 # https://36.152.46.3/api/alexa/homepage/hub，Host 头仍是 api.pinduoduo.com），
 # 故 pattern 不锚定域名，只匹配路径；脚本内再按路径分发。
-拼多多去广告 = type=http-response,pattern=^https?:\/\/[^\/]+\/(api\/(alexa\/homepage\/hub|philo\/personal\/hub|oak\/integration\/render|aristotle\/order_list_v4)\?|order\/|search\?),requires-body=1,max-size=131072,script-update-interval=86400,script-path=https://raw.githubusercontent.com/skernelx/SurgeScripts/master/pinduoduo/pdd-ad-block.js,timeout=30
+拼多多去广告 = type=http-response,pattern=^https?:\/\/[^\/]+\/(api\/(alexa\/homepage\/hub|philo\/personal\/hub|oak\/integration\/render|aristotle\/order_list_v4)\?|order\/|search\?),requires-body=1,max-size=131072,script-update-interval=0,script-path=https://raw.githubusercontent.com/skernelx/SurgeScripts/master/pinduoduo/pdd-ad-block.js?v=v3,timeout=30
 
 [Map Local]
 # ========== 开屏 ==========

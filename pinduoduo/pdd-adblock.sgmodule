@@ -33,6 +33,11 @@ AND,((DOMAIN,api.pinduoduo.com),(PROTOCOL,QUIC)),REJECT
 DOMAIN,promotion-2.pddpic.com,REJECT
 DOMAIN,video-snapshot01.pddpic.com,REJECT
 
+# 拼多多自建 HTTPDNS（114.110.97.97 等，/v3/d 路径）：App 借它解析出裸 IP 直连，
+# 绕开域名层让域名规则/MITM 失效。掐掉它 + 系统层 ipv6=false 双管齐下，
+# 逼 App 退回域名解析路径。
+AND,((URL-REGEX,"^http:\/\/[^\/]+\/v3\/d\?type=addrs"),(USER-AGENT,"*pinduoduo*")),REJECT
+
 # 埋点 / 上报域名（纯遥测，REJECT 安全）
 DOMAIN,titan.pinduoduo.com,REJECT
 DOMAIN,xg.pinduoduo.com,REJECT
@@ -47,12 +52,19 @@ DOMAIN,meta.pinduoduo.com,REJECT
 
 [Script]
 # 响应体改写：底栏 tab 过滤（删多多视频）+ 各页面精简，六接口合一
-拼多多去广告 = type=http-response,pattern=^https?:\/\/api\.(pinduoduo|yangkeduo)\.com\/(api\/(alexa\/homepage\/hub|philo\/personal\/hub|oak\/integration\/render|aristotle\/order_list_v4)\?|order\/|search\?),requires-body=1,max-size=131072,script-update-interval=86400,script-path=https://raw.githubusercontent.com/skernelx/SurgeScripts/master/pinduoduo/pdd-ad-block.js,timeout=30
+# pattern 说明：拼多多 App 现用自建 HTTPDNS 解析后直连裸 IP（抓包实证
+# https://36.152.46.3/api/alexa/homepage/hub，Host 头仍是 api.pinduoduo.com），
+# 故 pattern 不锚定域名，只匹配路径；脚本内再按路径分发。
+拼多多去广告 = type=http-response,pattern=^https?:\/\/[^\/]+\/(api\/(alexa\/homepage\/hub|philo\/personal\/hub|oak\/integration\/render|aristotle\/order_list_v4)\?|order\/|search\?),requires-body=1,max-size=131072,script-update-interval=86400,script-path=https://raw.githubusercontent.com/skernelx/SurgeScripts/master/pinduoduo/pdd-ad-block.js,timeout=30
 
 [Map Local]
 # ========== 开屏 ==========
 # 开屏广告接口：空体 200，App 跳过开屏
 ^https?:\/\/api\.(pinduoduo|yangkeduo)\.com\/api\/cappuccino\/splash data-type=text data="" status-code=200
+
+# 多多视频悬浮弹层 H5（m.pinduoduo.net 的 vlayer_tab_popup.html）→ 空 HTML，
+# WebView 加载失败，视频弹层不渲染
+^https?:\/\/[^\/]+\/vlayer_tab_popup\.html data-type=text data="<!DOCTYPE html><html><body></body></html>" status-code=200 header="Content-Type:text/html"
 
 # ========== 推荐 / 推广接口（返回空 JSON） ==========
 ^https?:\/\/api\.pinduoduo\.com\/api\/aristotle\/unrated_order_for_unreceived_tab\? data-type=text data="{}" status-code=200 header="Content-Type:application/json"

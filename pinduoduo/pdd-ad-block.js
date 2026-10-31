@@ -105,9 +105,21 @@ function handleSearch(data) {
     return data;
 }
 
+// ---------- vlayer 视频弹层 H5（多多视频悬浮层） ----------
+// m.pinduoduo.net 的 vlayer_tab_popup.html 是首页悬浮视频弹层的载体，
+// 返回空白页让 WebView 加载失败，弹层不渲染
+// （该页面由 App 内 WebView 加载，脚本注入为空 HTML）
+
 // ---------- 主分发 ----------
 function main() {
     const url = $request.url;
+
+    // pattern 未锚定域名（兼容拼多多裸 IP 直连），这里做归属校验：
+    // URL 含 pinduoduo/yangkeduo 域名，或 Host 头/请求头 UA 表明是拼多多
+    const isPDD = /pinduoduo|yangkeduo/i.test(url)
+        || /pinduoduo|yangkeduo/i.test($request.headers["host"] || $request.headers["Host"] || "");
+    if (!isPDD) { $done({}); return; }
+
     let body = $response.body || "";
 
     let handler = null;

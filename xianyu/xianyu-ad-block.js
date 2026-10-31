@@ -80,9 +80,16 @@ function emptyAdResponse(api) {
 function handleSplashAds(body) {
     const data = safeParse(body);
     if (!data) return body;
-    const removed = stripSplashAds(data, 0);
-    if (removed > 0) {
-        log(`开屏广告：清除 ${removed} 个容器`);
+    const d = data.data || {};
+    let touched = false;
+    // v2.1: 新版接口广告走 cacheAd 本地缓存引用（splash.ads/2.0）
+    if (d.cacheAd) { d.cacheAd = ""; touched = true; }
+    if (d.cacheAdInfo) { delete d.cacheAdInfo; touched = true; }
+    if (Array.isArray(d.dspList) && d.dspList.length) { d.dspList = []; touched = true; }
+    // 兜底：递归清除通用广告容器
+    if (stripSplashAds(data, 0) > 0) touched = true;
+    if (touched) {
+        log("开屏广告：cacheAd/容器已清除");
         updateStats("splash");
     }
     return JSON.stringify(data);
@@ -125,7 +132,7 @@ function main() {
     const url = $request.url;
     let body = $response.body || '';
 
-    if (url.includes("idlecommerce.splash.async.ads")) {
+    if (url.includes("idlecommerce.splash")) {
         body = handleSplashAds(body);
     } else if (url.includes("idleadv.app.launch.report")
             || url.includes("idleadv.scene.restore")

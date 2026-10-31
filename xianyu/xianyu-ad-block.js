@@ -128,7 +128,8 @@ function main() {
     if (url.includes("idlecommerce.splash.async.ads")) {
         body = handleSplashAds(body);
     } else if (url.includes("idleadv.app.launch.report")
-            || url.includes("idleadv.scene.restore")) {
+            || url.includes("idleadv.scene.restore")
+            || url.includes("idle.ad.expose")) {
         // 上报与场景恢复：统一回「无广告」
         body = emptyAdResponse("mtop.idle.idleadv");
         updateStats("track");

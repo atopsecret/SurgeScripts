@@ -1,5 +1,5 @@
 #!name=京东去广告
-#!desc=京东 App 全量去广告：开屏（含缓存回闪根除）/首屏浮层/购物车推荐/物流页 banner/极速版广告位/ADX 竞价，另关闭 socket 监控与 httpdns。重构自 Thelongdarkorg/loon-plugins（2026-09-19 版），Loon 原生改写全部翻译为自托管脚本与 Surge 等价语法。
+#!desc=京东 App 全量去广告：开屏（含缓存回闪根除）/首屏浮层/购物车推荐/物流页 banner/极速版广告位/ADX 竞价，另关闭 socket 监控与 httpdns；页面停留弹窗与二楼推荐楼层拦截（2026-11-01 抓包实证补充）。重构自 Thelongdarkorg/loon-plugins（2026-09-19 版），Loon 原生改写全部翻译为自托管脚本与 Surge 等价语法。
 #!author=skernelx · FFDNS
 #!homepage=https://github.com/skernelx/SurgeScripts
 #!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Advertising.png
@@ -29,7 +29,7 @@ URL-REGEX,^http:\/\/\w{32}\.jddebug\.com\/diagnose\?,REJECT
 
 [Script]
 # 六接口合一：start / welcomeHome / deliverLayer / basicConfig / cart / lite_advertising
-京东去广告 = type=http-response,pattern=^https?:\/\/api\.m\.jd\.com\/client\.action\?functionId=(start|welcomeHome|deliverLayer|basicConfig|cart|lite_advertising)(&|$),requires-body=1,max-size=131072,script-update-interval=86400,script-path=https://raw.githubusercontent.com/skernelx/SurgeScripts/master/jd/jd-ad-block.js,timeout=30
+京东去广告 = type=http-response,pattern=^https?:\/\/api\.m\.jd\.com\/client\.action\?functionId=(start|welcomeHome|deliverLayer|basicConfig|cart|lite_advertising|secondFloor)(&|$),requires-body=1,max-size=131072,script-update-interval=86400,script-path=https://raw.githubusercontent.com/skernelx/SurgeScripts/master/jd/jd-ad-block.js,timeout=30
 
 [URL Rewrite]
 # 京东广告交换平台（ADX）实时竞价：直接拒绝
@@ -42,6 +42,8 @@ URL-REGEX,^http:\/\/\w{32}\.jddebug\.com\/diagnose\?,REJECT
 ^https?:\/\/api\.m\.jd\.com\/client\.action\?functionId=queryMaterialAdverts data-type=text data="{}" status-code=200 header="Content-Type:application/json"
 # 开屏大图（仅精确到开屏专用尺寸 s1125x2436_jfs，严禁通配 jfs——会打死商品图）→ 空体 200
 ^https?:\/\/m\.360buyimg\.com\/mobilecms\/s1125x2436_jfs data-type=text data="" status-code=200
+# 页面停留运营弹窗（babel_popup / stayWindowModule，抓包实证）→ 空 JSON
+^https?:\/\/api\.m\.jd\.com\/client\.action\?functionId=queryPagePopWindow data-type=text data="{}" status-code=200 header="Content-Type:application/json"
 # 登录页推广位 → 空 JSON
 ^https?:\/\/api\.m\.jd\.com\/\?loginType=11 data-type=text data="{}" status-code=200 header="Content-Type:application/json"
 # 推荐/推广接口批 → 空 JSON

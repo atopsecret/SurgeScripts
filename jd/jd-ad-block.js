@@ -11,6 +11,7 @@
  * - deliverLayer     删物流页顶部 banner
  * - basicConfig      关闭 socket 监控/上报 + httpdns
  * - cart             删购物车底部空车楼层与推荐楼层
+ * - secondFloor      删首页二楼推荐楼层（问候/消息等功能保留）
  * - lite_advertising 极速版广告位字段名替换（使 App 解析不到）
  *
  * 所有分支均 try/catch 包裹，解析失败原样返回，不影响 App 正常功能。
@@ -96,6 +97,15 @@ function handleCart(data) {
     return data;
 }
 
+// ---------- secondFloor：首页二楼推荐楼层 ----------
+// 问候语/天气/消息提醒等功能保留，只删推荐楼层
+function handleSecondFloor(data) {
+    if (data.data && "recommendFloor" in data.data) {
+        delete data.data.recommendFloor;
+    }
+    return data;
+}
+
 // ---------- 主分发 ----------
 function main() {
     const url = $request.url;
@@ -111,7 +121,7 @@ function main() {
         return;
     }
 
-    const m = url.match(/functionId=(start|welcomeHome|deliverLayer|basicConfig|cart)(?:&|$|\?)/);
+    const m = url.match(/functionId=(start|welcomeHome|deliverLayer|basicConfig|cart|secondFloor)(?:&|$|\?)/);
     if (!m) { $done({}); return; }
 
     const data = safeParse(body);
@@ -123,7 +133,8 @@ function main() {
             welcomeHome: handleWelcomeHome,
             deliverLayer: handleDeliverLayer,
             basicConfig: handleBasicConfig,
-            cart: handleCart
+            cart: handleCart,
+            secondFloor: handleSecondFloor
         };
         const result = handlers[m[1]](data);
         log(`${m[1]}: 已处理`);

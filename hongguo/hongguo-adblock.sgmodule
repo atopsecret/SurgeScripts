@@ -1,0 +1,103 @@
+#!name=红果短剧去广告
+#!desc=拦截红果短剧/番茄系插播广告视频源与穿山甲广告请求（75 条精确域名），正片播放不受影响。附带拦截番茄埋点、友盟统计等追踪域名。
+#!author=skernelx
+#!homepage=https://github.com/skernelx/SurgeScripts
+#!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Advertising.png
+#!category=去广告
+
+[Rule]
+# ===== 红果/番茄 插播广告视频 CDN =====
+# 广告专用子域名，正片域名 *-reading-video.qznovelvod.com 不在此列，播放不受影响
+DOMAIN-SUFFIX,v5-reading-ad.qznovelvod.com,REJECT
+DOMAIN-SUFFIX,v6-reading-ad.qznovelvod.com,REJECT
+DOMAIN-SUFFIX,v9-reading-ad.qznovelvod.com,REJECT
+DOMAIN-SUFFIX,v11-reading-ad.qznovelvod.com,REJECT
+DOMAIN-SUFFIX,v13-reading-ad.qznovelvod.com,REJECT
+DOMAIN-SUFFIX,v26-reading-ad.qznovelvod.com,REJECT
+DOMAIN-SUFFIX,v96-reading-ad.qznovelvod.com,REJECT
+DOMAIN-SUFFIX,v5-bd-daily-reading-ad.qznovelvod.com,REJECT
+DOMAIN-SUFFIX,v5-se-sjy-daily-reading-ad.qznovelvod.com,REJECT
+
+# ===== 穿山甲广告 SDK =====
+DOMAIN-SUFFIX,pangle.io,REJECT
+DOMAIN-SUFFIX,pangolin-sdk-toutiao.com,REJECT
+DOMAIN-SUFFIX,api-access.pangolin-sdk-toutiao.com,REJECT
+DOMAIN-SUFFIX,api-access.pangolin-sdk-toutiao1.com,REJECT
+DOMAIN-SUFFIX,log-api.pangolin-sdk-toutiao.com,REJECT
+DOMAIN-SUFFIX,pglstatp-toutiao.com,REJECT
+
+# ===== 字节广告分发 / 图床 =====
+DOMAIN-SUFFIX,ads3-normal-hl.zijieapi.com,REJECT
+DOMAIN-SUFFIX,ads3-normal-lf.zijieapi.com,REJECT
+DOMAIN-SUFFIX,ads3-normal-lq.zijieapi.com,REJECT
+DOMAIN-SUFFIX,ads5-normal-hl.zijieapi.com,REJECT
+DOMAIN-SUFFIX,ads5-normal-lf.zijieapi.com,REJECT
+DOMAIN-SUFFIX,ads5-normal-lq.zijieapi.com,REJECT
+DOMAIN-SUFFIX,p3-ad-sign.byteimg.com,REJECT
+DOMAIN-SUFFIX,p6-ad-sign.byteimg.com,REJECT
+DOMAIN-SUFFIX,p9-ad-sign.byteimg.com,REJECT
+DOMAIN-SUFFIX,ad.toutiao.com,REJECT
+DOMAIN-SUFFIX,activity-ag.awemeughun.com,REJECT
+DOMAIN-SUFFIX,l2-toutiao-quic-ipv6-ml.gslb.ksyuncdn.com,REJECT
+DOMAIN-SUFFIX,sf3-ttcdn-tos.pstatp.com,REJECT
+DOMAIN-SUFFIX,webcast5-open-hl.douyin.com,REJECT
+DOMAIN-SUFFIX,webcast5-open-hl.douyin.com.c.dsa.cdnbuild.net,REJECT
+
+# ===== 番茄小说日志埋点 =====
+DOMAIN-SUFFIX,log3-applog-lf.fqnovel.com,REJECT
+DOMAIN-SUFFIX,log5-applog-hl.fqnovel.com,REJECT
+DOMAIN-SUFFIX,log5-applog-lf.fqnovel.com,REJECT
+DOMAIN-SUFFIX,rtlog3-applog-hl.fqnovel.com,REJECT
+DOMAIN-SUFFIX,rtlog3-applog-lf.fqnovel.com,REJECT
+DOMAIN-SUFFIX,rtlog5-applog-hl.fqnovel.com,REJECT
+DOMAIN-SUFFIX,rtlog5-applog-lf.fqnovel.com,REJECT
+DOMAIN-SUFFIX,mon3-misc-lf.fqnovel.com,REJECT
+DOMAIN-SUFFIX,mon11-misc-hl.fqnovel.com,REJECT
+DOMAIN-SUFFIX,mon11-misc-lf.fqnovel.com,REJECT
+
+# ===== 小游戏推广（番茄/红果信息流） =====
+DOMAIN-SUFFIX,minigame3-normal-hl.zijieapi.com,REJECT
+DOMAIN-SUFFIX,minigame3-normal-lf.zijieapi.com,REJECT
+DOMAIN-SUFFIX,minigame3-normal-lq.zijieapi.com,REJECT
+DOMAIN-SUFFIX,minigame5-normal-hl.zijieapi.com,REJECT
+DOMAIN-SUFFIX,minigame5-normal-lf.zijieapi.com,REJECT
+DOMAIN-SUFFIX,minigame5-normal-lq.zijieapi.com,REJECT
+DOMAIN-SUFFIX,tnc0-aliec2.zijieapi.com,REJECT
+DOMAIN-SUFFIX,tnc0-alisc1.zijieapi.com,REJECT
+DOMAIN-SUFFIX,tnc3-aliec2.zijieapi.com,REJECT
+DOMAIN-SUFFIX,tnc3-alisc1.zijieapi.com,REJECT
+
+# ===== 友盟统计 =====
+DOMAIN-SUFFIX,cnlogs.umeng.com,REJECT
+DOMAIN-SUFFIX,errnewlog.umeng.com,REJECT
+DOMAIN-SUFFIX,ossnt-errlog.umeng.com,REJECT
+DOMAIN-SUFFIX,ulogs.umeng.com,REJECT
+
+# ===== 其他 App 埋点与追踪 =====
+DOMAIN-SUFFIX,apm-native.xiaohongshu.com,REJECT
+DOMAIN-SUFFIX,lng.xiaohongshu.com,REJECT
+DOMAIN-SUFFIX,spider-tracker.xiaohongshu.com,REJECT
+DOMAIN-SUFFIX,ads-vp5.xhscdn.com,REJECT
+DOMAIN-SUFFIX,aeventlog.beacon.qq.com,REJECT
+DOMAIN-SUFFIX,api.iegadp.qq.com,REJECT
+DOMAIN-SUFFIX,apd-pcdnwxlogin.teg.tencent-cloud.net,REJECT
+DOMAIN-SUFFIX,tracker.xiaomixiaoai.com,REJECT
+DOMAIN-SUFFIX,msync-im1-vip6-std.easemob.com,REJECT
+DOMAIN-SUFFIX,dig.bdurl.net,REJECT
+
+# ===== 广告专用野域名 =====
+DOMAIN-SUFFIX,comfylink.com,REJECT
+DOMAIN-SUFFIX,jomoxc.com,REJECT
+DOMAIN-SUFFIX,ndcpp.com,REJECT
+DOMAIN-SUFFIX,praisewindow.ugsdk.cn,REJECT
+DOMAIN-SUFFIX,qrstuvwxyzab.com,REJECT
+DOMAIN-SUFFIX,wmzfylgdsz.com,REJECT
+DOMAIN-SUFFIX,wuchuyun.com,REJECT
+DOMAIN-SUFFIX,xinqiucc.com,REJECT
+DOMAIN-SUFFIX,ydycdn.com,REJECT
+
+# ===== 防 DoH 绕过 =====
+# 部分广告 SDK 内置 DoH 自解析，绕开 DNS 拦截。
+# 注意：若日后主配置启用 doh-server（阿里/腾讯），先删掉这两条再测试。
+DOMAIN-SUFFIX,dns.alidns.com,REJECT
+DOMAIN-SUFFIX,doh.pub,REJECT

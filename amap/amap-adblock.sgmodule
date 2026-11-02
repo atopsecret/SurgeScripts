@@ -1,5 +1,5 @@
 #!name=高德地图去广告
-#!desc=重构自墨鱼版（ddgksf2013）：开屏广告、首页信息流、搜索热词、打车页推广、底部角标等 17 条规则。脚本走 jsDelivr 镜像国内直连可更新。
+#!desc=高德去广告 20261102-r1：开屏清理改为自托管脚本，补充仅针对 AMap 请求的 HTTPDNS 调度处理；保留首页、搜索热词和打车推广等原规则。静默运行，无通知。
 #!author=skernelx · ddgksf2013
 #!homepage=https://github.com/skernelx/SurgeScripts
 #!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Advertising.png
@@ -13,19 +13,22 @@
 # 为什么重做：流传的 Surge 版（含手机上已装的「高德地图去广告」）
 # 把 URL 模式写进了 script-path 参数（Shadowrocket 容忍此写法），
 # 在 Surge 上 6 条脚本全部报「无效配置」被忽略，模块从未生效。
-# 本模块按 Surge 正确语法重写：脚本 9 条 + 拦截 8 条。
+# 本模块按 Surge 正确语法重写：脚本 10 条 + 拦截 8 条。
 #
-# 需要 MITM + 已安装并信任 Surge CA 证书（主配置已含 ca-p12，无需操作）。
-# 脚本本体是墨鱼的 amap.js（混淆分发），按作者要求注明出处。
+# 需要 MITM，并信任当前客户端的 CA（Surge/Egern 各自使用对应证书）。
+# 开屏和 AMap HTTPDNS 使用自托管可读脚本，其它页面仍引用墨鱼 amap.js。
 # ------------------------------------------------------------
 
 [Script]
+# 阿里明文 HTTPDNS：仅当 User-Agent 含 AMap 时改写，其它 App 原样放行。
+# 此 URL 是 HTTP，不扩大 MITM 到淘宝，也不全域拒绝 amdc.m.taobao.com。
+amap-amdc = type=http-response, pattern=^http:\/\/amdc\.m\.taobao\.com([/?]|$), requires-body=1, max-size=131072, script-update-interval=3600, script-path=https://raw.githubusercontent.com/skernelx/SurgeScripts/master/amap/amap-splash.js?v=20261102-r1, timeout=20
 # 底部 tab 栏角标
 amap-notice = type=http-response, pattern=^https?:\/\/.*\.amap\.com\/ws\/message\/notice\/list, requires-body=1, script-update-interval=0, script-path=https://fastly.jsdelivr.net/gh/ddgksf2013/Scripts@master/amap.js
 # 首页底部信息流（导航主页卡片）
 amap-mainpage = type=http-response, pattern=^https?:\/\/.*\.amap\.com\/ws\/faas\/amap-navigation\/main-page, requires-body=1, script-update-interval=0, script-path=https://fastly.jsdelivr.net/gh/ddgksf2013/Scripts@master/amap.js
 # 开屏广告（valueadded 通道）
-amap-splash = type=http-response, pattern=^https?:\/\/.*\.amap\.com\/ws\/valueadded\/alimama\/splash_screen, requires-body=1, script-update-interval=0, script-path=https://fastly.jsdelivr.net/gh/ddgksf2013/Scripts@master/amap.js
+amap-splash = type=http-response, pattern=^https?:\/\/(?:[A-Za-z0-9-]+\.)+amap\.com\/ws\/valueadded\/alimama\/splash_screen([/?]|$), requires-body=1, max-size=2097152, script-update-interval=3600, script-path=https://raw.githubusercontent.com/skernelx/SurgeScripts/master/amap/amap-splash.js?v=20261102-r1, timeout=20
 # 首页顶部推广（消息盒子）
 amap-msgbox = type=http-response, pattern=^https?:\/\/.*\.amap\.com\/ws\/msgbox\/pull, requires-body=1, script-update-interval=0, script-path=https://fastly.jsdelivr.net/gh/ddgksf2013/Scripts@master/amap.js
 # 我的页面推广卡片
@@ -46,8 +49,8 @@ amap-promotion = type=http-response, pattern=^https?:\/\/.*\.amap\.com\/ws\/prom
 ^https?:\/\/.*\.amap\.com\/uploadimg\/\w+\.gif - reject
 
 [Map Local]
-# 开屏请求（aos 通道）→ 空 JSON
-^https?:\/\/.*\.amap\.com\/ws\/aos\/alimama\/splash_screen data-type=text data="{}" status-code=200 header="Content-Type:application/json"
+# 开屏请求（aos 通道）→ 空体 200，与来源 reject-200 一致。
+^https?:\/\/(?:[A-Za-z0-9-]+\.)+amap\.com\/ws\/aos\/alimama\/splash_screen([/?]|$) data-type=text data="" status-code=200
 # 首页底部信息流（ai_rec）→ 空 JSON
 ^https?:\/\/.*\.amap\.com\/v\d\/ai_rec\/ data-type=text data="{}" status-code=200 header="Content-Type:application/json"
 # 路线规划下方广告卡片 → 空 JSON
@@ -64,9 +67,8 @@ hostname = %APPEND% *.amap.com
 
 # ────────────────────────────────────────────────────────────
 # 备注：
-# 1. 墨鱼原版还有一条 amdc.m.taobao.com 的脚本（阿里调度域，
-#    防广告 CDN 调度），需要额外 MITM 淘宝域，收益小风险面大，
-#    默认不带；需要的话参考原仓库 AmapAds.conf。
+# 1. 已包含明文 amdc.m.taobao.com 调度处理：严格按 AMap User-Agent
+#    限定，无需额外 MITM 淘宝域；不对其它 App 的调度响应作改写。
 # 2. 高德若某天加了证书固定，表现为地图打不开/一直转圈 —— 关掉
 #    本模块即可恢复（无持久改动）。
 # 3. 导航、定位、检索等核心功能域名不在拦截列表，不受影响。

@@ -1,6 +1,6 @@
 # 高德地图去广告
 
-重构自墨鱼版（[ddgksf2013/Rewrite · AmapAds.conf](https://github.com/ddgksf2013/Rewrite/blob/master/AdBlock/AmapAds.conf)，2025-12 仍在更新）：开屏广告、首页信息流、搜索热词、打车页推广、底部角标，共 **17 条规则**（脚本 9 + 拦截 8）。
+基于墨鱼版（[ddgksf2013/Rewrite · AmapAds.conf](https://github.com/ddgksf2013/Rewrite/blob/master/AdBlock/AmapAds.conf)）适配 Surge/Egern：开屏广告、首页信息流、搜索热词、打车页推广、底部角标，共 **18 条规则**（脚本 10 + 拦截 8）。20261102-r1 将开屏处理改为自托管可读脚本，并补充仅针对高德的明文 HTTPDNS 调度处理；静默运行。
 
 ## 为什么重做
 
@@ -20,7 +20,8 @@ https://raw.githubusercontent.com/skernelx/SurgeScripts/master/amap/amap-adblock
 
 | 位置 | 方式 |
 |---|---|
-| 开屏广告（aos / valueadded 双通道） | Map Local 空 JSON + 脚本清字段 |
+| 开屏广告（aos / valueadded 双通道） | aos 空体 200；valueadded 自托管脚本清理 `data.ad` |
+| 高德明文 HTTPDNS 调度 | 仅 `AMap` User-Agent 命中时替换调度响应，其它 App 放行 |
 | 首页底部信息流（main-page / ai_rec） | 脚本 + Map Local |
 | 首页顶部推广（msgbox） | 脚本 |
 | 首页右中广告（frogserver） | 脚本 |
@@ -33,10 +34,11 @@ https://raw.githubusercontent.com/skernelx/SurgeScripts/master/amap/amap-adblock
 
 ## 已知限制
 
-- 脚本（amap.js，墨鱼混淆分发）需要 MITM `*.amap.com`——主配置已含 CA 证书，无需操作
+- HTTPS 开屏与其它页面脚本需要 MITM `*.amap.com`，并安装、信任当前客户端的 CA。配置里有证书不等于系统已经信任；Surge 与 Egern 各自使用对应证书
 - 若高德日后加证书固定（表现为地图打不开），关掉模块即恢复
 - 导航、定位、检索等核心功能域名不拦截，不受影响
-- 未带原版的 amdc.m.taobao.com 脚本（需额外 MITM 淘宝域，收益小风险面大）
+- 已带 `http://amdc.m.taobao.com` 调度处理，严格限定 `AMap` User-Agent；明文 HTTP 不需额外解密淘宝域，不处理该主机的 HTTPS 请求
+- 开屏响应结构不匹配时原样放行；规则不能直接删除 App 沙盒中的既有广告缓存。电脑端样例检查不等于当前手机广告已消失
 
 ## 致谢
 

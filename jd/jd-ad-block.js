@@ -1,5 +1,5 @@
 /*
- * 京东 App 去广告脚本 v1.0 for Surge
+ * 京东 App 去广告脚本 v1.1 for Surge / Egern
  *
  * 重构自 Thelongdarkorg/loon-plugins jd_splash_ad_block.plugin（Loon 格式），
  * 将其 response-body-json-jq / json-replace / json-del / replace-regex
@@ -10,6 +10,7 @@
  * - welcomeHome      删首屏浮层楼层 + 网页浮层列表
  * - deliverLayer     删物流页顶部 banner
  * - basicConfig      关闭 socket 监控/上报 + httpdns
+ * - readCustomSurfaceList 精简亮色/深色底栏，保留首页/消息/购物车/我的
  * - cart             删购物车底部空车楼层与推荐楼层
  * - secondFloor      删首页二楼推荐楼层（问候/消息等功能保留）
  * - lite_advertising 极速版广告位字段名替换（使 App 解析不到）
@@ -19,7 +20,7 @@
 
 const CONFIG = {
     scriptName: "京东去广告",
-    version: "1.0.0",
+    version: "1.1.0",
     debug: false
 };
 
@@ -85,6 +86,48 @@ function handleBasicConfig(data) {
     return data;
 }
 
+// ---------- readCustomSurfaceList：全局底栏，不是首页频道 ----------
+// 来源：qsoyq/stash override/ad/jd.stoverride（nodeMap / cutLabelName）；
+// zirawell/R-Store Res/Scripts/AntiAd/jd.js（result.modeMap / functionId）。
+// 两种公开协议均覆盖亮色/深色，当前 App 是否下发仍需实测。
+const NAVIGATION_IDS = ["index", "messagenew", "cart", "home"];
+function handleCustomSurfaceList(data) {
+    const maps = [
+        { modes: data.nodeMap, allowIdFallback: false },
+        { modes: data.result && data.result.modeMap, allowIdFallback: true }
+    ];
+    let lists = 0;
+    let removed = 0;
+    for (const entry of maps) {
+        if (!entry.modes || typeof entry.modes !== "object") continue;
+        for (const mode of ["normal", "dark"]) {
+            const config = entry.modes[mode];
+            if (!config || !Array.isArray(config.navigationAll)) continue;
+            lists++;
+            const original = config.navigationAll;
+            if (!original.every(item => item && typeof item === "object" &&
+                !Array.isArray(item))) continue;
+            let kept;
+            if (original.some(item => typeof item.cutLabelName === "string")) {
+                // 有文字标识时只删视频入口，秒送、分类等其它导航原样保留。
+                kept = original.filter(item => !["逛", "逛逛", "视频", "短视频"].includes(item.cutLabelName));
+                if (kept.length < 2) continue;
+            } else if (entry.allowIdFallback && original.every(item =>
+                typeof item.functionId === "string")) {
+                // 旧协议无文字标识时沿用来源白名单；缺少核心入口则不猜。
+                kept = original.filter(item => NAVIGATION_IDS.includes(item.functionId));
+                if (!["index", "cart", "home"].every(id =>
+                    kept.some(item => item.functionId === id))) continue;
+            } else continue;
+            removed += original.length - kept.length;
+            config.navigationAll = kept;
+        }
+    }
+    // 不记录响应、Cookie 或个人信息，仅打印命中及删除数量。
+    console.log(`[${CONFIG.scriptName} v${CONFIG.version}] readCustomSurfaceList: lists=${lists}, removed=${removed}`);
+    return data;
+}
+
 // ---------- cart：删空车楼层与推荐楼层 ----------
 // Loon json-del 路径：cartLocationMap.loc_emptyCartFloor2 / emptyCartRecommendFloor
 function handleCart(data) {
@@ -111,8 +154,15 @@ function main() {
     const url = $request.url;
     let body = $response.body || "";
 
+    // 不要求 functionId 是首个查询参数；只接受京东客户端接口。
+    if (!/^https?:\/\/api\.m\.jd\.com\/client\.action(?:\?|$)/i.test(url)) {
+        $done({}); return;
+    }
+    const idMatch = url.match(/[?&]functionId=([^&#]+)/);
+    const functionId = idMatch ? idMatch[1] : "";
+
     // lite_advertising：字符串级字段名替换（Loon replace-regex 语义）
-    if (url.includes("functionId=lite_advertising")) {
+    if (functionId === "lite_advertising") {
         if (body.includes("jdLiteAdvertisingVO")) {
             body = body.split("jdLiteAdvertisingVO").join("sooyaaabo");
             log("lite_advertising: 字段名已替换");
@@ -121,27 +171,27 @@ function main() {
         return;
     }
 
-    const m = url.match(/functionId=(start|welcomeHome|deliverLayer|basicConfig|cart|secondFloor)(?:&|$|\?)/);
-    if (!m) { $done({}); return; }
+    const handlers = {
+        start: handleStart,
+        welcomeHome: handleWelcomeHome,
+        deliverLayer: handleDeliverLayer,
+        basicConfig: handleBasicConfig,
+        cart: handleCart,
+        secondFloor: handleSecondFloor,
+        readCustomSurfaceList: handleCustomSurfaceList
+    };
+    if (!Object.prototype.hasOwnProperty.call(handlers, functionId)) { $done({}); return; }
 
     const data = safeParse(body);
-    if (!data) { $done({}); return; }
+    if (!data || typeof data !== "object" || Array.isArray(data)) { $done({}); return; }
 
     try {
-        const handlers = {
-            start: handleStart,
-            welcomeHome: handleWelcomeHome,
-            deliverLayer: handleDeliverLayer,
-            basicConfig: handleBasicConfig,
-            cart: handleCart,
-            secondFloor: handleSecondFloor
-        };
-        const result = handlers[m[1]](data);
-        log(`${m[1]}: 已处理`);
+        const result = handlers[functionId](data);
+        log(`${functionId}: 已处理`);
         $done({ body: JSON.stringify(result) });
     } catch (e) {
         // 等价 Loon jq 的 catch $o：出错返回原始响应
-        log(`${m[1]}: 处理失败，返回原始响应`);
+        log(`${functionId}: 处理失败，返回原始响应`);
         $done({});
     }
 }

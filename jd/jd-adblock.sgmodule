@@ -1,5 +1,5 @@
 #!name=京东去广告
-#!desc=京东 App 全量去广告：开屏（含缓存回闪根除）/首屏浮层/购物车推荐/物流页 banner/极速版广告位/ADX 竞价，另关闭 socket 监控与 httpdns；页面停留弹窗与二楼推荐楼层拦截 + 底部短视频组件包阻断（2026-11-01 抓包实证补充）。重构自 Thelongdarkorg/loon-plugins（2026-09-19 版），Loon 原生改写全部翻译为自托管脚本与 Surge 等价语法。
+#!desc=京东去广告 v1.1：新增 readCustomSurfaceList 底栏逛/视频入口过滤（亮色/深色两套导航，效果依赖 App 下发配置）；保留开屏、首屏浮层、购物车推荐、物流 banner、极速版广告位、ADX、弹窗和二楼清理。支持 Surge / Egern。
 #!author=skernelx · FFDNS
 #!homepage=https://github.com/skernelx/SurgeScripts
 #!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Advertising.png
@@ -34,8 +34,9 @@ URL-REGEX,^http:\/\/\w{32}\.jddebug\.com\/diagnose\?,REJECT
 URL-REGEX,^https?:\/\/apk\.360buyimg\.com\/mpaas2-public\/[^/]*\/(short_video|XJI-short-video),REJECT
 
 [Script]
-# 六接口合一：start / welcomeHome / deliverLayer / basicConfig / cart / lite_advertising
-京东去广告 = type=http-response,pattern=^https?:\/\/api\.m\.jd\.com\/client\.action\?functionId=(start|welcomeHome|deliverLayer|basicConfig|cart|lite_advertising|secondFloor)(&|$),requires-body=1,max-size=131072,script-update-interval=0,script-path=https://raw.githubusercontent.com/skernelx/SurgeScripts/master/jd/jd-ad-block.js?v=v3,timeout=30
+# 八接口合一；functionId 支持非首查询参数，2 MiB 上限覆盖较大的导航/皮肤配置。
+# 底栏来源：qsoyq/stash 与 zirawell/R-Store 的 readCustomSurfaceList 实现。
+京东去广告 = type=http-response,pattern=^https?:\/\/api\.m\.jd\.com\/client\.action\?(?:[^#]*&)?functionId=(start|welcomeHome|deliverLayer|basicConfig|cart|lite_advertising|secondFloor|readCustomSurfaceList)(&|$),requires-body=1,max-size=2097152,script-update-interval=3600,script-path=https://raw.githubusercontent.com/skernelx/SurgeScripts/master/jd/jd-ad-block.js?v=jd-nav-1.1.0,timeout=30
 
 [URL Rewrite]
 # 京东广告交换平台（ADX）实时竞价：直接拒绝

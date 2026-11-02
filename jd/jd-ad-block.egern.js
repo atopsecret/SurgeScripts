@@ -2,7 +2,7 @@
 // Runtime: export default async function(ctx); no Surge globals.
 // Navigation references: qsoyq/stash override/ad/jd.stoverride;
 // zirawell/R-Store Res/Scripts/AntiAd/jd.js. Device behavior remains unverified.
-const VERSION = "eg-native-20261102-r1";
+const VERSION = "eg-native-20261102-r2-silent";
 const STORE = "skernelx_jd_native_diag_v1";
 const NAV_IDS = ["index", "messagenew", "cart", "home"];
 const VIDEO_LABELS = ["逛", "逛逛", "视频", "短视频"];
@@ -25,16 +25,6 @@ function saveState(ctx, patch) {
     return next;
 }
 
-function notifyOnce(ctx, suffix, subtitle, body) {
-    if (!ctx.env || ctx.env.NOTIFY_ONCE !== "true") return;
-    const key = STORE + "_notice_" + suffix;
-    try {
-        if (ctx.storage.get(key) === VERSION) return;
-        ctx.storage.set(key, VERSION);
-        ctx.notify({ title: "京东去广告", subtitle, body, sound: false });
-    } catch (_) { /* Storage and notification permissions are optional. */ }
-}
-
 function showDiagnostics(ctx) {
     const s = readState(ctx);
     const messages = ["诊断脚本版本：" + VERSION];
@@ -49,7 +39,6 @@ function showDiagnostics(ctx) {
         if (s.topKeys) messages.push("最近目标响应键名：" + s.topKeys.join(", "));
         messages.push("记录时间：" + (s.at || "未知"));
     }
-    try { ctx.notify({ title: "京东去广告诊断", body: messages.join("\n"), sound: false }); } catch (_) {}
     console.log(messages.join("\n"));
 }
 
@@ -152,7 +141,6 @@ export default async function(ctx) {
     const seen = Array.isArray(old.seenApis) ? old.seenApis.slice() : [];
     if (api && !seen.includes(api)) seen.push(api);
     const base = { responses: (old.responses || 0) + 1, lastApi: api || "未取得functionId", seenApis: seen.slice(-20) };
-    notifyOnce(ctx, "connected", "原生脚本已接到京东响应", "脚本已执行；是否改写导航请查看“京东去广告诊断”。这不代表入口已经消失。");
     const targets = ["start", "welcomeHome", "deliverLayer", "basicConfig", "cart", "secondFloor", "lite_advertising", "readCustomSurfaceList"];
     if (!targets.includes(api)) { saveState(ctx, { ...base, lastStatus: "非目标接口，原样放行" }); return; }
     let body;
@@ -174,7 +162,6 @@ export default async function(ctx) {
         const patch = { ...base, lastStatus: changed ? "响应字段已改写" : "已执行，无字段变化", topKeys: safeKeys(data) };
         if (nav) {
             Object.assign(patch, { navHits: (old.navHits || 0) + 1, navStatus: nav.status, navRemoved: nav.removed, navPaths: nav.paths });
-            notifyOnce(ctx, "navigation", "已命中底栏配置", nav.status + "；移除 " + nav.removed + " 项。入口显示仍取决于 App 是否使用该配置。");
         }
         saveState(ctx, patch);
         console.log("[京东原生 " + VERSION + "] " + api + ": " + (nav ? nav.status + ", removed=" + nav.removed : patch.lastStatus));

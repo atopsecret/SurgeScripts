@@ -1,0 +1,65 @@
+name: 京东去广告（Egern 原生）
+description: 原生脚本处理开屏与导航配置；附本地命中诊断，不依赖 Surge 脚本全局变量。底栏效果需对应 App 实际请求和响应。
+author: skernelx
+homepage: https://github.com/skernelx/SurgeScripts
+scriptings:
+- http_response:
+    name: 京东去广告原生处理
+    match: '^https?://api\.m\.jd\.com/client\.action(?:\?|$)'
+    script_url: https://raw.githubusercontent.com/skernelx/SurgeScripts/master/jd/jd-ad-block.egern.js?v=eg-native-20261102-r1
+    env:
+      NOTIFY_ONCE: 'true'
+    body_required: true
+    max_size: 2097152
+    timeout: 30
+    update_interval: 3600
+- generic:
+    name: 京东去广告诊断
+    script_url: https://raw.githubusercontent.com/skernelx/SurgeScripts/master/jd/jd-ad-block.egern.js?v=eg-native-20261102-r1
+    timeout: 30
+    update_interval: 3600
+rules:
+- url_regex:
+    match: '^http://\w{32}\.jddebug\.com/diagnose\?'
+    policy: REJECT
+- url_regex:
+    match: '^https?://apk\.360buyimg\.com/mpaas2-public/[^/]*/(short_video|XJI-short-video)'
+    policy: REJECT
+- url_regex:
+    match: '^https?://(bdsp-x|dsp-x)\.jd\.com/adx/'
+    policy: REJECT
+- url_regex:
+    match: '^https?://api\.m\.jd\.com/client\.action\?functionId=getWidgetV1052(?:&|$)'
+    policy: REJECT
+map_locals:
+- match: '^https?://api\.m\.jd\.com/client\.action\?functionId=queryMaterialAdverts(?:&|$)'
+  status_code: 200
+  headers:
+    Content-Type: application/json
+  body: '{}'
+- match: '^https?://m\.360buyimg\.com/mobilecms/s1125x2436_jfs'
+  status_code: 200
+  body: ''
+- match: '^https?://api\.m\.jd\.com/client\.action\?functionId=queryPagePopWindow(?:&|$)'
+  status_code: 200
+  headers:
+    Content-Type: application/json
+  body: '{}'
+- match: '^https?://api\.m\.jd\.com/\?loginType=11(?:&|$)'
+  status_code: 200
+  headers:
+    Content-Type: application/json
+  body: '{}'
+- match: '^https?://api\.m\.jd\.com/client\.action\?functionId=(cartCouponRecommendGoods|intelligentRecommendSku|obtainGrowingInfo|recommendShop|searchBoxWord|stationPullService|uniformRecommend)(?:&|$)'
+  status_code: 200
+  headers:
+    Content-Type: application/json
+  body: '{}'
+mitm:
+  hostnames:
+    includes:
+    - api.m.jd.com
+    - m.360buyimg.com
+    - apk.360buyimg.com
+    - bdsp-x.jd.com
+    - dsp-x.jd.com

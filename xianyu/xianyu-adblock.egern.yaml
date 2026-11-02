@@ -1,0 +1,39 @@
+name: 闲鱼去广告（Egern 原生）
+description: 原生脚本处理新旧开屏及已知广告接口，覆盖六个网关；保留服务端错误响应并提供本地命中诊断。版本 eg-native-20261102-r1。
+author: skernelx
+homepage: https://github.com/skernelx/SurgeScripts
+scriptings:
+- http_response:
+    name: 闲鱼去广告原生处理
+    match: '^https?://(acs|g-acs|gw)\.m\.(goofish|taobao)\.com/(gw|h5)/mtop\.[a-zA-Z0-9.]+(?:/|$)'
+    script_url: https://raw.githubusercontent.com/skernelx/SurgeScripts/master/xianyu/xianyu-ad-block.egern.js?v=eg-native-20261102-r1
+    env:
+      NOTIFY_ONCE: 'true'
+    body_required: true
+    max_size: 2097152
+    update_interval: 3600
+    timeout: 30
+- generic:
+    name: 闲鱼去广告诊断
+    script_url: https://raw.githubusercontent.com/skernelx/SurgeScripts/master/xianyu/xianyu-ad-block.egern.js?v=eg-native-20261102-r1
+    update_interval: 3600
+    timeout: 30
+rules:
+- url_regex:
+    match: '^https?://ossgw\.alicdn\.com/creatives-assets/'
+    policy: REJECT
+- url_regex:
+    match: '^https?://(bdlog|df)\.tanx\.com(?:/|$)'
+    policy: REJECT
+mitm:
+  hostnames:
+    includes:
+    - acs.m.goofish.com
+    - acs.m.taobao.com
+    - g-acs.m.goofish.com
+    - g-acs.m.taobao.com
+    - gw.m.goofish.com
+    - gw.m.taobao.com
+    - ossgw.alicdn.com
+    - bdlog.tanx.com
+    - df.tanx.com

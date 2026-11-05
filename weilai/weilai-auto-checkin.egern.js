@@ -2,11 +2,11 @@
 // Build: 无需构建
 // Run: 导入 weilai-auto-checkin.egern.yaml；重新捕获凭据；定时任务每天 09:00
 // Deps: Egern ctx API；测试：node --experimental-vm-modules --test weilai/tests/egern.test.cjs
-// Version: 3.0.0
-// Author: atopsecret；业务路径与响应契约沿用本目录 Surge 2.1.2，旧文件不改。
+// Version: 3.0.1
+// Author: atopsecret；与本目录 Surge 版使用相同业务路径，凭据存储独立。
 
 export const CONFIG = Object.freeze({
-    version: "3.0.0",
+    version: "3.0.1",
     stateKey: "weilai_egern_auth_state_v1",
     journalKey: "weilai_egern_checkin_v1",
     endpoint: "https://gateway-front-external.nio.com/moat/10086/c/award_cn/checkin",
@@ -50,9 +50,10 @@ function readJSON(ctx, key) {
     return parsed;
 }
 function writeVerified(ctx, key, value) {
-    // Egern setJSON() 返回 void，不以 === true 判断；回读才能识别静默未写入。
-    ctx.storage.setJSON(key, value);
-    if (JSON.stringify(ctx.storage.getJSON(key)) !== JSON.stringify(value)) throw new Error("storage-not-confirmed");
+    // 原生 JSON 编码器不保证对象键顺序；统一存取原始字符串，仍回读验证真正写入。
+    const encoded = JSON.stringify(value);
+    ctx.storage.set(key, encoded);
+    if (ctx.storage.get(key) !== encoded) throw new Error("storage-not-confirmed");
 }
 function readState(ctx) {
     const state = readJSON(ctx, CONFIG.stateKey);
@@ -122,9 +123,25 @@ function readJournal(ctx) {
 }
 function statistics(data) {
     const stats = record(data.stats) ? data.stats : {};
-    const first = values => values.find(statNumber);
-    const consecutive = first([stats.continuous_checkin_days, stats.continuous_days, data.continuous_days]);
-    const total = first([stats.accumulate_days, data.accumulate_days]);
+    const consecutiveFields = [
+        ["stats.continuous_checkin_days", stats.continuous_checkin_days],
+        ["stats.continuous_days", stats.continuous_days],
+        ["continuous_checkin_days", data.continuous_checkin_days],
+        ["continuous_days", data.continuous_days]
+    ];
+    const totalFields = [["stats.accumulate_days", stats.accumulate_days], ["accumulate_days", data.accumulate_days]];
+    const first = fields => fields.map(([, value]) => {
+        // 只转换有限长度的纯数字串；不接受布尔值、指数、小数或任意文本。
+        if (typeof value === "string" && /^[0-9]{1,16}$/.test(value)) value = Number(value);
+        return statNumber(value) ? value : undefined;
+    }).find(value => value !== undefined);
+    const consecutive = first(consecutiveFields), total = first(totalFields);
+    if (consecutive === undefined || total === undefined) {
+        // 固定字段名与类型便于诊断缺统计，不记录响应值或整包正文。
+        const types = consecutiveFields.concat(totalFields).map(([name, value]) =>
+            name + "=" + (value === undefined ? "missing" : typeof value));
+        console.log("[蔚来签到] 统计字段类型：" + types.join(", "));
+    }
     const output = {};
     if (consecutive !== undefined) output.consecutive = consecutive;
     if (total !== undefined) output.total = total;

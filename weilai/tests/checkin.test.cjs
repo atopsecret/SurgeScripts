@@ -96,6 +96,7 @@ test('统计缺失显示未知，不重复 POST；零值不当作缺失', () => 
         assert.match(h.notices[0][2], stats ? /0 天/ : /未知/);
         assert.ok(h.logs.includes('[蔚来签到] 连续签到：' + (stats ? '0 天' : '未知')));
         assert.ok(h.logs.includes('[蔚来签到] 累计签到：' + (stats ? '0 天' : '未知')));
+        assert.equal(h.logs.some(line => line.includes('统计字段类型：')), !stats);
     }
 });
 test('只含 continuous_days 的已知变体可解析', () => {
@@ -283,7 +284,8 @@ test('失败原因在日志和通知同步显示，通知异常也不丢失日�
 });
 test('日志标明实际执行版本，能够核对远程缓存', () => {
     const h = harness({ replies: [{}] });
-    assert.ok(h.logs.includes('[蔚来签到] 脚本版本 2.1.2'));
+    const version = source.match(/\/\/ Version: ([\d.]+)/)[1];
+    assert.ok(h.logs.includes('[蔚来签到] 脚本版本 ' + version));
 });
 test('负数、小数或非 HTTP 日期限流值不会被宽松日期解析后立即重试', () => {
     for (const value of ['-1', '1.5', '2026-11-04', 'Infinity', '1e9', '9999999999999999999999999']) {
@@ -350,11 +352,45 @@ test('恶意 User-Agent 不进入签到请求，合法 UA 在后续抓取时保�
     assert.equal(JSON.parse(kept.store.get(KEY)).userAgent, previous.userAgent);
 });
 test('统计只接受非负安全整数，不输出统计中的任意文本', () => {
-    for (const value of ['SECRET_STATS', -1, 0.5, Number.MAX_SAFE_INTEGER + 1, null]) {
+    for (const value of ['SECRET_STATS', '', ' ', '-1', '1.5', '1e3', 'Infinity', '9007199254740992',
+        '00000000000000000', true, -1, 0.5, Number.MAX_SAFE_INTEGER + 1, null]) {
         const h = harness({ replies: [{ body: { result_code: 'success', data: {
             checked_in: true, stats: { continuous_checkin_days: value, accumulate_days: value },
         } } }] });
         assert.match(h.notices[0][2], /连续签到：未知\n累计签到：未知/);
+        assert.doesNotMatch(h.logs.join('\n'), /SECRET_STATS/);
+    }
+});
+test('统计数字字符串正常显示，零值有效且不会额外签到', () => {
+    for (const [data, consecutive, total] of [
+        [{ stats: { continuous_checkin_days: '561', accumulate_days: '567' } }, 561, 567],
+        [{ continuous_checkin_days: '561', accumulate_days: '567' }, 561, 567],
+        [{ stats: { continuous_days: '0', accumulate_days: '0' } }, 0, 0],
+        [{ stats: { continuous_checkin_days: '9007199254740991', accumulate_days: '9007199254740991' } },
+            Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER],
+    ]) {
+        const h = harness({ replies: [{ body: { result_code: 'success', data: { checked_in: true, ...data } } }] });
+        assert.equal(h.posts.length, 1); assert.equal(h.done, 1);
+        assert.equal(h.notices[0][2], `连续签到：${consecutive} 天\n累计签到：${total} 天`);
+        assert.equal(h.logs.some(line => line.includes('统计字段类型：')), false);
+    }
+});
+test('顶层连续签到字段 continuous_checkin_days 不丢失', () => {
+    const h = harness({ replies: [{ body: { result_code: 'success', data: {
+        checked_in: true, continuous_checkin_days: 7, accumulate_days: 11,
+    } } }] });
+    assert.equal(h.notices[0][2], '连续签到：7 天\n累计签到：11 天');
+});
+test('统计字段优先使用合法嵌套值，非法值回退到顶层', () => {
+    for (const [stats, consecutive, total] of [
+        [{ continuous_checkin_days: '2', accumulate_days: '4' }, 2, 4],
+        [{ continuous_checkin_days: -1, accumulate_days: 'SECRET_STATS' }, 8, 12],
+        [{ continuous_days: 0, accumulate_days: 0 }, 0, 0],
+    ]) {
+        const h = harness({ replies: [{ body: { result_code: 'success', data: {
+            checked_in: true, stats, continuous_checkin_days: '8', continuous_days: 9, accumulate_days: '12',
+        } } }] });
+        assert.equal(h.notices[0][2], `连续签到：${consecutive} 天\n累计签到：${total} 天`);
         assert.doesNotMatch(h.logs.join('\n'), /SECRET_STATS/);
     }
 });

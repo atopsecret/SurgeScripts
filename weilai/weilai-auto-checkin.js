@@ -2,11 +2,11 @@
 // Build: 无需构建
 // Run: 导入模块后每天 09:00 自动运行；也可手动运行定时任务立即验证
 // Deps: Surge 脚本 API；测试：node --test weilai/tests/checkin.test.cjs
-// Version: 2.1.2
+// Version: 2.1.3
 (function () {
     "use strict";
     const CONFIG = {
-        version: "2.1.2",
+        version: "2.1.3",
         stateKey: "weilai_auth_state_v1",
         endpoint: "https://gateway-front-external.nio.com/moat/10086/c/award_cn/checkin",
         budgetMs: 24000, requestTimeoutSeconds: 5, maxAttempts: 3,
@@ -83,10 +83,26 @@
         else finish();
     }
     function statsMessage(data) {
-        const stats = data.stats && typeof data.stats === "object" ? data.stats : {};
-        const first = values => values.find(v => typeof v === "number" && Number.isSafeInteger(v) && v >= 0);
-        const consecutive = first([stats.continuous_checkin_days, stats.continuous_days, data.continuous_days]);
-        const total = first([stats.accumulate_days, data.accumulate_days]);
+        const stats = data.stats && typeof data.stats === "object" && !Array.isArray(data.stats) ? data.stats : {};
+        const consecutiveFields = [
+            ["stats.continuous_checkin_days", stats.continuous_checkin_days],
+            ["stats.continuous_days", stats.continuous_days],
+            ["continuous_checkin_days", data.continuous_checkin_days],
+            ["continuous_days", data.continuous_days]
+        ];
+        const totalFields = [["stats.accumulate_days", stats.accumulate_days], ["accumulate_days", data.accumulate_days]];
+        const first = fields => fields.map(([, value]) => {
+            // 只转换有限长度的纯数字串，拒绝任意文本和不安全的整数。
+            if (typeof value === "string" && /^[0-9]{1,16}$/.test(value)) value = Number(value);
+            return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
+        }).find(value => value !== undefined);
+        const consecutive = first(consecutiveFields), total = first(totalFields);
+        if (consecutive === undefined || total === undefined) {
+            // 仅输出固定字段名和类型，不输出响应值或整包正文。
+            const types = consecutiveFields.concat(totalFields).map(([name, value]) =>
+                name + "=" + (value === undefined ? "missing" : typeof value));
+            console.log("[蔚来签到] 统计字段类型：" + types.join(", "));
+        }
         return "连续签到：" + (consecutive === undefined ? "未知" : consecutive + " 天") +
             "\n累计签到：" + (total === undefined ? "未知" : total + " 天");
     }

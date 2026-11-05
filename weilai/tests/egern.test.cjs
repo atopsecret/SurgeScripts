@@ -18,6 +18,9 @@ const GENERATION = 'offline_generation_a', NEXT = 'offline_generation_b';
 const NOW = Date.parse('2026-11-05T01:00:00Z');
 const SIGNED = { result_code: 'success', data: { checked_in: true, stats: { continuous_checkin_days: 2, accumulate_days: 4 } } };
 const plain = value => JSON.parse(JSON.stringify(value));
+// 模拟原生 JSON 编码器：对象键顺序可以改变，字符串存储仍保持原文。
+const reordered = value => Array.isArray(value) ? value.map(reordered) :
+    value !== null && typeof value === 'object' ? Object.fromEntries(Object.keys(value).sort().map(key => [key, reordered(value[key])])) : value;
 const state = (extra = {}) => ({ token: TOKEN, observedAt: NOW, invalid: false, generation: GENERATION, userAgent: 'NIOAppCN/6.10.0 offline', ...extra });
 const stateStore = (extra = {}) => new Map([[KEY, JSON.stringify(state(extra))]]);
 function captureRequest(url = 'https://gateway-front-external.nio.com/moat/10086/c/award_cn/checkin', token = TOKEN, ua = 'NIOAppCN/6.10.0 offline') {
@@ -70,17 +73,25 @@ async function harness(options = {}) {
         return output;
     }
     const responses = [];
+    function writeRaw(key, text) {
+        assert.equal(typeof text, 'string');
+        const copy = JSON.parse(text); writes.push([key, copy]);
+        if (options.writeThrows) throw Error('SECRET_STORAGE_WRITE');
+        if (options.writeHook && options.writeHook(key, copy, store) === false) return;
+        if (!options.writeNoop) store.set(key, text);
+        // 原生 API 返回 void。
+    }
     const ctx = {
         storage: {
             get: read,
-            getJSON: key => { const raw = read(key); return raw === null ? null : JSON.parse(raw); },
-            setJSON: (key, value) => {
-                const copy = plain(value); writes.push([key, copy]);
-                if (options.writeThrows) throw Error('SECRET_STORAGE_WRITE');
-                if (options.writeHook && options.writeHook(key, copy, store) === false) return;
-                if (!options.writeNoop) store.set(key, JSON.stringify(copy));
-                // 原生 API 返回 void。
+            set: writeRaw,
+            getJSON: key => {
+                const raw = read(key);
+                if (raw === null) return null;
+                const value = JSON.parse(raw);
+                return options.jsonReorders ? reordered(value) : value;
             },
+            setJSON: (key, value) => writeRaw(key, JSON.stringify(options.jsonReorders ? reordered(plain(value)) : plain(value))),
         },
         notify: value => { if (options.notificationThrows) throw Error('SECRET_NOTIFICATION'); notices.push(plain(value)); },
         http: { post: (url, request) => {
@@ -128,13 +139,21 @@ test('原生 POST 固定端点/表单/秒时间，超时毫秒，不跳转、不
     assert.equal(subtitle(h), '今日签到已确认'); assert.match(h.notices[0].body, /2 天\n累计签到：4 天/);
     assert.equal(h.responses[0].consumed, 1); assert.equal(journal(h).lock, null); assertPrivate(h);
 });
-test('request 捕获仅读 Headers，不消费 body、不执行签到，setJSON void 写入有效', async () => {
+test('request 捕获仅读 Headers，不消费 body、不执行签到，存储 API 返回 void 仍有效', async () => {
     const h = await harness({ store: new Map(), request: captureRequest() }); await h.promise;
     assert.equal(h.posts.length, 0); assert.equal(subtitle(h), '凭据已更新');
     const saved = JSON.parse(h.store.get(KEY));
     assert.equal(saved.token, TOKEN); assert.equal(saved.userAgent, 'NIOAppCN/6.10.0 offline');
     assert.match(saved.generation, /^[a-z0-9_-]+$/); assert.equal(saved.observedAt, NOW); assert.equal(saved.invalid, false);
     assert.equal(h.store.has(JOURNAL), false); assertPrivate(h);
+});
+test('原生 JSON 键重排不误报凭据或任务锁保存失败', async () => {
+    const h = await harness({ store: new Map(), request: captureRequest(), jsonReorders: true }); await h.promise;
+    assert.equal(subtitle(h), '凭据已更新'); assert.equal(h.posts.length, 0);
+    assert.equal(JSON.parse(h.store.get(KEY)).token, TOKEN);
+    await h.invoke();
+    assert.equal(h.posts.length, 1); assert.equal(subtitle(h), '今日签到已确认');
+    assert.equal(journal(h).confirmed.day, '2026-11-05'); assert.equal(journal(h).lock, null); assertPrivate(h);
 });
 test('三个精确主机与已知业务路径捕获，伪造主机/协议/无关路径不存储', async () => {
     for (const url of ['https://gateway-front-external.nio.com/moat/10086/n/c/award/x', 'https://app.nio.com/app/api/example',
@@ -178,6 +197,13 @@ test('捕获写入失败或静默未写入，不报告更新成功；读取不�
     assert.equal(subtitle(h), '凭据状态无法读取'); assert.equal(JSON.parse(h.store.get(KEY)).token, TOKEN);
     assert.equal(h.writes.length, 0);
 });
+test('原始字符串回读被替换时仍拒绝凭据保存成功', async () => {
+    const h = await harness({ store: new Map(), request: captureRequest(), writeHook: (key, value, store) => {
+        store.set(key, JSON.stringify({ ...value, observedAt: NOW - 1 })); return false;
+    } });
+    assert.equal(subtitle(h), '凭据保存失败'); assert.equal(h.posts.length, 0);
+    assert.equal(JSON.parse(h.store.get(KEY)).observedAt, NOW - 1); assertPrivate(h);
+});
 test('真实目标请求可修复损坏状态，但不会读取旧 Surge 凭据键', async () => {
     const store = new Map([[KEY, 'BROKEN_SECRET'], ['weilai_auth_state_v1', JSON.stringify(state())], ['weilai_auth_token', TOKEN]]);
     const h = await harness({ store, request: captureRequest(undefined, NEW_TOKEN) });
@@ -191,7 +217,7 @@ test('只有旧 Surge 键没有 Egern 状态，不签到、不搬运凭据', asy
 });
 test('generic 诊断是合法 widget，只读且静默，不是手动签到入口', async () => {
     const h = await harness({ generic: true }); await h.promise;
-    assert.equal(h.output.type, 'widget'); assert.match(JSON.stringify(h.output), /3.0.0/);
+    assert.equal(h.output.type, 'widget'); assert.ok(JSON.stringify(h.output).includes(h.namespace.CONFIG.version));
     assert.equal(h.posts.length, 0); assert.equal(h.writes.length, 0); assert.equal(h.notices.length, 0); assertPrivate(h);
     for (const params of [{}, { cron: '' }, { response: { status: 200 } }, { request: captureRequest(), response: { status: 200 } }]) {
         await h.invoke(params); assert.equal(h.posts.length, 0); assert.equal(h.writes.length, 0);
@@ -372,9 +398,47 @@ test('解析/业务状态错误、checked_in 不为 true 均不标记成功或�
 });
 test('统计只收非负安全整数，缺失显示未知；不为补统计再请求', async () => {
     for (const stats of [{}, { continuous_days: 0, accumulate_days: 0 }, { continuous_checkin_days: -1, accumulate_days: 'SECRET_STATS' },
-        { continuous_checkin_days: 1.5, accumulate_days: Number.MAX_SAFE_INTEGER + 1 }]) {
+        { continuous_checkin_days: 1.5, accumulate_days: Number.MAX_SAFE_INTEGER + 1 },
+        ...['', ' ', '-1', '1.5', '1e3', 'Infinity', '9007199254740992', '00000000000000000', true, null]
+            .map(value => ({ continuous_checkin_days: value, accumulate_days: value }))]) {
         const h = await harness({ replies: [{ body: { result_code: 'success', data: { checked_in: true, stats } } }] });
         assert.equal(h.posts.length, 1); assert.match(h.notices[0].body, stats.continuous_days === 0 ? /0 天/ : /未知/); assertPrivate(h);
+        assert.equal(h.logs.some(line => line.includes('统计字段类型：')), stats.continuous_days !== 0);
+    }
+});
+test('统计数字字符串正常显示，缓存保存数字且当日不额外签到', async () => {
+    for (const [data, consecutive, total] of [
+        [{ stats: { continuous_checkin_days: '561', accumulate_days: '567' } }, 561, 567],
+        [{ continuous_checkin_days: '561', accumulate_days: '567' }, 561, 567],
+        [{ stats: { continuous_days: '0', accumulate_days: '0' } }, 0, 0],
+        [{ stats: { continuous_checkin_days: '9007199254740991', accumulate_days: '9007199254740991' } },
+            Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER],
+    ]) {
+        const h = await harness({ replies: [{ body: { result_code: 'success', data: { checked_in: true, ...data } } }] });
+        assert.equal(h.posts.length, 1); assert.equal(h.notices[0].body, `连续签到：${consecutive} 天\n累计签到：${total} 天`);
+        assert.deepEqual(journal(h).confirmed.stats, { consecutive, total });
+        assert.equal(h.logs.some(line => line.includes('统计字段类型：')), false);
+        await h.invoke(); assert.equal(h.posts.length, 1); assert.equal(subtitle(h), '今日签到已确认（本地记录）');
+        assert.match(h.notices.at(-1).body, new RegExp(`连续签到：${consecutive} 天`)); assertPrivate(h);
+    }
+});
+test('顶层连续签到字段 continuous_checkin_days 不丢失', async () => {
+    const h = await harness({ replies: [{ body: { result_code: 'success', data: {
+        checked_in: true, continuous_checkin_days: 7, accumulate_days: 11,
+    } } }] });
+    assert.equal(h.notices[0].body, '连续签到：7 天\n累计签到：11 天');
+    assert.deepEqual(journal(h).confirmed.stats, { consecutive: 7, total: 11 });
+});
+test('统计字段优先使用合法嵌套值，非法值回退到顶层', async () => {
+    for (const [stats, consecutive, total] of [
+        [{ continuous_checkin_days: '2', accumulate_days: '4' }, 2, 4],
+        [{ continuous_checkin_days: -1, accumulate_days: 'SECRET_STATS' }, 8, 12],
+        [{ continuous_days: 0, accumulate_days: 0 }, 0, 0],
+    ]) {
+        const h = await harness({ replies: [{ body: { result_code: 'success', data: {
+            checked_in: true, stats, continuous_checkin_days: '8', continuous_days: 9, accumulate_days: '12',
+        } } }] });
+        assert.equal(h.notices[0].body, `连续签到：${consecutive} 天\n累计签到：${total} 天`); assertPrivate(h);
     }
 });
 test('确认记录保存失败不伪报防重成功，保留租约并明确说明', async () => {
@@ -394,6 +458,9 @@ test('捕获查询/HTTP 错误/服务端文本/存储异常均不进入日志通
     const run = await harness({ replies: [{ body: { result_code: 'failure', message: 'SECRET_SERVER', data: {} } }] }); assertPrivate(run);
 });
 test('原生 YAML 三入口/版本/09:00/三个 MITM 主机、文件引用都正确', () => {
+    const version = source.match(/\/\/ Version: ([\d.]+)/)[1];
+    assert.ok(yaml.description.startsWith(version));
+    assert.ok(source.includes('version: "' + version + '"'));
     assert.equal(yaml.scriptings.length, 3);
     const request = yaml.scriptings[0].http_request, schedule = yaml.scriptings[1].schedule, generic = yaml.scriptings[2].generic;
     assert.equal(request.body_required, false); assert.equal(schedule.cron, '0 9 * * *'); assert.equal(schedule.timeout, 30);
@@ -403,7 +470,7 @@ test('原生 YAML 三入口/版本/09:00/三个 MITM 主机、文件引用都正
     for (const row of [request, schedule, generic]) {
         const url = new URL(row.script_url); assert.equal(url.hostname, 'raw.githubusercontent.com');
         assert.equal(url.pathname, '/atopsecret/SurgeScripts/main/weilai/weilai-auto-checkin.egern.js');
-        assert.equal(url.searchParams.get('v'), '3.0.0'); assert.ok(fs.existsSync(path.join(root, path.basename(url.pathname))));
+        assert.equal(url.searchParams.get('v'), version); assert.ok(fs.existsSync(path.join(root, path.basename(url.pathname))));
         assert.equal(row.update_interval, 3600);
     }
     assert.doesNotMatch(source, /\$(?:done|request|response|persistentStore|httpClient|notification)\b|\bimport\s/);

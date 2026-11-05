@@ -18,8 +18,6 @@ Surge 去广告模块、蔚来自动签到脚本和代理规则列表。京东�
   [使用说明](pinduoduo/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/pinduoduo/pdd-adblock.sgmodule)
 - **红果短剧**：广告 SDK、已知插播广告视频主机和部分上报请求。
   [使用说明](hongguo/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/hongguo/hongguo-adblock.sgmodule)
-- **Discord 净化**：对推广、商店和遥测等路径返回本地响应或拒绝请求，不加载外部 JavaScript。
-  [使用说明](discord-remove-gift-button/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/discord-remove-gift-button/discord-remove-gift-button.sgmodule)
 - **戒烟军团**：改写已知响应中的客户端会员标志位，不改变服务端会员资格。
   [使用说明](jyjt/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jyjt/jyjt-member.sgmodule)
 - **蔚来自动签到 2.1.2**：保存已知接口的登录凭据，每日 09:00 使用它签到。
@@ -68,7 +66,6 @@ RULE-SET,https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/Telegram
 
 - 高德、京东、闲鱼、拼多多的 HTTPS 改写依赖客户端解密；具体主机和脚本入口由模块定义。
 - 红果的域名拒绝不依赖解密，广告接口空响应需要 MITM；附带的 DoH 拒绝规则可能与主配置 DNS 设置冲突。
-- Discord 当前是本地响应与拒绝规则，不包含修改 `premium_type` 的脚本。空置订阅、支付和权益接口也可能影响相关页面。
 - 戒烟军团的已知业务接口使用明文 HTTP。客户端显示被改写，不代表服务器授予了会员权限。
 - 蔚来从已知 HTTPS 请求头提取凭据，结果以接口实际返回为准。手动验证请在客户端运行定时任务；旧网页触发入口已移除。
 

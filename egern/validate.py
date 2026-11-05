@@ -99,9 +99,9 @@ def validate_rule(item, nested=False):
 
 def script_path(url: str, root: Path) -> Path:
     parts = urlsplit(url)
-    prefix = "/atopsecret/SurgeScripts/main/"
-    require(parts.scheme == "https" and parts.netloc == "raw.githubusercontent.com" and parts.path.startswith(prefix), "脚本未使用当前仓库 main 地址")
-    relative = Path(parts.path[len(prefix):])
+    match = re.fullmatch(r"/atopsecret/SurgeScripts/(?:main|[0-9a-f]{40})/(.+)", parts.path)
+    require(parts.scheme == "https" and parts.netloc == "raw.githubusercontent.com" and match is not None, "脚本未使用当前仓库 main 或完整提交地址")
+    relative = Path(match.group(1))
     require(".." not in relative.parts and not relative.is_absolute(), "脚本路径越出仓库")
     path = root / relative
     require(path.is_file() and not path.is_symlink() and path.name.endswith(".egern.js"), "脚本文件不存在或不是自包含原生文件")

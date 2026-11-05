@@ -60,6 +60,8 @@ https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/weilai/weilai-aut
 
 3.0.1 修复了原生存储回读误判：用 `ctx.storage.set()` 写入 JSON 字符串，再用 `get()` 核对原文，不把 JSON 编码器改变对象键顺序当成保存失败。现有凭据键和任务记录键不变，不需要清空存储；真正的写入异常、静默未写入或回读内容不同仍会停止任务。更新模块与远程脚本后，重新打开蔚来 App 即可再次捕获凭据。
 
+捕获、定时与诊断三个入口使用同一个已核验的完整提交地址，避免 GitHub Raw 的 `main` 缓存或客户端旧脚本缓存继续返回 3.0.0。模块本身仍可跟随 `main` 更新；需要绕开旧模块缓存时，可使用[等价的新安装入口](https://raw.githubusercontent.com/atopsecret/SurgeScripts/refs/heads/main/weilai/weilai-auto-checkin.egern.yaml?v=3.0.1)。重新载入配置并更新模块后，运行“蔚来本地诊断”确认显示 `Egern 原生脚本 3.0.1`；仅打开 App 不保证模块与脚本缓存已经更新。相同凭据捕获会保持静默，以本地诊断的“已捕获”状态为准。
+
 定时采用 Egern 的设备时区。官方文档没有 Surge `wake-system` 的等价字段，本模块不写该字段，也不承诺锁屏调度完全相同。
 
 ### 凭据、幂等与任务锁

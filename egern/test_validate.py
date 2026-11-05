@@ -102,8 +102,18 @@ class ValidationTests(unittest.TestCase):
                 validator.load(path)
 
     def test_script_traversal_rejected(self):
-        with self.assertRaises(ValueError):
-            validator.script_path("https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/../outside.egern.js", ROOT)
+        for ref in ("main", "39fe49916d989493e16695b4e0c706a9d4a27f2c"):
+            with self.subTest(ref=ref), self.assertRaises(ValueError):
+                validator.script_path(f"https://raw.githubusercontent.com/atopsecret/SurgeScripts/{ref}/../outside.egern.js", ROOT)
+
+    def test_pinned_commit_script_allowed(self):
+        url = "https://raw.githubusercontent.com/atopsecret/SurgeScripts/39fe49916d989493e16695b4e0c706a9d4a27f2c/weilai/weilai-auto-checkin.egern.js?v=3.0.1"
+        self.assertEqual(validator.script_path(url, ROOT), ROOT / "weilai/weilai-auto-checkin.egern.js")
+
+    def test_short_or_unknown_script_ref_rejected(self):
+        for ref in ("dev", "39fe499", "g" * 40, "a" * 41):
+            with self.subTest(ref=ref), self.assertRaises(ValueError):
+                validator.script_path(f"https://raw.githubusercontent.com/atopsecret/SurgeScripts/{ref}/weilai/weilai-auto-checkin.egern.js", ROOT)
 
     def test_old_account_script_rejected(self):
         with self.assertRaises(ValueError):

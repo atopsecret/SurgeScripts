@@ -463,13 +463,14 @@ test('原生 YAML 三入口/版本/09:00/三个 MITM 主机、文件引用都正
     assert.ok(source.includes('version: "' + version + '"'));
     assert.equal(yaml.scriptings.length, 3);
     const request = yaml.scriptings[0].http_request, schedule = yaml.scriptings[1].schedule, generic = yaml.scriptings[2].generic;
+    assert.equal(new Set([request.script_url, schedule.script_url, generic.script_url]).size, 1);
     assert.equal(request.body_required, false); assert.equal(schedule.cron, '0 9 * * *'); assert.equal(schedule.timeout, 30);
     const pattern = new RegExp(request.match); assert.equal(pattern.test(captureRequest().url), true);
     assert.equal(pattern.test('https://app.nio.com.evil.test/app/api/x'), false);
     assert.deepEqual(yaml.mitm.hostnames.includes, ['gateway-front-external.nio.com', 'app.nio.com', 'api.nio.com']);
     for (const row of [request, schedule, generic]) {
         const url = new URL(row.script_url); assert.equal(url.hostname, 'raw.githubusercontent.com');
-        assert.equal(url.pathname, '/atopsecret/SurgeScripts/main/weilai/weilai-auto-checkin.egern.js');
+        assert.equal(url.pathname, '/atopsecret/SurgeScripts/39fe49916d989493e16695b4e0c706a9d4a27f2c/weilai/weilai-auto-checkin.egern.js');
         assert.equal(url.searchParams.get('v'), version); assert.ok(fs.existsSync(path.join(root, path.basename(url.pathname))));
         assert.equal(row.update_interval, 3600);
     }

@@ -1,6 +1,6 @@
 # 戒烟军团客户端会员标志位改写
 
-本目录包含 Surge 响应脚本，改写戒烟军团已知接口中的会员标志位。处理的是客户端接收到的响应，不会修改服务端账号、付款记录或会员权限。
+本目录包含 Surge 响应脚本，以及独立的 Egern 原生 YAML 与脚本，改写戒烟军团已知接口中的会员标志位。处理的是客户端接收到的响应，不会修改服务端账号、付款记录或会员权限。旧 Surge 文件保留不变。
 
 ## 安装
 
@@ -14,7 +14,34 @@ https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jyjt/jyjt-member.
 
 已知接口是明文 `http://smoke.nxnresearch.com/webservice510.asmx`，因此当前处理不需要 MITM。模块正则也允许 HTTPS，但并未配置对应 MITM；服务若改用 HTTPS，不能认为现有配置会自动完成解密。
 
-本目录没有 Egern 原生 YAML。
+Egern 使用下节的独立 YAML，不导入 Surge 模块或旧脚本。
+
+## Egern 原生版
+
+公开本次变更后，模块地址为：
+
+```text
+https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jyjt/jyjt-member.egern.yaml
+```
+
+[原生脚本](jyjt-member.egern.js) 1.0.0 使用 Egern `ctx` 接口，不依赖 Surge 全局。与原版相比，匹配和错误处理收窄如下：
+
+- 仅处理明文 HTTP 的精确主机与 `webservice510.asmx` 路径边界；查询和版本子路径可匹配，同前缀的未知接口不匹配。没有 HTTPS 或 MITM 自动兼容的承诺。
+- 只有 HTTP 200 才读正文；SOAP Fault 原文放行。完整数字零值才替换，`0.5`、`0e0`、`-0`、字符串、已有会员值不改；日期只改完整 `null`。
+- XML 与原有空白保留，不对整份 SOAP 执行 `json()`。正文只消费一次，原始 UTF-8 字节保留用于无变化或异常放行；其他声明编码不强转。
+- 改写时保持原 XML `Content-Type`，在原 `Headers` 上清除过时长度、压缩及校验头；不枚举重建未知头，也不合并或丢失 Cookie。方法异常时回传原正文，并尝试恢复触及的头。
+- 不保存状态、不发通知、不访问业务 API。网络流自身读取失败时无法重建未读完的原文；不二次读取或伪造空正文。持续失效的响应头 API 与流错误需要客户端运行验收。
+
+这些收窄只适用于 Egern 新版，不意味着旧 Surge 正则已有相同保护。仍只改变客户端字段，不授予服务器会员资格。
+
+16 项离线测试全部使用虚构 SOAP 与响应上下文：
+
+```sh
+node --input-type=module --check < jyjt/jyjt-member.egern.js
+node --experimental-vm-modules --test jyjt/tests/egern.test.cjs
+```
+
+测试依赖 Node.js 20+、Python 3 与 PyYAML（只解析公开 YAML）。参考 [Egern 原生脚本 API](https://egernapp.com/zh-CN/docs/javascript-api/) 与[脚本配置](https://egernapp.com/docs/configuration/scriptings/)。YAML 解析和模拟上下文通过，不等于手机已经安装或页面显示已验收。
 
 ## 当前实现
 

@@ -1,0 +1,19 @@
+# Engine | Egern 原生 YAML 模块 | YAML
+# Build: 无需构建
+# Run: 在 Egern 模块中导入本文件；仅处理已知明文 HTTP 接口
+# Deps: 本目录 jyjt-member.egern.js
+name: 戒烟军团客户端会员标志 · Egern
+description: 1.0.0 原生版；只改已知 SOAP 响应内原有的完整零值与空日期，HTTP 错误及 SOAP Fault 放行。
+author: Pier
+homepage: https://github.com/atopsecret/SurgeScripts/tree/main/jyjt
+icon: heart.fill
+scriptings:
+  - http_response:
+      name: 戒烟军团会员标志 · Egern
+      match: '^http://smoke\.nxnresearch\.com/webservice510\.asmx(?:[/?]|$)'
+      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jyjt/jyjt-member.egern.js?v=1.0.0
+      body_required: true
+      binary_body: true
+      max_size: 1048576
+      update_interval: 3600
+      timeout: 10

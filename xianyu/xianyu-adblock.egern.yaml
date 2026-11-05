@@ -1,21 +1,19 @@
 name: 闲鱼去广告（Egern 原生）
-description: 原生脚本处理新旧开屏及已知广告接口，覆盖六个网关；保留服务端错误响应并提供本地命中诊断。版本 eg-native-20261102-r1。
+description: eg-native-20261105-r1；六网关、新旧开屏及缓存广告原生处理；HTTP/ret 错误放行，默认静默，诊断只输出本地状态。
 author: skernelx
 homepage: https://github.com/atopsecret/SurgeScripts
 scriptings:
 - http_response:
     name: 闲鱼去广告原生处理
-    match: '^https?://(acs|g-acs|gw)\.m\.(goofish|taobao)\.com/(gw|h5)/mtop\.[a-zA-Z0-9.]+(?:/|$)'
-    script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.egern.js?v=eg-native-20261102-r1
-    env:
-      NOTIFY_ONCE: 'true'
+    match: '^https?://(acs|g-acs|gw)\.m\.(goofish|taobao)\.com(?::[0-9]+)?/(gw|h5)/(mtop\.taobao\.idlecommerce\.splash\.(async\.)?ads|mtop\.idle\.idleadv\.(app\.launch\.report|scene\.restore)|mtop\.idle\.ad\.expose|mtop\.taobao\.idle\.user\.strategy\.list|mtop\.taobao\.idlehome\.home\.circle\.list)(?:/|$)'
+    script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.egern.js?v=eg-native-20261105-r1
     body_required: true
     max_size: 2097152
     update_interval: 3600
     timeout: 30
 - generic:
     name: 闲鱼去广告诊断
-    script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.egern.js?v=eg-native-20261102-r1
+    script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.egern.js?v=eg-native-20261105-r1
     update_interval: 3600
     timeout: 30
 rules:

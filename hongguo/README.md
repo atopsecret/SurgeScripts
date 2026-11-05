@@ -12,6 +12,18 @@ https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/hongguo/hongguo-a
 
 安装本模块前，先停用重复的 HongGuo Lite / Plus 模块，避免重复规则和 MITM 配置叠加。
 
+### Egern 原生版
+
+在 Egern 模块管理中添加：
+
+```text
+https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/hongguo/hongguo-adblock.egern.yaml
+```
+
+原生版保留 78 条广告/上报条件，省去旧 Surge 版的 `dns.alidns.com`、`doh.pub` 拒绝规则，避免阻断主配置 DNS。广告接口的空 JSON 只匹配穿山甲 SDK 三个已知域名族，不匹配伪造的主机前后缀。
+
+域名拒绝不需要 MITM。穿山甲 HTTPS 广告接口的本地空响应需要启用 MITM 并安装、信任 **Egern 自己的 CA**；不解密整个 `snssdk.com`。静态格式和匹配验证不等于手机广告已消失。
+
 ## 融合了什么
 
 | 来源 | 贡献 |

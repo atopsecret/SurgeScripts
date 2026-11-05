@@ -2,6 +2,8 @@
 
 **2.0.0 完整重写版，适用于 Surge iOS 5.9.1+ / Mac 5.5.1+。** 核心开屏在联网前返回本地空广告响应；首页、个人页面、搜索、附近及打车推广使用本仓库可读脚本处理，没有第三方 JavaScript 运行依赖。
 
+另提供独立的 [Egern 原生 YAML](amap-adblock.egern.yaml) 与 [ES module 脚本](amap-cleaner.egern.js)。旧 Surge 文件保留；两种客户端的配置与证书不能混用。
+
 ## 为什么旧版仍有开屏
 
 2026-11-04 抓包里的实际接口为：
@@ -27,7 +29,32 @@ https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock
 3. 开启 Rewrite 与 MITM，安装、信任当前 Surge CA。配置里出现证书，不等于系统已信任。
 4. 重新打开高德，按下面的请求记录验证。不要只看模块导入提示或页面脚本计数。
 
-HTTPS 必须被解密，本模块追加 `*.amap.com`，不解密整个淘宝、阿里 CDN 或第三方统计服务。抓包时临时开启的全域解密，也不能代替平时的 MITM 配置。本目录未提供 Egern 原生版本，不将 Surge 模块导入成功当作跨客户端兼容验证。
+HTTPS 必须被解密，本模块追加 `*.amap.com`，不解密整个淘宝、阿里 CDN 或第三方统计服务。抓包时临时开启的全域解密，也不能代替平时的 MITM 配置。Egern 安装方法见下节，不将 Surge 模块导入成功当作跨客户端验证。
+
+## Egern 原生版
+
+公开本次变更后，使用独立模块地址：
+
+```text
+https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.egern.yaml
+```
+
+- 七条 `map_locals` 的正文、状态与响应头逐项保留 Surge 2.0.0 的契约。RT 正文用显式 `\r\n` 写入 YAML，不使用会改换行的块标量；仅一个 `jsonData` 部分，字节与原 base64 解码结果相同。
+- `rules` 只拒绝广告素材主机及已知归因路径。HTTP 响应脚本处理原有八类页面，不加载 `amap-splash.js`，不改 HTTPDNS。
+- 脚本使用 `export default async function(ctx)`、`ctx.response.arrayBuffer()` 和 `ctx.storage`，没有 Surge 全局适配层或远程公共运行时。正文只读一次；成功读出的原字节用于无变化、未知格式与后续异常的放行。
+- 修改响应头直接使用原 `Headers.delete/set`，不枚举重建，不丢未触及的多值 Cookie 或未知业务头。方法异常时回传原正文，并尝试恢复触及的头；持续失效的 Headers API 无法保证恢复。
+- 非 200、非 UTF-8、明确业务错误与未知结构不改写。流读取本身失败时没有完整原文可恢复；脚本不会二次读取或伪造空正文，实际客户端的流错误处理仍需运行验收。
+- `高德净化诊断 · Egern` 返回合法 widget 并写本地日志，不发通知、不请求网络。计数键为 `egern_amap_cleaner_v2`，只存固定路由、枚举及封顶数字，不与 Surge 共享。
+- Egern 仍需安装、信任它自己的 CA，并开启相应 HTTPS 解密。YAML 解析与模拟脚本通过，不等于手机已导入、CA 已信任或开屏缓存已消除。
+
+原生版 25 项离线测试覆盖七条 Map Local 字节、严格匹配、八个页面分支、一次性流、多值响应头、异常放行及静默诊断：
+
+```sh
+node --input-type=module --check < amap/amap-cleaner.egern.js
+node --experimental-vm-modules --test amap/tests/egern.test.cjs
+```
+
+测试依赖 Node.js 20+、Python 3 与 PyYAML（只解析公开 YAML）。依据 [Egern 原生 API](https://egernapp.com/zh-CN/docs/javascript-api/)、[脚本配置](https://egernapp.com/docs/configuration/scriptings/)与[官方配置示例](https://egernapp.com/docs/configuration/example/)。
 
 ## 覆盖范围
 

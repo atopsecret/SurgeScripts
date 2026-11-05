@@ -1,0 +1,71 @@
+# Engine | Egern 原生 YAML 模块 | YAML
+# Build: 无需构建
+# Run: 在 Egern 模块中导入本文件；HTTPS 需信任 Egern 当前 CA
+# Deps: 本目录 amap-cleaner.egern.js；不加载旧 Surge 脚本
+name: 高德地图去广告 · Egern
+description: 2.0.0 原生版；RT 开屏本地 multipart 空广告响应，八类页面精确净化，本地诊断无通知。
+author: atopsecret（Surge 原版 skernelx；历史端点参考 ddgksf2013）
+homepage: https://github.com/atopsecret/SurgeScripts/tree/main/amap
+icon: map.fill
+rules:
+  - domain:
+      match: optimus-ads.amap.com
+      policy: REJECT
+  - url_regex:
+      match: '^https?://(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?/ws/asa/ads_attribution(?:[/?]|$)'
+      policy: REJECT
+map_locals:
+  # 双引号显式 CRLF；与 Surge 原 base64 解码字节完全相同，不用会归一化换行的块标量。
+  - match: '^https?://(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?/ws/aos/alimama/splash_screen_rt(?:[/?]|$)'
+    status_code: 200
+    headers:
+      Content-Type: multipart/form-data; boundary=amap-cleaner-2-0-0
+      Cache-Control: no-store
+      X-AMap-Cleaner-Version: '2.0.0'
+    body: "--amap-cleaner-2-0-0\r\nContent-Disposition: form-data; name=\"jsonData\"\r\nContent-Type: application/json; charset=utf-8\r\n\r\n{\"result\":\"true\",\"code\":\"1\",\"message\":\"Successful.\",\"version\":\"1.0_amap-aos-info-nogw\",\"data\":{\"status\":\"ok\",\"errcode\":\"1\",\"custom_list\":[],\"ad\":[]}}\r\n--amap-cleaner-2-0-0--\r\n"
+  - match: '^https?://(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?/ws/(?:aos|valueadded)/alimama/splash_screen(?:[/?]|$)'
+    status_code: 200
+    headers:
+      Content-Type: application/json
+      Cache-Control: no-store
+      X-AMap-Cleaner-Version: '2.0.0'
+    body: '{"result":"true","code":"1","data":{"status":"ok","errcode":"1","ad":[],"custom_list":[]}}'
+  - match: '^https?://(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?/v[0-9]+/ai_rec/'
+    status_code: 200
+    headers: {Content-Type: application/json, Cache-Control: no-store}
+    body: '{}'
+  - match: '^https?://(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?/ws/faas/amap-navigation/card-service-route-plan(?:[/?]|$)'
+    status_code: 200
+    headers: {Content-Type: application/json, Cache-Control: no-store}
+    body: '{}'
+  - match: '^https?://(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?/ws/boss/order_web/[A-Za-z0-9_]{8}_information(?:[/?]|$)'
+    status_code: 200
+    headers: {Content-Type: application/json, Cache-Control: no-store}
+    body: '{}'
+  - match: '^https?://(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?/ws/shield/scene/recommend(?:[/?]|$)'
+    status_code: 200
+    headers: {Content-Type: application/json, Cache-Control: no-store}
+    body: '{}'
+  - match: '^https?://(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?/ws/valueadded/weather(?:[/?]|$)'
+    status_code: 200
+    headers: {Content-Type: application/json, Cache-Control: no-store}
+    body: '{}'
+scriptings:
+  - http_response:
+      name: 高德页面净化 · Egern
+      match: '^https?://(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?/ws/(?:message/notice/list|faas/amap-navigation/main-page|msgbox/pull|shield/dsp/profile/index/nodefaas|shield/search/new_hotword|shield/frogserver/aocs/updatable|shield/search/nearbyrec_smart|promotion-web/resource)(?:[/?]|$)'
+      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-cleaner.egern.js?v=2.0.0
+      body_required: true
+      binary_body: true
+      max_size: 2097152
+      update_interval: 3600
+      timeout: 10
+  - generic:
+      name: 高德净化诊断 · Egern
+      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-cleaner.egern.js?v=2.0.0
+      update_interval: 3600
+      timeout: 10
+mitm:
+  hostnames:
+    includes:
+      - '*.amap.com'

@@ -1,0 +1,352 @@
+{
+  "schema": 1,
+  "object_format": "sha1",
+  "source_repository": "/Users/wf/Projects/github-migration-20261105-091845/SurgeScripts",
+  "source_main_sha": "102414f4785c7a6feacba4be071579be97dbbec6",
+  "refs": {
+    "refs/heads/main": "102414f4785c7a6feacba4be071579be97dbbec6",
+    "refs/heads/master": "e55c302b86bc565749939f865db629040a3b7e10",
+    "refs/remotes/recovery/HEAD": "e55c302b86bc565749939f865db629040a3b7e10",
+    "refs/remotes/recovery/master": "e55c302b86bc565749939f865db629040a3b7e10"
+  },
+  "symbolic_refs": {
+    "refs/remotes/recovery/HEAD": "refs/remotes/recovery/master"
+  },
+  "head": {
+    "symbolic_target": "refs/heads/main",
+    "sha": "102414f4785c7a6feacba4be071579be97dbbec6"
+  },
+  "shallow": [
+    "86f8a7f428a8df6cb1de01b7d65ac715b42f26d3"
+  ],
+  "shallow_bytes_base64": "ODZmOGE3ZjQyOGE4ZGY2Y2IxZGUwMWI3ZDY1YWM3MTViNDJmMjZkMwo=",
+  "shallow_sha256": "451fdd0b951baca12b734af06abdb4c74656ab896635dba9ee63498de3fe874d",
+  "bundle_filename": "source-original-history.bundle",
+  "bundle_sha256": "428ee043d713789985d0776f5a6968858e0bfef24e321c9939bfa5286c2bf447",
+  "bundle_refs": {
+    "refs/heads/main": "102414f4785c7a6feacba4be071579be97dbbec6",
+    "refs/heads/master": "e55c302b86bc565749939f865db629040a3b7e10",
+    "refs/remotes/recovery/HEAD": "e55c302b86bc565749939f865db629040a3b7e10",
+    "refs/remotes/recovery/master": "e55c302b86bc565749939f865db629040a3b7e10",
+    "HEAD": "102414f4785c7a6feacba4be071579be97dbbec6"
+  },
+  "expected_commit_count": 22,
+  "commits": [
+    {
+      "sha": "86f8a7f428a8df6cb1de01b7d65ac715b42f26d3",
+      "tree": "a369e54107d13c80aef421d7c66e39d35b3dfa53",
+      "parents": [
+        "6a10d6a92a07b15146fd5afa2f29e5e102dc93ff"
+      ],
+      "author": "skernelx <skernelx@gmail.com> 1772532789 +0800",
+      "committer": "skernelx <skernelx@gmail.com> 1772532789 +0800",
+      "encoding": null,
+      "message_sha256": "8cc8fe84e5aba77b0a25c4ea10d71a677079e575b5bb978c7336bd9775abd368",
+      "object_sha256": "2b4ae33f482404fc5df91f9f0031e5e4b7845f2a74cb335cbea5e0e95a15e3ea"
+    },
+    {
+      "sha": "c257f8a0ba7e18f08108aebe1c427be91debb582",
+      "tree": "8b17bf231a59a3176759a3cc721a39b3244aa0d3",
+      "parents": [
+        "86f8a7f428a8df6cb1de01b7d65ac715b42f26d3"
+      ],
+      "author": "skernelx <skernelx@gmail.com> 1772533247 +0800",
+      "committer": "skernelx <skernelx@gmail.com> 1772533247 +0800",
+      "encoding": null,
+      "message_sha256": "ac33b2111bd3b0515e3d2691950c8d6175135d789e8572df47067313f3dd8c09",
+      "object_sha256": "be8baa1097acf012f277d5729e51f344dd5d793b02d462c9b0b0d9f781184eb9"
+    },
+    {
+      "sha": "2d332fc52ba503554bbc4b806cf6d150794d787e",
+      "tree": "b18a6028ff1dcb8b7c423e5024d9c002469d4073",
+      "parents": [
+        "c257f8a0ba7e18f08108aebe1c427be91debb582"
+      ],
+      "author": "skernelx <skernelx@gmail.com> 1772533587 +0800",
+      "committer": "skernelx <skernelx@gmail.com> 1772533587 +0800",
+      "encoding": null,
+      "message_sha256": "bffe4140e194e5a2e26adbb59f7f8d04d3b19cea27101886822d0045a8b97ebf",
+      "object_sha256": "0575348cc4b51266e5dec41297a68ff233905823e3644245773dfebb275a497c"
+    },
+    {
+      "sha": "d4949cd562c61d563c65d6b6a5e1795453a225a8",
+      "tree": "862f78c18f7fec456249824855e2a5040afcaf56",
+      "parents": [
+        "2d332fc52ba503554bbc4b806cf6d150794d787e"
+      ],
+      "author": "skernelx <skernelx@gmail.com> 1772533824 +0800",
+      "committer": "skernelx <skernelx@gmail.com> 1772533824 +0800",
+      "encoding": null,
+      "message_sha256": "5d49742a4d85153f4184d934eb07d33049341627c71d1b62fe4c5fb24752440d",
+      "object_sha256": "71f4cd9457dd24cbbd70d4584785a53f8c6dc50e4a24ef927c3266595cfd8c76"
+    },
+    {
+      "sha": "406d5947e76299206ad0007cfc913f6ad6c95f0d",
+      "tree": "a177d39280aed55e4040f0af8917d697bd8a3714",
+      "parents": [
+        "d4949cd562c61d563c65d6b6a5e1795453a225a8"
+      ],
+      "author": "skernelx <skernelx@gmail.com> 1772534105 +0800",
+      "committer": "skernelx <skernelx@gmail.com> 1772534105 +0800",
+      "encoding": null,
+      "message_sha256": "d7653814619829e8ab28ccc2a05361394daf2632c2765de8f4c662b0c6622037",
+      "object_sha256": "60ed04bafc6bac1dbe5237eb2e598fedc979407456b2c0239114321947fb1944"
+    },
+    {
+      "sha": "e5b18496d3a0f693a8cf1dfb57456b44357aacf9",
+      "tree": "79e6ea802701b8d40cfc235f5fce24c641bb4009",
+      "parents": [
+        "406d5947e76299206ad0007cfc913f6ad6c95f0d"
+      ],
+      "author": "skernelx <skernelx@gmail.com> 1793432348 +0800",
+      "committer": "skernelx <skernelx@gmail.com> 1793432348 +0800",
+      "encoding": null,
+      "message_sha256": "05ab7c14e0f04657c010b080dd665aaeb8787e4fd7cc80ee85f3a6ad31353d48",
+      "object_sha256": "aeb81f17237fa572e574950ec55e57c23e6c09515ced6721529f209b1d5a8c02"
+    },
+    {
+      "sha": "a4b4d17e44799b7fbe30669a30c4ae629a06489b",
+      "tree": "83546c9fb2e549026677e72450f49688a13d9b86",
+      "parents": [
+        "e5b18496d3a0f693a8cf1dfb57456b44357aacf9"
+      ],
+      "author": "skernelx <skernelx@gmail.com> 1793432810 +0800",
+      "committer": "skernelx <skernelx@gmail.com> 1793432810 +0800",
+      "encoding": null,
+      "message_sha256": "a9f695cfe1d2ed8cf7bbbc091f762f894663b02f1c2fcf1e0d2efeaf4afe4bbd",
+      "object_sha256": "ff2957b6e44c0a592ff2926d9321e9d3ebdd3cfae6103c59f7be9f8a808878c0"
+    },
+    {
+      "sha": "ffa266ffd97f87c57f4695bdbc35084eb65716e7",
+      "tree": "31b54ab03812f08d05dfcb7c998603060813d562",
+      "parents": [
+        "a4b4d17e44799b7fbe30669a30c4ae629a06489b"
+      ],
+      "author": "skernelx <skernelx@gmail.com> 1793441442 +0800",
+      "committer": "skernelx <skernelx@gmail.com> 1793441442 +0800",
+      "encoding": null,
+      "message_sha256": "f8d65612388429743280de196075386cbd5c297ce831550b4d8e9b24964cba32",
+      "object_sha256": "9e08b07c5daf51009be6a4e7022c3e5edd394ec95bcff2e624b11ce2c6642151"
+    },
+    {
+      "sha": "220ccbb94ab4ec4411806bf3966ca5329190151b",
+      "tree": "c5b96d5d7bf084be02220d7eb5323e422904ea2c",
+      "parents": [
+        "ffa266ffd97f87c57f4695bdbc35084eb65716e7"
+      ],
+      "author": "skernelx <skernelx@gmail.com> 1793478500 +0800",
+      "committer": "skernelx <skernelx@gmail.com> 1793478500 +0800",
+      "encoding": null,
+      "message_sha256": "db382f211228388b9e945c440e8dbb36d4943c242dc257007e2f4a656988e883",
+      "object_sha256": "26f08d861324becbb801868275ad766f3ff545d7162b80a21c9b25a11e114e74"
+    },
+    {
+      "sha": "0720f3aa9e766d352fcb4aaa941548ac8da0f608",
+      "tree": "63c904b0d3e9bca1464921ae13669468c49e9f2f",
+      "parents": [
+        "220ccbb94ab4ec4411806bf3966ca5329190151b"
+      ],
+      "author": "skernelx <skernelx@gmail.com> 1793479475 +0800",
+      "committer": "skernelx <skernelx@gmail.com> 1793479475 +0800",
+      "encoding": null,
+      "message_sha256": "27131085a4bb6354c2019318b26149fa54829fd0a3847708cc88c1a3338d0f51",
+      "object_sha256": "99fa404460f679928275f1623dc9d73454d6d642fba63de24bdc421e0ad9f79b"
+    },
+    {
+      "sha": "d98eba9d655b62440857c351c78b502c5a3068a8",
+      "tree": "7ac07756f15c72b681e5ac00f5d81f8a1eda1674",
+      "parents": [
+        "0720f3aa9e766d352fcb4aaa941548ac8da0f608"
+      ],
+      "author": "skernelx <skernelx@gmail.com> 1793480429 +0800",
+      "committer": "skernelx <skernelx@gmail.com> 1793480429 +0800",
+      "encoding": null,
+      "message_sha256": "47fa9d74b55070ea411a91904aae07917c97a684ff0c80f3521c5be6e22f8ed8",
+      "object_sha256": "1cccf89b87c48c0f1b524a0fdf5c06dec43b793e0ed85528fbd8534e3438d0f1"
+    },
+    {
+      "sha": "7f4428f6188405c777287b7485ffd0cc09df0639",
+      "tree": "d4af5ab0e194503c0154dddc458932e5f47ea518",
+      "parents": [
+        "d98eba9d655b62440857c351c78b502c5a3068a8"
+      ],
+      "author": "skernelx <skernelx@gmail.com> 1793487539 +0800",
+      "committer": "skernelx <skernelx@gmail.com> 1793487539 +0800",
+      "encoding": null,
+      "message_sha256": "d55711a48bb2325019d7d92e68800e0254255695316dc7a60bfad73fb34f2bf1",
+      "object_sha256": "d5a40505c2a8ee71cd9ce513d34f345ed6e372c3ec5f882767dd91d61d3d3535"
+    },
+    {
+      "sha": "d1845a3a497c2abfd853736a72efb0fc8e595513",
+      "tree": "f4674432c68a229be4827e4032e9db71193483d8",
+      "parents": [
+        "7f4428f6188405c777287b7485ffd0cc09df0639"
+      ],
+      "author": "skernelx <skernelx@gmail.com> 1793487962 +0800",
+      "committer": "skernelx <skernelx@gmail.com> 1793487962 +0800",
+      "encoding": null,
+      "message_sha256": "600d57a3557166a2c2cbabc8c07316c9af6cbc5fb85c3b13775ce5cdf765e30f",
+      "object_sha256": "b1501108c126e7ece0582f2a728f8a25dfda85e1a1ee74169ac67d7161a9b097"
+    },
+    {
+      "sha": "59a1eebee7cced8344b1b991f59446f9c395e0da",
+      "tree": "4cc5c50daa807a04533f832279ca72655031097e",
+      "parents": [
+        "d1845a3a497c2abfd853736a72efb0fc8e595513"
+      ],
+      "author": "skernelx <skernelx@gmail.com> 1793488336 +0800",
+      "committer": "skernelx <skernelx@gmail.com> 1793488336 +0800",
+      "encoding": null,
+      "message_sha256": "ddfc4b4f973ee4510aa4fd4debcb1587a89c067238912cb7e92ab53b7e1180af",
+      "object_sha256": "2ad7ba0f077755899c720ae351d887c6f1e0f77a9ab0d90f91a97cf117a4d3b2"
+    },
+    {
+      "sha": "1b73534596b8c5d8db9c0ac584b5f6e8c694dfce",
+      "tree": "54b8929306bfaf8fe9265fe56768237b2035ed2f",
+      "parents": [
+        "59a1eebee7cced8344b1b991f59446f9c395e0da"
+      ],
+      "author": "skernelx <skernelx@gmail.com> 1793489176 +0800",
+      "committer": "skernelx <skernelx@gmail.com> 1793489176 +0800",
+      "encoding": null,
+      "message_sha256": "c6b52a60c31e21ab3cf0e6b310b2721bdc9114953bd86033042ae46a6e103e25",
+      "object_sha256": "d8474cf03d419862e399d7770dd311ae72709678b888d970430beaffb9b72d9f"
+    },
+    {
+      "sha": "243ac2b7a90dda108bed55a322ba2317c78d704b",
+      "tree": "4645fda63050dd52b45f2e71d00b850d1a594513",
+      "parents": [
+        "1b73534596b8c5d8db9c0ac584b5f6e8c694dfce"
+      ],
+      "author": "skernelx <skernelx@gmail.com> 1793490056 +0800",
+      "committer": "skernelx <skernelx@gmail.com> 1793490056 +0800",
+      "encoding": null,
+      "message_sha256": "e197914fd8c0a8158c5c7668a6de890f7d76e45a93176fc4df75d5f08336cbe3",
+      "object_sha256": "9adf1bcb6c4177fd5e12b3cc0832fe7e6a2094f910ef55d85784521578fdbebf"
+    },
+    {
+      "sha": "0e5c7b5a2889005d22a08883cace52f393e0b7f4",
+      "tree": "17917daef51bdbdda5c57461c726e9d07d8716cc",
+      "parents": [
+        "243ac2b7a90dda108bed55a322ba2317c78d704b"
+      ],
+      "author": "skernelx <skernelx@gmail.com> 1793490238 +0800",
+      "committer": "skernelx <skernelx@gmail.com> 1793490238 +0800",
+      "encoding": null,
+      "message_sha256": "20524a27e633df34e5860ed0c29815a096a7a2d9fd8dc270596b4ee7fd1601ae",
+      "object_sha256": "88af846c9efde8e5345b6f720422814acfc02f8e0a23f07aeeff2a6ec5901f1b"
+    },
+    {
+      "sha": "ee43649eeefa49936ee6609e3944ac1a6b340bf5",
+      "tree": "a24ad3b3efeb981722a5092b3a3b8632edfd9816",
+      "parents": [
+        "0e5c7b5a2889005d22a08883cace52f393e0b7f4"
+      ],
+      "author": "skernelx <skernelx@gmail.com> 1793611614 +0800",
+      "committer": "skernelx <skernelx@gmail.com> 1793611614 +0800",
+      "encoding": null,
+      "message_sha256": "7da51d956e333c95658e3dbfac8f00669f22b3fa18dbf04654b0caa003f80f8c",
+      "object_sha256": "f6ac3f4d17207d9fa8da36f6e40025b4cc18356fa0c1a1bc9d2f472654ea6277"
+    },
+    {
+      "sha": "9269bbe656326c71853e2ac64d8788cc7f761764",
+      "tree": "592a5bd741c6ceb35e53e4952f25a54eb357f7c3",
+      "parents": [
+        "ee43649eeefa49936ee6609e3944ac1a6b340bf5"
+      ],
+      "author": "skernelx <skernelx@gmail.com> 1793613008 +0800",
+      "committer": "skernelx <skernelx@gmail.com> 1793613008 +0800",
+      "encoding": null,
+      "message_sha256": "b3c62fdd54137730c9953c4776ee72f33d6a9d2471012869ee6aed5f95f96c9b",
+      "object_sha256": "0a6798ad8bfc090f7e0c1920673112ce7c284b4ff402a25530f49eb3a782ae0b"
+    },
+    {
+      "sha": "7fb38c3f8075de471f44b271de14901a16d76c39",
+      "tree": "6097bda76ea6883751340612c910a9ee43cd376e",
+      "parents": [
+        "9269bbe656326c71853e2ac64d8788cc7f761764"
+      ],
+      "author": "skernelx <skernelx@gmail.com> 1793614133 +0800",
+      "committer": "skernelx <skernelx@gmail.com> 1793614133 +0800",
+      "encoding": null,
+      "message_sha256": "0d35b47e7286c67a0c1f2d32135e284fbb21e5bfd7e39107f7aa9cfc83731c63",
+      "object_sha256": "c11ef34d76451a7eca774f062236158cb508ccfb7e7ec32ca0e462fcb6a02168"
+    },
+    {
+      "sha": "e55c302b86bc565749939f865db629040a3b7e10",
+      "tree": "8a95c3b748a3b42aa1e4b88f28075bb200c610df",
+      "parents": [
+        "7fb38c3f8075de471f44b271de14901a16d76c39"
+      ],
+      "author": "skernelx <skernelx@gmail.com> 1793623495 +0800",
+      "committer": "skernelx <skernelx@gmail.com> 1793623495 +0800",
+      "encoding": null,
+      "message_sha256": "6ec51abe9fa0aca935bf272e729e87aecb97e31565d90844f04f19e1048c6ff8",
+      "object_sha256": "35dd023b5fba833b187969a8cc9f47bf4b3e2db08e3668177be1bc6c6395f699"
+    },
+    {
+      "sha": "102414f4785c7a6feacba4be071579be97dbbec6",
+      "tree": "e729bf4bb12c359f9de93c619f9ca38a63d31713",
+      "parents": [
+        "e55c302b86bc565749939f865db629040a3b7e10"
+      ],
+      "author": "atopsecret <79692359+atopsecret@users.noreply.github.com> 1793842627 +0800",
+      "committer": "atopsecret <79692359+atopsecret@users.noreply.github.com> 1793842627 +0800",
+      "encoding": null,
+      "message_sha256": "61b94cc1c9ac4de6fa8ed2ec218a1e733336d1442328cf54a44ad45d558c16e9",
+      "object_sha256": "59fa253aaf05619819ba5c6f6336afc02bd66a56873f1df35f8f85894119b730"
+    }
+  ],
+  "missing_parents": [
+    {
+      "child": "86f8a7f428a8df6cb1de01b7d65ac715b42f26d3",
+      "parent": "6a10d6a92a07b15146fd5afa2f29e5e102dc93ff"
+    }
+  ],
+  "source_tracked_file_sha256": {
+    ".cursorrules": "e5217120274e467789bc9be307de30146e3a5d0cf05e1dd91460333beaa8d656",
+    ".gitignore": "88315057d2a2ac5830255758b80585b0f4c2e3df42d0f41215166cd4f7e4de54",
+    "AI.list": "500470c10419e218bbabbad0c9a53d5948853ebd4719f85419b3a82d9aafc274",
+    "MIGRATION.md": "7ff7de9d9c79e8b974b82956b8cabfa57cb1ef9bb8b5f2002f9a7d389da8cb42",
+    "README.md": "7ca2260cd1d272352694fe5b73a54e441198dcc0cad4f336726b12afbcca9b4b",
+    "Telegram.list": "6d7e0a87aa37e2e8ae475f89e235f9d10be2f64e322484cda66fabcf5a752da3",
+    "amap/README.md": "4369e59c813f1cc66250c7351c90da2bab70a741d5f3d35d73a65469fffadc18",
+    "amap/REWRITE-REPORT.md": "0f58210efdc8868d29a189c7e7f1204ed15b12be1e15b7f2418031b436512526",
+    "amap/amap-adblock.sgmodule": "171e2ef1a6a4900d4fd7a28bc384efed328d15049424f994c9f7c4179536e454",
+    "amap/amap-cleaner.js": "8fd0c1abe6c7cf9730f4f8976a5dfb085194bee31358573e9fa68f1073b9cdea",
+    "amap/amap-splash.js": "00826575b73086764da9ae87b29978d5974cbe35535761a82acdbe30c81977b6",
+    "amap/tasks.md": "2bbe9bbd0807d23479278f5c982aafeb5b63b1315fd06209c014d6cd9dfb0e8a",
+    "amap/tests/check_har.py": "efa0e8547f5f4f5914b2e24021e6d8982cf59322026f410d9605768135a4d75c",
+    "amap/tests/cleaner.test.cjs": "7d79e6e8242d27d6758fd1b2ee171e22089c36af6740a80721e4787f44b86d2b",
+    "discord-remove-gift-button/README.md": "58ec1fccf32d69da2d4b6b6101fde00a2aefa4bdbfcaa1a796ab429c9bb32a21",
+    "discord-remove-gift-button/discord-remove-gift-button.sgmodule": "492aae69093f4f8be9cc0f6d17f6d367e814990939a2fb7089c81504475ecfde",
+    "hongguo/README.md": "388f3e73f48a0a74230e655696b5736b3a3414c37ae681434704e8792623dae7",
+    "hongguo/hongguo-adblock.sgmodule": "48a883f14ae89be5931b0a620855f41f6dfa29e5dd2de948a5e5ed20f65b484f",
+    "jd/README.md": "3a7dbe579da9b94bf5c2581c687b0bca8c7ab828fb78b8177fa991a33281c498",
+    "jd/jd-ad-block.egern.js": "242d38bf70612164bdb71233f637aefb7c70afc25e1329954c92eff0c90140f4",
+    "jd/jd-ad-block.js": "5f4b118a58877321ce30ecf429f897787705cc990079908c8cb57312d230d6f3",
+    "jd/jd-adblock.egern.yaml": "79687690d6eae0cdcaf3c67cb642f5f532466b3da1233881f18295c968a4f447",
+    "jd/jd-adblock.sgmodule": "b4ce17025081d3e356703ad3d6ffe5e9f4ffdedd735160ec916f0d616fd99421",
+    "jyjt/README.md": "6b69fa926e640bc1911046381941537a89bc71d727cd78eb03496cbf13c546b7",
+    "jyjt/jyjt-member.js": "4abfe9db315bd0038a414ac4894942c8fe21e500f2927ba00106b4905f28e42f",
+    "jyjt/jyjt-member.sgmodule": "91ed6b9e64f98c97e6b28d057ba9cd126ce933d62f7710f069b634deb38e596b",
+    "pinduoduo/README.md": "db3b13ac9ebc48ef3d745a91938039dc62f7e89149c5d8958824888bcec91ef7",
+    "pinduoduo/pdd-ad-block.js": "8c5a6e63b383d1801143bacb8c4ff1fb602c69912a40f6fe45050d28104e90bb",
+    "pinduoduo/pdd-adblock.sgmodule": "f1301b1cf78bad31b99825de1ca0e4223e892d53b9681161b02a750788db30f9",
+    "tests/link-validation.test.cjs": "c7d4f87bc61ad3e1c3aa4f4aaf8f3fb099d9b45a3e3e218dd21f7cff63848986",
+    "weilai/README.md": "b3f5d9e0033b486b9f41f5170cf3449183bcc60020f55d201274f600137f59a1",
+    "weilai/tasks.md": "ceee7105318e9835d02c9aeeaa437ad0684da1ebad79beea8714b42d1b947969",
+    "weilai/tests/checkin.test.cjs": "f3f500a99089025beb222eecff0febc80f6fc459639da5ccb5324b9663355680",
+    "weilai/weilai-auto-checkin.js": "019be6d08cbe1ca709866be8e9b527ca3eb73112553a31a500145a8017be5b6b",
+    "weilai/weilai-auto-checkin.sgmodule": "589e2609f5c2d3bb08fc6ef308116d24ba5e15f4376edfe45bcbdcd7abb9ec9e",
+    "weilai/weilai-surge-config.conf": "ac5f5eb0c66481ba6dadbc7835762a4c6389cd2cf2e5eb8a2eec8306daa7c44d",
+    "xianyu/README.md": "ab6936c173196f4294e73a9bbb5da24509bbfd5043768c6dd82a307e0d475cc5",
+    "xianyu/xianyu-ad-block.conf": "b55763f7ed6ca5d8daa4516af8aab2761e4e99507108719ef5b0da5b3992f871",
+    "xianyu/xianyu-ad-block.egern.js": "b144b3db2095a41f19e1baaed4479f405e5913588e8a87d0db805f408f3e12aa",
+    "xianyu/xianyu-ad-block.js": "d82f062b1e49c2a24f9391e4f574fc18ead56d55f8ce485d8ed10065b8044a11",
+    "xianyu/xianyu-ad-block.sgmodule": "e09901c36c7ccbb494048435d20fbe1c6f806502fb984a8500c0d2e05bdbc9f4",
+    "xianyu/xianyu-adblock.egern.yaml": "1368483f1d552db2c18f3aabd3ad68f591dc6620d2b13b9d3a8e36c28d15e78f",
+    "xianyu/xianyu-capture.conf": "a25ce048eff70cf8b0e8f56358940ad61d6e4eee7bfbebfa983a1ab309911c7f",
+    "xianyu/xianyu-capture.js": "f7793314f8dbd27d283373f0f68035e85dfccfaaef4c061580d8e9ab71d037f0"
+  }
+}

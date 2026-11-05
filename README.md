@@ -4,6 +4,8 @@ Surge 去广告模块、蔚来自动签到脚本和代理规则列表。京东�
 
 当前仓库：[atopsecret/SurgeScripts](https://github.com/atopsecret/SurgeScripts)。安装与脚本链接统一使用 `main`。
 
+源码使用手动推送发布，GitHub Actions 保持禁用。`master` 仅保留旧版本历史，不作为当前安装入口。
+
 ## 模块索引
 
 - **高德地图 2.0.0**：开屏本地响应、首页和搜索等已知页面推广处理。

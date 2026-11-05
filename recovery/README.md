@@ -31,7 +31,7 @@ python3 -m unittest discover -s recovery/tests -v
 node --test amap/tests/cleaner.test.cjs weilai/tests/checkin.test.cjs tests/link-validation.test.cjs
 ```
 
-Python 测试仅创建新的临时私有目录，不修改原源或恢复包，不发网络请求。候选仓库没有配置自动发布；对外采用新 SHA 图仍须用户明确确认。
+Python 测试仅创建新的临时私有目录，不修改原源或恢复包，不发网络请求。用户已于 2026-11-05 确认采用重建历史；源码使用手动发布，GitHub Actions 保持禁用。恢复工具没有推送或自动发布功能。
 
 本地已通过 13 项 Python 恢复测试及原有 79 项 Node 测试。独立原对象恢复验证保留 22 个原 SHA、4 个 refs 和真实 shallow 边界。
 

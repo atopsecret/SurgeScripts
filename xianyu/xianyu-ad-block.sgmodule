@@ -1,15 +1,14 @@
 #!name=闲鱼去广告
 #!desc=开屏广告、悬浮球/弹窗策略、广告上报与场景恢复拦截。v2.0：开屏处理结构自适配（递归清除广告容器），兼容闲鱼重装后新版响应结构；上报类接口统一返回无广告成功响应；脚本自托管不再依赖外部仓库。
 #!author=skernelx
-#!homepage=https://github.com/skernelx/SurgeScripts
+#!homepage=https://github.com/atopsecret/SurgeScripts
 #!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Xianyu.png
 #!category=去广告
 #!tag=去广告,闲鱼,goofish
 #!openUrl=https://apps.apple.com/cn/app/id510909202
 # ------------------------------------------------------------
 # v2.0（2026-11-01）：
-# 1. script-path 从 atopsecret/SurgeScripts 外链改为本仓库自托管
-#    （原外链虽然可用，但不在自己掌控内，且脚本已大改）
+# 1. script-path 使用本仓库自托管，保留历史脚本行为
 # 2. MITM 域名补全 acs.m.goofish.com 之外的常见入口：
 #    acs、gw 两个前缀 × goofish、taobao 两个域，共 4 个
 # 3. 脚本内部按 URL 关键词分发，新增 idleadv.* 端点无需改模块
@@ -21,22 +20,22 @@
 # 开屏广告拦截（主接口）
 # 开屏广告拦截（2026-11 抓包：接口已从 splash.async.ads/1.0 改为 splash.ads/2.0，
 # 广告走 cacheAd 本地缓存引用下发，正则同时兼容新旧两版）
-闲鱼去广告-开屏 = type=http-response,pattern=^https?://(acs|g-acs|gw)\.m\.(goofish|taobao)\.com/(gw|h5)/mtop\.taobao\.idlecommerce\.splash\.(async\.)?ads,requires-body=1,max-size=2097152,script-update-interval=0,script-path=https://raw.githubusercontent.com/skernelx/SurgeScripts/master/xianyu/xianyu-ad-block.js?v=v3,timeout=30
+闲鱼去广告-开屏 = type=http-response,pattern=^https?://(acs|g-acs|gw)\.m\.(goofish|taobao)\.com/(gw|h5)/mtop\.taobao\.idlecommerce\.splash\.(async\.)?ads,requires-body=1,max-size=2097152,script-update-interval=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.js?v=v3,timeout=30
 
 # 广告上报拦截
-闲鱼去广告-上报 = type=http-response,pattern=^https?://(acs|g-acs|gw)\.m\.(goofish|taobao)\.com/(gw|h5)/mtop\.idle\.idleadv\.app\.launch\.report,requires-body=1,max-size=2097152,script-update-interval=0,script-path=https://raw.githubusercontent.com/skernelx/SurgeScripts/master/xianyu/xianyu-ad-block.js?v=v3,timeout=30
+闲鱼去广告-上报 = type=http-response,pattern=^https?://(acs|g-acs|gw)\.m\.(goofish|taobao)\.com/(gw|h5)/mtop\.idle\.idleadv\.app\.launch\.report,requires-body=1,max-size=2097152,script-update-interval=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.js?v=v3,timeout=30
 
 # 广告场景恢复拦截
-闲鱼去广告-场景 = type=http-response,pattern=^https?://(acs|g-acs|gw)\.m\.(goofish|taobao)\.com/(gw|h5)/mtop\.idle\.idleadv\.scene\.restore,requires-body=1,max-size=2097152,script-update-interval=0,script-path=https://raw.githubusercontent.com/skernelx/SurgeScripts/master/xianyu/xianyu-ad-block.js?v=v3,timeout=30
+闲鱼去广告-场景 = type=http-response,pattern=^https?://(acs|g-acs|gw)\.m\.(goofish|taobao)\.com/(gw|h5)/mtop\.idle\.idleadv\.scene\.restore,requires-body=1,max-size=2097152,script-update-interval=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.js?v=v3,timeout=30
 
 # 广告曝光上报拦截（新网关 g-acs，2026-11 抓包发现）
-闲鱼去广告-曝光 = type=http-response,pattern=^https?://(acs|g-acs|gw)\.m\.(goofish|taobao)\.com/(gw|h5)/mtop\.idle\.ad\.expose,requires-body=1,max-size=2097152,script-update-interval=0,script-path=https://raw.githubusercontent.com/skernelx/SurgeScripts/master/xianyu/xianyu-ad-block.js?v=v3,timeout=30
+闲鱼去广告-曝光 = type=http-response,pattern=^https?://(acs|g-acs|gw)\.m\.(goofish|taobao)\.com/(gw|h5)/mtop\.idle\.ad\.expose,requires-body=1,max-size=2097152,script-update-interval=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.js?v=v3,timeout=30
 
 # 悬浮球/弹窗广告拦截
-闲鱼去广告-悬浮 = type=http-response,pattern=^https?://(acs|g-acs|gw)\.m\.(goofish|taobao)\.com/(gw|h5)/mtop\.taobao\.idle\.user\.strategy\.list,requires-body=1,max-size=2097152,script-update-interval=0,script-path=https://raw.githubusercontent.com/skernelx/SurgeScripts/master/xianyu/xianyu-ad-block.js?v=v3,timeout=30
+闲鱼去广告-悬浮 = type=http-response,pattern=^https?://(acs|g-acs|gw)\.m\.(goofish|taobao)\.com/(gw|h5)/mtop\.taobao\.idle\.user\.strategy\.list,requires-body=1,max-size=2097152,script-update-interval=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.js?v=v3,timeout=30
 
 # 首页Tab广告追踪清理
-闲鱼去广告-追踪 = type=http-response,pattern=^https?://(acs|g-acs|gw)\.m\.(goofish|taobao)\.com/(gw|h5)/mtop\.taobao\.idlehome\.home\.circle\.list,requires-body=1,max-size=2097152,script-update-interval=0,script-path=https://raw.githubusercontent.com/skernelx/SurgeScripts/master/xianyu/xianyu-ad-block.js?v=v3,timeout=30
+闲鱼去广告-追踪 = type=http-response,pattern=^https?://(acs|g-acs|gw)\.m\.(goofish|taobao)\.com/(gw|h5)/mtop\.taobao\.idlehome\.home\.circle\.list,requires-body=1,max-size=2097152,script-update-interval=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.js?v=v3,timeout=30
 
 [URL Rewrite]
 # 广告创意素材 CDN（creatives-assets 为广告专用目录，抓包实证）

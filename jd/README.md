@@ -4,9 +4,21 @@
 
 ## 安装
 
+### Surge
+
 ```
-https://raw.githubusercontent.com/skernelx/SurgeScripts/master/jd/jd-adblock.sgmodule
+https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.sgmodule
 ```
+
+### Egern 原生
+
+```text
+https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml
+```
+
+Egern 使用独立的 [原生脚本](jd-ad-block.egern.js)，配置另有 generic 诊断入口“京东去广告诊断”。自动响应处理保持静默，不发送通知；诊断记录说明的是实际命中与字段处理，不证明页面已经隐藏。
+
+两种客户端均需安装、信任自己的 CA 证书，并启用对应解密设置；不要同时启用处理相同接口的重复模块。
 
 ## 覆盖范围
 
@@ -33,5 +45,7 @@ https://raw.githubusercontent.com/skernelx/SurgeScripts/master/jd/jd-adblock.sgm
 ## 已知限制
 
 - `start` 接口规则可能使「比价」功能失效，不需要可从 [Script] 中删除 start
-- 搜索、下单、物流查询等核心接口不受影响
+- 常用功能仍需按实际 App 版本核验，网络改写不保证所有账号分组使用相同响应结构
 - 若京东加证书固定（App 打不开），关模块即恢复
+
+[返回仓库首页](../README.md)

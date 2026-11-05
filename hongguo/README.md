@@ -7,10 +7,10 @@
 Surge iOS：模块 → 安装新模块，粘贴：
 
 ```
-https://raw.githubusercontent.com/skernelx/SurgeScripts/master/hongguo/hongguo-adblock.sgmodule
+https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/hongguo/hongguo-adblock.sgmodule
 ```
 
-安装本模块前，**先卸载手机上的「红果短剧瘦身 · HongGuo Lite (Plus)」**，避免 MITM 配置叠加。
+安装本模块前，先停用重复的 HongGuo Lite / Plus 模块，避免重复规则和 MITM 配置叠加。
 
 ## 融合了什么
 
@@ -32,7 +32,7 @@ https://raw.githubusercontent.com/skernelx/SurgeScripts/master/hongguo/hongguo-a
 - 正片：`v*-reading-video.qznovelvod.com` → 放行
 - 广告：`v*-reading-ad.qznovelvod.com` → 拦截
 
-只拦广告专用子域，不用通配符整域，正片播放零影响。
+规则限定已知广告子域，没有封锁整个视频服务；新域名、缓存及服务端分流仍需实际验证。
 
 ## 已知限制
 

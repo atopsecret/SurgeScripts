@@ -1,7 +1,7 @@
 #!name=拼多多去广告
 #!desc=开屏广告 + 底栏多多视频 + 首页横幅/搜索热词 + 个人中心精简 + 会场入口/直播浮层 + 订单页推广 + 聊天页推荐 + 19 个推荐接口 + 埋点域名 + 多多视频素材直连拦截。融合 Thelongdarkorg（开屏/素材/QUIC）与 Loon Hub RuCu6 系（tab 过滤/页面精简）两源，Loon 原生改写翻译为自托管脚本。
 #!author=skernelx · FFDNS · RuCu6 · ZenmoFeiShi
-#!homepage=https://github.com/skernelx/SurgeScripts
+#!homepage=https://github.com/atopsecret/SurgeScripts
 #!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Advertising.png
 #!category=去广告
 #!tag=去广告,拼多多,pdd
@@ -55,7 +55,7 @@ DOMAIN,meta.pinduoduo.com,REJECT
 # pattern 说明：拼多多 App 现用自建 HTTPDNS 解析后直连裸 IP（抓包实证
 # https://36.152.46.3/api/alexa/homepage/hub，Host 头仍是 api.pinduoduo.com），
 # 故 pattern 不锚定域名，只匹配路径；脚本内再按路径分发。
-拼多多去广告 = type=http-response,pattern=^https?:\/\/[^\/]+\/(api\/(alexa\/homepage\/hub|philo\/personal\/hub|oak\/integration\/render|aristotle\/order_list_v4)\?|order\/|search\?),requires-body=1,max-size=131072,script-update-interval=0,script-path=https://raw.githubusercontent.com/skernelx/SurgeScripts/master/pinduoduo/pdd-ad-block.js?v=v3,timeout=30
+拼多多去广告 = type=http-response,pattern=^https?:\/\/[^\/]+\/(api\/(alexa\/homepage\/hub|philo\/personal\/hub|oak\/integration\/render|aristotle\/order_list_v4)\?|order\/|search\?),requires-body=1,max-size=131072,script-update-interval=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/pinduoduo/pdd-ad-block.js?v=v3,timeout=30
 
 [Map Local]
 # ========== 开屏 ==========

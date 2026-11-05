@@ -1,6 +1,6 @@
 # Telegram 完整代理规则
 # 更新日期: 2026-01-27
-# 仓库: https://github.com/skernelx/SurgeScripts
+# 仓库: https://github.com/atopsecret/SurgeScripts
 
 # ===== 主域名 =====
 DOMAIN-SUFFIX,telegram.org

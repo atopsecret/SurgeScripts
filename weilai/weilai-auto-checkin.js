@@ -1,498 +1,205 @@
-/*
- * 蔚来APP全自动签到脚本 for Surge (融合版)
- * 
- * 功能特性:
- * - 自动抓取并保存Authorization token
- * - 自动签到蔚来APP
- * - Token过期自动提醒更新
- * - 显示连续签到天数和累计天数
- * - 支持Surge定时任务
- * - 签到结果通知
- * - 错误处理和重试机制
- * 
- * 使用方法:
- * 1. 在Surge中添加请求拦截和定时任务规则
- * 2. 在蔚来APP中进行任意操作（会自动抓取token）
- * 3. 享受全自动签到
- * 
- * 作者: GitHub Community
- * 版本: v2.0.2
- * 更新时间: 2026-01-04
- * 仓库地址: https://github.com/yourusername/weilai-auto-checkin
- */
-
-// ==================== 配置区域 ====================
-const CONFIG = {
-    // 基础URL - 蔚来签到接口地址
-    baseURL: "https://gateway-front-external.nio.com",
-    
-    // APP信息
-    appId: "10086",
-    
-    // User-Agent - 模拟蔚来APP的webview
-    userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 NIOAppCN/5.48.5 (com.do1.WeiLaiApp; build:2549; OS:iOS) webview/lg _dsbridge",
-    
-    // 重试配置
-    maxRetries: 3,
-    retryDelay: 2000, // 重试间隔(毫秒)
-    
-    // Token管理配置
-    tokenStorageKey: "weilai_auth_token",
-    lastUpdateKey: "weilai_token_last_update",
-    tokenValidDays: 30,
-    
-    // 拦截配置
-    targetDomains: [
-        "gateway-front-external.nio.com",
-        "app.nio.com",
-        "api.nio.com"
-    ],
-    
-    targetPaths: [
-        "/checkin",
-        "/award",
-        "/user",
-        "/profile",
-        "/api"
-    ]
-};
-
-// ==================== Token管理模块 ====================
-
-// 检查URL是否需要拦截
-function shouldInterceptRequest(url) {
-    try {
-        const urlObj = new URL(url);
-        
-        // 检查域名
-        const domainMatch = CONFIG.targetDomains.some(domain => 
-            urlObj.hostname.includes(domain)
-        );
-        
-        if (!domainMatch) return false;
-        
-        // 检查路径
-        const pathMatch = CONFIG.targetPaths.some(path => 
-            urlObj.pathname.includes(path)
-        );
-        
-        return pathMatch;
-    } catch (e) {
-        console.log("❌ URL解析失败:", e);
-        return false;
-    }
-}
-
-// 提取Authorization token
-function extractToken(headers) {
-    const authHeader = headers['authorization'] || headers['Authorization'];
-    if (!authHeader) return null;
-    
-    // 验证token格式
-    if (authHeader.startsWith('Bearer ') && authHeader.length > 20) {
-        return authHeader;
-    }
-    
-    return null;
-}
-
-// 保存token到本地存储
-function saveToken(token) {
-    const currentTime = Date.now();
-    
-    try {
-        // 保存token
-        $persistentStore.write(token, CONFIG.tokenStorageKey);
-        
-        // 保存更新时间
-        $persistentStore.write(currentTime.toString(), CONFIG.lastUpdateKey);
-        
-        console.log("✅ Token已自动保存");
-        console.log(`🔑 Token: ${token.substring(0, 20)}...`);
-        console.log(`📅 保存时间: ${new Date(currentTime).toLocaleString('zh-CN')}`);
-        
-        return true;
-    } catch (e) {
-        console.log("❌ Token保存失败:", e);
-        return false;
-    }
-}
-
-// 获取已保存的token
-function getSavedToken() {
-    try {
-        const token = $persistentStore.read(CONFIG.tokenStorageKey);
-        const lastUpdate = $persistentStore.read(CONFIG.lastUpdateKey);
-        
-        if (!token || !lastUpdate) return null;
-        
-        const lastUpdateTime = parseInt(lastUpdate);
-        const isExpired = isTokenExpired(lastUpdateTime);
-        
-        return {
-            token: token,
-            lastUpdate: lastUpdateTime,
-            isExpired: isExpired
-        };
-    } catch (e) {
-        console.log("❌ Token读取失败:", e);
-        return null;
-    }
-}
-
-// 检查token是否过期
-function isTokenExpired(lastUpdate) {
-    const now = Date.now();
-    const expireTime = lastUpdate + (CONFIG.tokenValidDays * 24 * 60 * 60 * 1000);
-    return now > expireTime;
-}
-
-// 获取有效的token
-function getValidToken() {
-    const tokenInfo = getSavedToken();
-    
-    if (!tokenInfo) {
-        console.log("❌ 未找到保存的token");
-        return null;
-    }
-    
-    if (tokenInfo.isExpired) {
-        console.log("⚠️ Token已过期，需要重新抓取");
-        $notification.post("蔚来签到", "Token已过期 ⏰", "请在蔚来APP中进行操作以更新token");
-        return null;
-    }
-    
-    console.log("✅ 获取到有效token");
-    const remainingDays = Math.ceil((tokenInfo.lastUpdate + CONFIG.tokenValidDays * 24 * 60 * 60 * 1000 - Date.now()) / (24 * 60 * 60 * 1000));
-    console.log(`⏰ Token剩余有效期: ${remainingDays} 天`);
-    
-    return tokenInfo.token;
-}
-
-// Token拦截处理函数
-function handleTokenCapture(request) {
-    const url = request.url;
-    const headers = request.headers;
-    
-    console.log(`🔍 拦截到请求: ${url}`);
-    
-    // 检查是否需要拦截
-    if (!shouldInterceptRequest(url)) {
-        console.log("⏭️ 跳过此请求");
-        return;
-    }
-    
-    // 提取token
-    const token = extractToken(headers);
-    if (!token) {
-        console.log("❌ 未找到有效的Authorization token");
-        return;
-    }
-    
-    // 检查是否是新token
-    const savedTokenInfo = getSavedToken();
-    if (savedTokenInfo && savedTokenInfo.token === token && !savedTokenInfo.isExpired) {
-        console.log("ℹ️ Token未变化且未过期，跳过保存");
-        return;
-    }
-    
-    // 保存新token
-    if (saveToken(token)) {
-        const message = savedTokenInfo ? "Token已自动更新" : "Token已自动获取";
-        $notification.post("蔚来Token", message + " 🔑", "签到脚本将自动使用新token");
-    }
-}
-
-// ==================== 工具函数 ====================
-
-// 格式化日期时间
-function formatDateTime(timestamp) {
-    const date = new Date(timestamp * 1000);
-    return date.toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-    });
-}
-
-// ==================== 签到功能模块 ====================
-
-// 生成请求参数
-function buildParams() {
-    const timestamp = Date.now();
-    return {
-        app_id: CONFIG.appId,
-        timestamp: timestamp
+// Engine | Surge iOS / macOS | JavaScript
+// Build: 无需构建
+// Run: 导入模块后每天 09:00 自动运行；也可手动运行定时任务立即验证
+// Deps: Surge 脚本 API；测试：node --test weilai/tests/checkin.test.cjs
+// Version: 2.1.2
+(function () {
+    "use strict";
+    const CONFIG = {
+        version: "2.1.2",
+        stateKey: "weilai_auth_state_v1",
+        endpoint: "https://gateway-front-external.nio.com/moat/10086/c/award_cn/checkin",
+        budgetMs: 24000, requestTimeoutSeconds: 5, maxAttempts: 3,
+        fallbackUA: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 NIOAppCN/6.10.0 (com.do1.WeiLaiApp; build:2682; OS:iOS) webview/lg _dsbridge"
     };
-}
-
-// 构建请求URL
-function buildURL(params) {
-    const queryString = Object.keys(params)
-        .map(key => `${key}=${encodeURIComponent(params[key])}`)
-        .join('&');
-    
-    return `${CONFIG.baseURL}/moat/10086/c/award_cn/checkin?${queryString}`;
-}
-
-// 构建请求头
-function buildHeaders(token) {
-    return {
-        "authority": "gateway-front-external.nio.com",
-        "content-type": "application/x-www-form-urlencoded",
-        "accept": "application/json, text/plain, */*",
-        "authorization": token,
-        "sec-fetch-site": "cross-site",
-        "priority": "u=3, i",
-        "accept-language": "zh-CN,zh-Hans;q=0.9",
-        "accept-encoding": "gzip, deflate, br",
-        "sec-fetch-mode": "cors",
-        "origin": "null",
-        "user-agent": CONFIG.userAgent,
-        "sec-fetch-dest": "empty"
-    };
-}
-
-// 从响应数据中提取签到统计信息
-function extractCheckinStats(result) {
-    const data = result.data || {};
-    const stats = data.stats || {};
-    const awardInfo = data.award_info || {};
-    
-    // 打印原始数据结构用于调试
-    console.log("📋 原始响应数据:", JSON.stringify(result, null, 2));
-    
-    // 支持多种字段名，兼容不同API版本和响应结构
-    const continuousDays = stats.continuous_checkin_days || 
-                           stats.continuousDays || 
-                           stats.consecutive_days ||
-                           data.continuous_checkin_days ||
-                           data.continuousDays ||
-                           data.consecutive_days ||
-                           awardInfo.continuous_days ||
-                           awardInfo.continuous_checkin_days ||
-                           0;
-                           
-    const accumulateDays = stats.accumulate_days || 
-                           stats.accumulateDays || 
-                           stats.total_days ||
-                           data.accumulate_days ||
-                           data.accumulateDays ||
-                           data.total_days ||
-                           awardInfo.total_days ||
-                           awardInfo.accumulate_days ||
-                           0;
-    
-    const checkinTime = stats.checkin_time || data.checkin_time || '';
-    const tip = data.tip || "签到完成";
-    
-    return { continuousDays, accumulateDays, checkinTime, tip };
-}
-
-// 处理签到响应
-function handleResponse(response, data, token, callback) {
-    try {
-        const result = JSON.parse(data);
-        
-        // 提取统计信息（无论哪种响应都尝试提取）
-        const { continuousDays, accumulateDays, checkinTime, tip } = extractCheckinStats(result);
-        
-        // 检查签到结果
-        if (response.status === 200 && result.result_code === 'success') {
-            const checkinTimeStr = checkinTime ? formatDateTime(checkinTime) : '';
-            
-            console.log("✅ 签到成功!");
-            if (checkinTimeStr) console.log(`📅 签到时间: ${checkinTimeStr}`);
-            
-            // 如果累计天数为0，说明签到成功响应中没有统计信息，需要再请求一次获取
-            if (accumulateDays === 0) {
-                console.log("📊 签到成功响应中无统计信息，正在获取...");
-                fetchCheckinStats(token, tip, callback);
-                return { success: true, message: tip, needFetchStats: true };
-            }
-            
-            console.log(`🔥 连续签到: ${continuousDays} 天`);
-            console.log(`📊 累计签到: ${accumulateDays} 天`);
-            
-            let message = tip;
-            if (continuousDays > 0 || accumulateDays > 0) {
-                message = `${tip}\n🔥 连续签到: ${continuousDays} 天\n📊 累计签到: ${accumulateDays} 天`;
-            }
-            $notification.post("蔚来签到", "签到成功 🎉", message);
-            
-            if (callback) callback();
-            return { success: true, message: tip };
-            
-        } else if (result.data?.checked_in === true) {
-            console.log("ℹ️ 今日已签到");
-            console.log(`🔥 连续签到: ${continuousDays} 天`);
-            console.log(`📊 累计签到: ${accumulateDays} 天`);
-            
-            let message = tip;
-            if (continuousDays > 0 || accumulateDays > 0) {
-                message = `${tip}\n🔥 连续签到: ${continuousDays} 天\n📊 累计签到: ${accumulateDays} 天`;
-            }
-            $notification.post("蔚来签到", "今日已签到 ✅", message);
-            if (callback) callback();
-            return { success: true, message: tip };
-            
-        } else {
-            const errorMsg = result.message || result.error || "签到失败";
-            console.log("❌ 签到失败:", result);
-            
-            $notification.post("蔚来签到", "签到失败 ❌", errorMsg);
-            if (callback) callback();
-            return { success: false, message: errorMsg };
+    let ended = false, watchdog, retryTimer;
+    function finish(subtitle, message) {
+        if (ended) return;
+        ended = true;
+        // Surge JSC 不提供 clearTimeout；ended 同样保护迟到回调和计时器。
+        if (typeof clearTimeout === "function") {
+            if (watchdog !== undefined) clearTimeout(watchdog);
+            if (retryTimer !== undefined) clearTimeout(retryTimer);
         }
-    } catch (e) {
-        console.log("❌ 解析响应失败:", e);
-        console.log("📄 原始响应:", data);
-        
-        $notification.post("蔚来签到", "解析失败 ⚠️", "响应格式异常");
-        if (callback) callback();
-        return { success: false, message: "响应解析异常" };
-    }
-}
-
-// 签到成功后获取统计信息
-function fetchCheckinStats(token, tip, callback) {
-    const params = buildParams();
-    const url = buildURL(params);
-    const headers = buildHeaders(token);
-    const body = "event=checkin";
-    
-    const request = {
-        url: url,
-        method: "POST",
-        headers: headers,
-        body: body
-    };
-    
-    console.log("📊 正在获取签到统计信息...");
-    
-    $httpClient.post(request, (error, response, data) => {
-        if (error) {
-            console.log("⚠️ 获取统计信息失败:", error);
-            $notification.post("蔚来签到", "签到成功 🎉", tip);
-            if (callback) callback();
-            return;
+        if (subtitle) {
+            console.log("[蔚来签到] " + subtitle);
+            // message 只来自本地固定文案或经过数字校验的统计，与通知保持一致。
+            if (message) for (const line of message.split("\n")) console.log("[蔚来签到] " + line);
+            try { $notification.post("蔚来签到", subtitle, message); } catch (_) {}
         }
-        
-        try {
-            const result = JSON.parse(data);
-            const { continuousDays, accumulateDays } = extractCheckinStats(result);
-            
-            console.log(`🔥 连续签到: ${continuousDays} 天`);
-            console.log(`📊 累计签到: ${accumulateDays} 天`);
-            
-            let message = tip;
-            if (continuousDays > 0 || accumulateDays > 0) {
-                message = `${tip}\n🔥 连续签到: ${continuousDays} 天\n📊 累计签到: ${accumulateDays} 天`;
-            }
-            $notification.post("蔚来签到", "签到成功 🎉", message);
-        } catch (e) {
-            console.log("⚠️ 解析统计信息失败:", e);
-            $notification.post("蔚来签到", "签到成功 🎉", tip);
-        }
-        
-        if (callback) callback();
-    });
-}
-
-// 执行签到请求 (支持重试)
-function performCheckin(token, retryCount = 0) {
-    const params = buildParams();
-    const url = buildURL(params);
-    const headers = buildHeaders(token);
-    const body = "event=checkin";
-    
-    const request = {
-        url: url,
-        method: "POST",
-        headers: headers,
-        body: body
-    };
-    
-    console.log(`🚗 开始蔚来签到... (尝试 ${retryCount + 1}/${CONFIG.maxRetries + 1})`);
-    console.log(`📡 请求URL: ${url}`);
-    
-    $httpClient.post(request, (error, response, data) => {
-        if (error) {
-            console.log(`❌ 网络请求失败 (尝试 ${retryCount + 1}):`, error);
-            
-            // 重试逻辑
-            if (retryCount < CONFIG.maxRetries) {
-                console.log(`⏳ ${CONFIG.retryDelay/1000}秒后重试...`);
-                setTimeout(() => {
-                    performCheckin(token, retryCount + 1);
-                }, CONFIG.retryDelay);
-                return;
-            } else {
-                console.log("❌ 达到最大重试次数，签到失败");
-                $notification.post("蔚来签到", "网络错误 🌐", `请求失败: ${error}`);
-                $done();
-                return;
-            }
-        }
-        
-        console.log(`📊 响应状态码: ${response.status}`);
-        console.log(`📄 响应数据长度: ${data ? data.length : 0} 字节`);
-        
-        const result = handleResponse(response, data, token, () => {
-            $done();
-        });
-        
-        // 如果需要获取统计信息，handleResponse 会自己处理 $done()
-        if (result.needFetchStats) {
-            return;
-        }
-        
-        if (!result.success && retryCount < CONFIG.maxRetries) {
-            console.log(`⏳ ${CONFIG.retryDelay/1000}秒后重试...`);
-            setTimeout(() => {
-                performCheckin(token, retryCount + 1);
-            }, CONFIG.retryDelay);
-        } else {
-            $done();
-        }
-    });
-}
-
-// ==================== 主函数 ====================
-
-// 脚本入口
-function main() {
-    // 如果是HTTP请求拦截模式
-    if (typeof $request !== 'undefined' && $request) {
-        console.log("🎯 Token拦截模式启动");
-        handleTokenCapture($request);
         $done({});
-        return;
     }
-    
-    // 如果是签到模式
-    console.log("🔄 蔚来全自动签到脚本启动");
-    console.log(`📅 当前时间: ${new Date().toLocaleString('zh-CN')}`);
-    console.log(`🔧 脚本版本: v2.0.2 (融合版)`);
-    console.log(`🌐 请求域名: ${CONFIG.baseURL}`);
-    
-    // 获取有效token
-    const token = getValidToken();
-    if (!token) {
-        console.log("❌ 无法获取有效token，请在蔚来APP中进行操作");
-        $notification.post("蔚来签到", "Token获取失败 🔑", "请打开蔚来APP进行任意操作以自动获取token");
-        $done();
-        return;
+    function header(headers, name) {
+        if (!headers || typeof headers !== "object") return "";
+        const key = Object.keys(headers).find(k => k.toLowerCase() === name);
+        return key && typeof headers[key] === "string" ? headers[key] : "";
     }
-    
-    console.log("✅ Token验证通过，开始签到");
-    
-    // 开始签到
-    performCheckin(token);
-}
-
-// 执行脚本
-main();
+    function validToken(value) {
+        return typeof value === "string" && /^Bearer [^\s\x00-\x1f\x7f]{16,4096}$/i.test(value);
+    }
+    function validUA(value) {
+        return typeof value === "string" && /NIOAppCN\//.test(value) &&
+            value.length <= 1024 && !/[\r\n]/.test(value);
+    }
+    function readState() {
+        const raw = $persistentStore.read(CONFIG.stateKey);
+        if (raw) {
+            const state = JSON.parse(raw);
+            if (!state || !validToken(state.token) || !Number.isFinite(state.observedAt) ||
+                state.observedAt <= 0 || state.observedAt > Date.now() + 300000 ||
+                typeof state.invalid !== "boolean") throw new Error("invalid-state");
+            return state;
+        }
+        // 兼容旧存储；下一次抓取迁移为单键写入，不删除旧数据。
+        const token = $persistentStore.read("weilai_auth_token");
+        const rawTime = $persistentStore.read("weilai_token_last_update");
+        if (!token && !rawTime) return null;
+        const observedAt = Number(rawTime);
+        if (!validToken(token) || !Number.isFinite(observedAt) || observedAt <= 0 ||
+            observedAt > Date.now() + 300000) throw new Error("invalid-legacy-state");
+        return { token, observedAt, invalid: false };
+    }
+    function saveState(state) {
+        try { return $persistentStore.write(JSON.stringify(state), CONFIG.stateKey) === true; }
+        catch (_) { return false; }
+    }
+    function capture(request) {
+        // 不记录完整 URL；限制主机及业务路径，拒绝同名恶意主机。
+        if (!/^https:\/\/(?:gateway-front-external\.nio\.com|app\.nio\.com|api\.nio\.com)\/(?:moat\/10086\/+(?:n\/c\/award\/|c\/award_cn\/)|(?:n\/c\/)?(?:account\/user\/|user\/|profile\/)|app\/api\/|api\/)/i.test(String(request.url || ""))) {
+            finish(); return;
+        }
+        const token = header(request.headers, "authorization");
+        if (!validToken(token)) { finish(); return; }
+        let previous;
+        try { previous = readState(); } catch (_) { previous = null; }
+        const same = previous && previous.token === token;
+        const ua = header(request.headers, "user-agent");
+        const state = { token, observedAt: Date.now(), invalid: Boolean(same && previous.invalid),
+            userAgent: validUA(ua) ? ua : (same && validUA(previous.userAgent) ? previous.userAgent : "") };
+        if (!saveState(state)) {
+            finish("凭据保存失败", "客户端存储未确认写入，请检查存储后重新打开蔚来 App。"); return;
+        }
+        if (!same) finish("凭据已更新", "已保存到客户端本地，可运行签到任务验证。");
+        else finish();
+    }
+    function statsMessage(data) {
+        const stats = data.stats && typeof data.stats === "object" ? data.stats : {};
+        const first = values => values.find(v => typeof v === "number" && Number.isSafeInteger(v) && v >= 0);
+        const consecutive = first([stats.continuous_checkin_days, stats.continuous_days, data.continuous_days]);
+        const total = first([stats.accumulate_days, data.accumulate_days]);
+        return "连续签到：" + (consecutive === undefined ? "未知" : consecutive + " 天") +
+            "\n累计签到：" + (total === undefined ? "未知" : total + " 天");
+    }
+    function markInvalid(token) {
+        try {
+            const current = readState();
+            // 迟到的旧请求不能作废刚抓取的新 Token。
+            if (!current || current.token !== token) return true;
+            return saveState({ ...current, invalid: true });
+        } catch (_) { return false; }
+    }
+    function runCheckin() {
+        console.log("[蔚来签到] 脚本版本 " + CONFIG.version);
+        let state;
+        try { state = readState(); }
+        catch (_) { finish("凭据状态损坏", "请重新打开蔚来 App 抓取凭据。"); return; }
+        if (!state || state.invalid) {
+            finish("需要更新凭据", "请在蔚来 App 中重新登录并打开签到或个人页面。"); return;
+        }
+        const deadline = Date.now() + CONFIG.budgetMs;
+        watchdog = setTimeout(() => finish("签到结果未确认", "任务超过时间预算；请在 App 查看，不自动重复提交。"), CONFIG.budgetMs);
+        function credentialsUnchanged() {
+            let current;
+            try { current = readState(); }
+            catch (_) {
+                finish("凭据状态无法读取", "任务已停止，请检查本地存储后重试。"); return false;
+            }
+            if (!current || current.invalid || current.token !== state.token) {
+                finish("凭据状态已变化", "本次旧任务已停止，请使用当前账号重新运行签到任务。"); return false;
+            }
+            return true;
+        }
+        function attempt(number) {
+            if (ended) return;
+            if (!credentialsUnchanged()) return;
+            if (deadline - Date.now() < CONFIG.requestTimeoutSeconds * 1000 + 500) {
+                finish("签到未完成", "剩余时间不足，请稍后手动运行任务。"); return;
+            }
+            const request = {
+                url: CONFIG.endpoint + "?app_id=10086&timestamp=" + Math.floor(Date.now() / 1000),
+                headers: { authorization: state.token, "content-type": "application/x-www-form-urlencoded",
+                    accept: "application/json", "user-agent": validUA(state.userAgent) ? state.userAgent : CONFIG.fallbackUA },
+                body: "event=checkin", timeout: CONFIG.requestTimeoutSeconds,
+                "auto-redirect": false, "auto-cookie": false
+            };
+            console.log("[蔚来签到] 提交尝试 " + number + "/" + CONFIG.maxAttempts);
+            let called = false;
+            try {
+                $httpClient.post(request, (error, response, text) => {
+                    if (ended || called) return;
+                    called = true;
+                    // 切换账号或抓到新 Token 后，不重发旧凭据，也不把旧结果当作新账号结果。
+                    if (!credentialsUnchanged()) return;
+                    if (error || !response) {
+                        finish("签到结果未确认", "网络请求失败，服务端可能已处理；请在 App 查看，不自动重复提交。"); return;
+                    }
+                    const status = Number(response.status);
+                    let result;
+                    try { result = JSON.parse(text); } catch (_) { result = null; }
+                    const code = result && result.result_code;
+                    // 不根据自由文本猜认证状态，也不输出服务端原文。
+                    if (status === 401 || ((status === 200 || status === 403) &&
+                        ["invalid_token", "token_expired", "unauthorized"].includes(code))) {
+                        const saved = markInvalid(state.token);
+                        finish("授权失败", saved ? "请重新登录蔚来 App 并抓取新凭据。" :
+                            "失效标记未保存，请检查客户端存储并重新登录。"); return;
+                    }
+                    if (status === 403) {
+                        finish("访问被拒绝", "HTTP 403 可能由权限或风控导致，未作废凭据；请在 App 检查。"); return;
+                    }
+                    // 只有明确限流才自动重试。网络、解析或 5xx 错误可能发生于写入之后。
+                    if (status === 429) {
+                        const value = header(response.headers, "retry-after").trim();
+                        let delay = 2000;
+                        if (value) {
+                            if (/^\d+$/.test(value)) delay = Number(value) * 1000;
+                            else if (/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d{2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4} \d{2}:\d{2}:\d{2} GMT$/.test(value)) delay = Date.parse(value) - Date.now();
+                            else delay = NaN;
+                            if (!Number.isFinite(delay)) {
+                                finish("请求被限流", "无法识别服务端重试时间，请稍后再运行任务。"); return;
+                            }
+                            delay = Math.max(1000, delay);
+                        }
+                        if (number < CONFIG.maxAttempts &&
+                            delay + CONFIG.requestTimeoutSeconds * 1000 + 500 < deadline - Date.now()) {
+                            retryTimer = setTimeout(() => attempt(number + 1), delay); return;
+                        }
+                        finish("请求被限流", "已达到重试次数或时间预算，请稍后运行。"); return;
+                    }
+                    if (status !== 200) {
+                        finish("签到结果未确认", "HTTP 状态异常，请在 App 查看；不自动重复提交。"); return;
+                    }
+                    if (!result || typeof result !== "object" || Array.isArray(result) || code !== "success" ||
+                        !result.data || typeof result.data !== "object" || Array.isArray(result.data)) {
+                        finish("签到未确认", "响应格式或业务状态异常，请查看 App；本次不自动重试。"); return;
+                    }
+                    if (result.data.checked_in !== true) {
+                        finish("签到未确认", "响应未确认已签到，请查看 App。"); return;
+                    }
+                    // checked_in=true 无法区分本次首次签到和之前已经签到，统一报告确认结果。
+                    const summary = statsMessage(result.data);
+                    finish("今日签到已确认", summary);
+                });
+            } catch (_) {
+                finish("签到结果未确认", "请求执行异常，请在 App 查看；不自动重复提交。");
+            }
+        }
+        attempt(1);
+    }
+    try {
+        if (typeof $request !== "undefined" && $request) capture($request);
+        else runCheckin();
+    } catch (_) {
+        finish("任务未完成", "本地处理异常，请重新抓取凭据或检查客户端环境。");
+    }
+}());

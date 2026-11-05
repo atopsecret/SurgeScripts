@@ -1,161 +1,97 @@
-# Surge 脚本集合
+# SurgeScripts
 
-个人使用的 Surge 脚本合集，包含自动签到、去广告、路由优化等功能。
+Surge 去广告模块、蔚来自动签到脚本和代理规则列表。京东、闲鱼另提供 Egern 原生版本，各模块独立安装，不需要替换整份客户端配置。
 
-## 📦 模块列表
+当前仓库：[atopsecret/SurgeScripts](https://github.com/atopsecret/SurgeScripts)。安装与脚本链接统一使用 `main`。
 
-### 1. Google AI 路由优化 🆕
+## 模块索引
 
-让所有 Google AI 相关请求走美国节点，提升访问稳定性。
+- **高德地图 2.0.0**：开屏本地响应、首页和搜索等已知页面推广处理。
+  [使用说明](amap/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.sgmodule)
+- **京东**：开屏、页面推广、已知底栏导航及短视频组件。
+  [使用说明](jd/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml)
+- **闲鱼**：新旧开屏接口、缓存广告引用、悬浮策略及指定广告素材。
+  [使用说明](xianyu/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-adblock.egern.yaml)
+- **拼多多**：开屏、多多视频入口、首页及订单页已知推广字段。
+  [使用说明](pinduoduo/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/pinduoduo/pdd-adblock.sgmodule)
+- **红果短剧**：广告 SDK、已知插播广告视频主机和部分上报请求。
+  [使用说明](hongguo/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/hongguo/hongguo-adblock.sgmodule)
+- **Discord 净化**：对推广、商店和遥测等路径返回本地响应或拒绝请求，不加载外部 JavaScript。
+  [使用说明](discord-remove-gift-button/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/discord-remove-gift-button/discord-remove-gift-button.sgmodule)
+- **戒烟军团**：改写已知响应中的客户端会员标志位，不改变服务端会员资格。
+  [使用说明](jyjt/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jyjt/jyjt-member.sgmodule)
+- **蔚来自动签到 2.1.2**：保存已知接口的登录凭据，每日 09:00 使用它签到。
+  [使用说明](weilai/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/weilai/weilai-auto-checkin.sgmodule)
 
-**一键安装：** [点击安装模块](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/google-ai-routing.sgmodule)
+只有京东、闲鱼提供 Egern 原生 YAML。其他模块没有对应原生版本，不将 `.sgmodule` 导入成功视为跨客户端兼容验证。
 
-```
-https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/google-ai-routing.sgmodule
-```
+## 安装、更新与旧账号迁移
 
-**优化服务：**
-- ✅ Google AI Studio (aistudio.google.com)
-- ✅ Gemini API (generativelanguage.googleapis.com)
-- ✅ Google Bard/Gemini (bard.google.com, gemini.google.com)
-- ✅ Google Cloud AI Platform
-- ✅ Google Vertex AI
+### Surge
 
-**使用方法：**
-1. 安装模块，选择你的美国节点名称
-2. 重新加载 Surge 配置
-3. 访问 Google AI 服务时会自动走美国节点
+1. 在模块管理中添加上面的 `.sgmodule` 链接。
+2. 启用模块，检查语法、脚本下载和规则加载提示。
+3. 需要 HTTPS 响应改写的模块，开启 Rewrite 与 MITM，并安装、信任 Surge 当前使用的 CA 证书。
+4. 重新打开目标 App，在请求记录中确认接口命中，再检查页面与常用功能。
 
-**相关文件：**
-- 模块文件: `google-ai-routing.sgmodule`
-- 配置文件: `google-ai-routing.conf`
+模块的远程脚本由客户端下载。同一个 App 不要同时启用多份处理相同接口的模块，排障时先保留一份。
 
----
+### Egern
 
-### 2. 闲鱼去广告
+京东、闲鱼使用对应的 `.egern.yaml`，它们加载独立的 Egern 脚本，不是将 Surge 全局变量脚本直接套入 YAML。HTTPS 改写需要安装、信任 Egern 自己的 CA 证书；诊断入口见各目录说明。
 
-基于抓包分析，精准屏蔽闲鱼APP各类广告。
+### 从旧地址迁移
 
-**一键安装：** [点击安装模块](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.sgmodule)
+旧账号地址不会因为复制源码自动重定向。已经安装的模块需要换成上面的新链接，并刷新远程脚本缓存。高德模块描述应显示 `2.0.0`，蔚来任务日志首行应显示 `脚本版本 2.1.2`。
 
-```
-https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.sgmodule
-```
+本次迁移只改变源码托管入口，不导出或迁移客户端登录凭据。原作者署名和本地诊断存储键保留，详见[迁移范围](MIGRATION.md)。
 
-**屏蔽内容：**
-- ✅ 开屏广告（启动时的全屏广告）
-- ✅ 首页悬浮球广告
-- ✅ 弹窗广告
-- ✅ 广告追踪参数
+## 规则列表
 
-**相关文件：**
-- 模块文件: `xianyu/xianyu-ad-block.sgmodule`
-- 脚本文件: `xianyu/xianyu-ad-block.js`
-- 配置文件: `xianyu/xianyu-ad-block.conf`
+- [AI.list](AI.list)：AI 服务及相关域名。
+- [Telegram.list](Telegram.list)：Telegram 域名、IPv4 和 IPv6 地址段。
 
----
+在 Surge 主配置的 `[Rule]` 中引用，例如：
 
-### 3. 蔚来自动签到
-
-蔚来APP全自动签到脚本，支持Token自动抓取。
-
-**一键安装：** [点击安装模块](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/weilai/weilai-auto-checkin.sgmodule)
-
-```
-https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/weilai/weilai-auto-checkin.sgmodule
+```ini
+RULE-SET,https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/AI.list,AI
+RULE-SET,https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/Telegram.list,Telegram
 ```
 
-**功能特性：**
-- ✅ Token自动抓取（打开蔚来APP即可）
-- ✅ 每天早上9点自动签到
-- ✅ 显示连续签到天数
-- ✅ Token过期自动提醒
+将 `AI`、`Telegram` 换成配置中已经存在的策略名称，放在最终兜底规则之前。`AI.list` 含 Google 相关的较宽规则，不只匹配 Google AI；它不创建策略组，也不自动选择美国节点。
 
-**使用方法：**
-1. 安装模块后，打开蔚来APP进行任意操作
-2. 脚本会自动抓取并保存Token
-3. 第二天早上9点自动签到
-4. 手动签到：Safari访问 `https://weilai.checkin.local/`
+仓库没有独立的 Google AI 路由模块。旧说明中的该模块安装入口已移除，没有用占位文件代替。
 
-**相关文件：**
-- 模块文件: `weilai/weilai-auto-checkin.sgmodule`
-- 脚本文件: `weilai/weilai-auto-checkin.js`
-- 配置文件: `weilai/weilai-surge-config.conf`
+## 行为边界
 
----
+- 高德、京东、闲鱼、拼多多的 HTTPS 改写依赖客户端解密；具体主机和脚本入口由模块定义。
+- 红果的域名拒绝不依赖解密，广告接口空响应需要 MITM；附带的 DoH 拒绝规则可能与主配置 DNS 设置冲突。
+- Discord 当前是本地响应与拒绝规则，不包含修改 `premium_type` 的脚本。空置订阅、支付和权益接口也可能影响相关页面。
+- 戒烟军团的已知业务接口使用明文 HTTP。客户端显示被改写，不代表服务器授予了会员权限。
+- 蔚来从已知 HTTPS 请求头提取凭据，结果以接口实际返回为准。手动验证请在客户端运行定时任务；旧网页触发入口已移除。
 
-### 4. 闲鱼抓包辅助
+模块不能直接清除 App 自己的缓存，网络命中也不等于所有版本和账号分组都显示相同页面。出现业务异常时，先停用模块做对照，再缩小到具体规则。
 
-用于分析闲鱼APP的广告接口，为去广告脚本提供数据支持。
+## 旧配置与抓包辅助
 
-**相关文件：**
-- 脚本文件: `xianyu/xianyu-capture.js`
-- 配置文件: `xianyu/xianyu-capture.conf`
+新安装优先使用当前模块。闲鱼的 [旧手动配置](xianyu/xianyu-ad-block.conf) 不等同于最新模块；[抓包配置](xianyu/xianyu-capture.conf) 仍引用去广告脚本，使用前要校正为[抓包脚本](xianyu/xianyu-capture.js)，不能直接当纯记录工具使用。
 
----
+抓包辅助会输出请求、响应片段。不要公开客户端存储、未脱敏 HAR、Token、Cookie 或完整请求头。
 
-## 🚀 安装方法
+## 离线校验
 
-### 方式一：模块安装（推荐）
+需要 Node.js 20+，不需要额外 npm 依赖。测试只使用本地文件、虚构凭据和模拟 HTTP，不执行真实签到或目标 App 请求。
 
-1. 打开 Surge → 首页 → 模块
-2. 点击右上角 `+` 添加模块
-3. 粘贴模块链接，点击确定
-4. 开启模块即可
+```sh
+node --test amap/tests/cleaner.test.cjs weilai/tests/checkin.test.cjs tests/link-validation.test.cjs
+```
 
-### 方式二：手动配置
+高德、蔚来原有 69 项测试覆盖响应处理与执行边界；链接测试另外检查新账号路径、现有文件和完整模块索引。语法检查可以使用 `node --check`；Egern 的 `.egern.js` 是 ES module，检查时需要按模块语法解析。
 
-1. 下载脚本文件到 Surge 脚本目录
-2. 将 `.conf` 文件内容添加到 Surge 主配置文件
+离线通过不代替 Surge/Egern 真机配置加载、接口匹配与页面验收。
 
----
+## 反馈与来源
 
-## 📊 闲鱼广告接口分析
+在 [Issues](https://github.com/atopsecret/SurgeScripts/issues) 中提供客户端、目标 App、系统版本、模块链接，以及脱敏的命中记录或诊断输出。
 
-基于 2026-01-05/06 的抓包分析，闲鱼主要广告接口如下：
-
-| 接口 | 说明 | 处理方式 |
-|-----|------|---------|
-| `mtop.taobao.idlecommerce.splash.async.ads` | 开屏广告 | 清空adMap |
-| `mtop.idle.idleadv.app.launch.report` | 广告上报 | 返回失败 |
-| `mtop.idle.idleadv.scene.restore` | 广告场景恢复 | 返回失败 |
-| `mtop.taobao.idle.user.strategy.list` | 悬浮球/弹窗 | 过滤广告策略 |
-| `mtop.taobao.idlehome.home.circle.list` | 首页Tab | 清理追踪参数 |
-
----
-
-## ⚠️ 注意事项
-
-- 确保 Surge 的 MITM 功能已开启
-- 确保已安装并信任 Surge 的 CA 证书
-- 脚本仅供学习交流使用
-- 如遇问题可在 Issues 反馈
-
----
-
-## 📝 更新日志
-
-### 2026-01-08
-- 🆕 新增 Google AI 路由优化模块
-- 让所有 Google AI 相关请求走美国节点
-- 支持 Google AI Studio、Gemini API、Bard 等服务
-- 提供 .sgmodule 模块和 .conf 配置两种方式
-
-### 2026-01-06
-- 🆕 新增 `.sgmodule` 模块格式，支持一键安装
-- 🆕 新增闲鱼去广告脚本
-- 基于抓包分析精准屏蔽开屏广告
-- 支持屏蔽悬浮球、弹窗等广告
-
-### 2026-01-05
-- 新增闲鱼抓包辅助脚本
-- 整理仓库结构
-
-### 2026-01-04
-- 蔚来签到脚本更新至 v2.0.2
-
----
-
-## 📄 License
-
-MIT License
+第三方来源和原作者署名保留在对应说明与源码中。仓库没有统一的 `LICENSE` 文件，不将所有内容笼统标为 MIT；引用内容的授权范围以各来源项目的许可证为准。

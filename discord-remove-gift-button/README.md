@@ -1,39 +1,34 @@
-# Discord 移除礼物按钮 (Surge 模块)
+# Discord 净化
 
-移除 Discord 移动端聊天输入框旁边的 Gift/Nitro 推广按钮。
+现有 Surge 模块通过 Map Local 和 URL Rewrite 处理 Discord 推广、商店、任务及遥测路径。它不加载 JavaScript，也没有修改 `premium_type` 的脚本。
 
-## 工作原理
+## 安装
 
-通过 Surge 拦截并修改 Discord API 响应，采用多层策略：
+在 Surge 模块管理中添加：
 
-1. **API 拦截（Rule + URL Rewrite）**：直接拒绝礼物/商店/推广相关 API 请求
-2. **Map Local**：将订阅查询 API 返回空数据  
-3. **脚本修改（Script）**：修改 `/users/@me` 响应中的 `premium_type` 字段，模拟 Nitro 用户状态（已付费用户不会看到推广按钮）
+```text
+https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/discord-remove-gift-button/discord-remove-gift-button.sgmodule
+```
 
-## 安装方法
+启用 Rewrite 与 MITM，并安装、信任 Surge 当前的 CA 证书。解密主机由模块追加，包括 Discord 和 Sentry 的相关主机。本目录没有 Egern 原生 YAML。
 
-### 方法一：本地安装
+本地安装只需要 [模块文件](discord-remove-gift-button.sgmodule)，不需要下载不存在的 `.js` 文件。
 
-1. 将 `discord-remove-gift-button.sgmodule` 和 `discord-remove-gift-button.js` 两个文件通过 AirDrop 或其他方式传到 iPhone
-2. 打开 Surge → 模块 → 从文件安装
-3. 选择 `.sgmodule` 文件
-4. 确保 `.js` 脚本文件放在 Surge 的工作目录中
+## 处理范围
 
-### 方法二：远程安装（推荐）
+- 推广活动、收藏品营销、任务等已列出的 API 返回本地空响应。
+- 会员试用、订阅、支付来源、权益和商店路径返回预置响应。
+- Science、Track、Metrics 及匹配的 Sentry 路径拒绝请求。
 
-1. 将两个文件托管到 GitHub 或其他可访问的 URL
-2. 打开 Surge → 模块 → 安装新模块
-3. 输入 `.sgmodule` 文件的 URL
-4. 修改 `.sgmodule` 文件中 `script-path=` 为 `.js` 文件的完整 URL
+这些是网络响应处理，不直接操作 Discord 的页面元素。Gift/Nitro 按钮是否消失仍取决于客户端版本、缓存和当前接口，不承诺每个版本都得到相同页面。
 
-## 必要设置
+## 影响与验证
 
-- 需要开启 Surge 的 **MITM（中间人解密）** 功能
-- 需要安装并信任 Surge 的 CA 证书
-- 确保 `discord.com` 和 `discordapp.com` 在 MITM 的 hostname 列表中
+空置订阅、支付和权益接口可能影响账号相关页面；任务与商店功能也可能不可用。Sentry 主机规则并不只作用于 Discord，其他使用同一服务的 App 也可能被命中。
 
-## 注意事项
+1. 检查模块加载日志，确认语法和 MITM 配置被接受。
+2. 在请求记录中检查目标路径是否命中 Map Local 或拒绝规则。
+3. 对照聊天、登录、订阅、支付及其他需要保留的功能。
+4. 如有异常，先停用模块做对照，再停用具体规则。停用不会直接清除 App 自己的缓存。
 
-- 此模块仅修改客户端显示，不会影响 Discord 账号安全
-- Discord 更新 API 后可能需要更新脚本
-- 如果按钮仍然显示，请尝试清除 Discord 缓存后重新打开
+[返回仓库首页](../README.md)

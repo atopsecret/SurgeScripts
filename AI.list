@@ -1,7 +1,7 @@
 # AI Services Domain Rules for Surge
 # Generated: 2026-01-27
 # Author: skernelx
-# Usage: RULE-SET,https://raw.githubusercontent.com/skernelx/SurgeScripts/main/AI.list,YourPolicyName
+# Usage: RULE-SET,https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/AI.list,YourPolicyName
 
 # ============ OpenAI / ChatGPT ============
 DOMAIN-SUFFIX,openai.com

@@ -1,0 +1,9 @@
+#!name=戒烟军团会员解锁
+#!desc=改写戒烟军团APP响应中的会员标志位（member_flg / user_type / member_end_date），客户端侧解锁军团会员。明文HTTP，无需MITM。
+#!author=Pier
+#!homepage=https://github.com/atopsecret/SurgeScripts
+#!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Heart.png
+#!category=解锁
+
+[Script]
+戒烟军团会员解锁 = type=http-response,pattern=^https?://smoke\.nxnresearch\.com/webservice510\.asmx,requires-body=1,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jyjt/jyjt-member.js,timeout=10

@@ -1,7 +1,7 @@
 #!name=红果短剧去广告 · 融合版
 #!desc=HongGuo Lite 与 home-dns-adblock 融合：穿山甲 SDK + 插播广告视频 CDN（qznovelvod）+ 埋点上报，共 80 条规则。默认配置即可用，无需额外处理证书。
 #!author=skernelx · Minis · abclq
-#!homepage=https://github.com/skernelx/SurgeScripts
+#!homepage=https://github.com/atopsecret/SurgeScripts
 #!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Advertising.png
 #!category=去广告
 #!tag=去广告,红果短剧,短剧

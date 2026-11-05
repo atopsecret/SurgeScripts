@@ -1,75 +1,35 @@
 #!name=高德地图去广告
-#!desc=高德去广告 20261102-r1：开屏清理改为自托管脚本，补充仅针对 AMap 请求的 HTTPDNS 调度处理；保留首页、搜索热词和打车推广等原规则。静默运行，无通知。
-#!author=skernelx · ddgksf2013
-#!homepage=https://github.com/skernelx/SurgeScripts
-#!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Advertising.png
+#!desc=2.0.0 完整重写：拦截携带内嵌图片的 splash_screen_rt；开屏本地空响应，首页/搜索/附近/打车使用自托管可读脚本，附本地诊断，无通知。
+#!author=skernelx
+#!homepage=https://github.com/atopsecret/SurgeScripts/tree/main/amap
 #!category=去广告
-#!tag=去广告,高德地图,导航
-#!openUrl=https://apps.apple.com/cn/app/id461703208
-# ------------------------------------------------------------
-# 规则来源：ddgksf2013/Rewrite AmapAds.conf V1.0.28（2025-12 更新，MIT）
-# https://github.com/ddgksf2013/Rewrite/blob/master/AdBlock/AmapAds.conf
-#
-# 为什么重做：流传的 Surge 版（含手机上已装的「高德地图去广告」）
-# 把 URL 模式写进了 script-path 参数（Shadowrocket 容忍此写法），
-# 在 Surge 上 6 条脚本全部报「无效配置」被忽略，模块从未生效。
-# 本模块按 Surge 正确语法重写：脚本 10 条 + 拦截 8 条。
-#
-# 需要 MITM，并信任当前客户端的 CA（Surge/Egern 各自使用对应证书）。
-# 开屏和 AMap HTTPDNS 使用自托管可读脚本，其它页面仍引用墨鱼 amap.js。
-# ------------------------------------------------------------
+# Surge iOS 5.9.1+ / Mac 5.5.1+。HTTPS 需要开启 MITM、Rewrite 并信任当前 Surge CA。
+# 更新本模块替换旧版，不要重复安装。核心开屏由 Map Local 处理，不依赖脚本下载。
+# 页面接口的历史参考见 README；本模块没有第三方脚本或 HTTPDNS 改写。
 
-[Script]
-# 阿里明文 HTTPDNS：仅当 User-Agent 含 AMap 时改写，其它 App 原样放行。
-# 此 URL 是 HTTP，不扩大 MITM 到淘宝，也不全域拒绝 amdc.m.taobao.com。
-amap-amdc = type=http-response, pattern=^http:\/\/amdc\.m\.taobao\.com([/?]|$), requires-body=1, max-size=131072, script-update-interval=3600, script-path=https://raw.githubusercontent.com/skernelx/SurgeScripts/master/amap/amap-splash.js?v=20261102-r1, timeout=20
-# 底部 tab 栏角标
-amap-notice = type=http-response, pattern=^https?:\/\/.*\.amap\.com\/ws\/message\/notice\/list, requires-body=1, script-update-interval=0, script-path=https://fastly.jsdelivr.net/gh/ddgksf2013/Scripts@master/amap.js
-# 首页底部信息流（导航主页卡片）
-amap-mainpage = type=http-response, pattern=^https?:\/\/.*\.amap\.com\/ws\/faas\/amap-navigation\/main-page, requires-body=1, script-update-interval=0, script-path=https://fastly.jsdelivr.net/gh/ddgksf2013/Scripts@master/amap.js
-# 开屏广告（valueadded 通道）
-amap-splash = type=http-response, pattern=^https?:\/\/(?:[A-Za-z0-9-]+\.)+amap\.com\/ws\/valueadded\/alimama\/splash_screen([/?]|$), requires-body=1, max-size=2097152, script-update-interval=3600, script-path=https://raw.githubusercontent.com/skernelx/SurgeScripts/master/amap/amap-splash.js?v=20261102-r1, timeout=20
-# 首页顶部推广（消息盒子）
-amap-msgbox = type=http-response, pattern=^https?:\/\/.*\.amap\.com\/ws\/msgbox\/pull, requires-body=1, script-update-interval=0, script-path=https://fastly.jsdelivr.net/gh/ddgksf2013/Scripts@master/amap.js
-# 我的页面推广卡片
-amap-profile = type=http-response, pattern=^https?:\/\/.*\.amap\.com\/ws\/shield\/dsp\/profile\/index\/nodefaas, requires-body=1, script-update-interval=0, script-path=https://fastly.jsdelivr.net/gh/ddgksf2013/Scripts@master/amap.js
-# 搜索框热词 / AI 推荐
-amap-hotword = type=http-response, pattern=^https?:\/\/.*\.amap\.com\/ws\/shield\/search\/new_hotword, requires-body=1, script-update-interval=0, script-path=https://fastly.jsdelivr.net/gh/ddgksf2013/Scripts@master/amap.js
-# 首页右中广告（frogserver aocs）
-amap-aocs = type=http-response, pattern=^https?:\/\/.*\.amap\.com\/ws\/shield\/frogserver\/aocs\/updatable, requires-body=1, script-update-interval=0, script-path=https://fastly.jsdelivr.net/gh/ddgksf2013/Scripts@master/amap.js
-# 附近页面推荐
-amap-nearby = type=http-response, pattern=^https?:\/\/.*\.amap\.com\/ws\/shield\/search\/nearbyrec_smart, requires-body=1, script-update-interval=0, script-path=https://fastly.jsdelivr.net/gh/ddgksf2013/Scripts@master/amap.js
-# 打车页推广资源
-amap-promotion = type=http-response, pattern=^https?:\/\/.*\.amap\.com\/ws\/promotion-web\/resource, requires-body=1, script-update-interval=0, script-path=https://fastly.jsdelivr.net/gh/ddgksf2013/Scripts@master/amap.js
-
-[URL Rewrite]
-# 通用广告归因上报 —— 直接拒绝
-^https?:\/\/.*\.amap\.com\/ws\/asa\/ads_attribution - reject
-# 首页左上角广告 gif —— 直接拒绝
-^https?:\/\/.*\.amap\.com\/uploadimg\/\w+\.gif - reject
+[Rule]
+# 广告专用素材主机；不封锁整个 amap.com 或图片 CDN。
+DOMAIN,optimus-ads.amap.com,REJECT
 
 [Map Local]
-# 开屏请求（aos 通道）→ 空体 200，与来源 reject-200 一致。
-^https?:\/\/(?:[A-Za-z0-9-]+\.)+amap\.com\/ws\/aos\/alimama\/splash_screen([/?]|$) data-type=text data="" status-code=200
-# 首页底部信息流（ai_rec）→ 空 JSON
-^https?:\/\/.*\.amap\.com\/v\d\/ai_rec\/ data-type=text data="{}" status-code=200 header="Content-Type:application/json"
-# 路线规划下方广告卡片 → 空 JSON
-^https?:\/\/.*\.amap\.com\/ws\/faas\/amap-navigation\/card-service-route-plan\? data-type=text data="{}" status-code=200 header="Content-Type:application/json"
-# 打车订单页 Tip 推广 → 空 JSON
-^https?:\/\/.*\.amap\.com\/ws\/boss\/order_web\/\w{8}_information data-type=text data="{}" status-code=200 header="Content-Type:application/json"
-# 搜索框 scene 推荐 → 空 JSON
-^https?:\/\/.*\.amap\.com\/ws\/shield\/scene\/recommend data-type=text data="{}" status-code=200 header="Content-Type:application/json"
-# 左下角推广版天气卡片 → 空 JSON
-^https?:\/\/.*\.amap\.com\/ws\/valueadded\/weather data-type=text data="{}" status-code=200 header="Content-Type:application/json"
+# 本次 HAR 的 RT 接口携带 multipart/jsonData + PNG + JPEG。
+# 返回同类 multipart 成功空列表，无图片部分；此响应格式只用于已确认的 aos RT 通道。
+^https?:\/\/(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?\/ws\/aos\/alimama\/splash_screen_rt(?:[/?]|$) data-type=base64 data="LS1hbWFwLWNsZWFuZXItMi0wLTANCkNvbnRlbnQtRGlzcG9zaXRpb246IGZvcm0tZGF0YTsgbmFtZT0ianNvbkRhdGEiDQpDb250ZW50LVR5cGU6IGFwcGxpY2F0aW9uL2pzb247IGNoYXJzZXQ9dXRmLTgNCg0KeyJyZXN1bHQiOiJ0cnVlIiwiY29kZSI6IjEiLCJtZXNzYWdlIjoiU3VjY2Vzc2Z1bC4iLCJ2ZXJzaW9uIjoiMS4wX2FtYXAtYW9zLWluZm8tbm9ndyIsImRhdGEiOnsic3RhdHVzIjoib2siLCJlcnJjb2RlIjoiMSIsImN1c3RvbV9saXN0IjpbXSwiYWQiOltdfX0NCi0tYW1hcC1jbGVhbmVyLTItMC0wLS0NCg==" status-code=200 header="Content-Type:multipart/form-data; boundary=amap-cleaner-2-0-0|Cache-Control:no-store|X-AMap-Cleaner-Version:2.0.0"
+# 旧版普通 JSON 开屏入口。先列 RT 再列普通入口，后缀边界明确。
+^https?:\/\/(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?\/ws\/(?:aos|valueadded)\/alimama\/splash_screen(?:[/?]|$) data-type=base64 data="eyJyZXN1bHQiOiJ0cnVlIiwiY29kZSI6IjEiLCJkYXRhIjp7InN0YXR1cyI6Im9rIiwiZXJyY29kZSI6IjEiLCJhZCI6W10sImN1c3RvbV9saXN0IjpbXX19" status-code=200 header="Content-Type:application/json|Cache-Control:no-store|X-AMap-Cleaner-Version:2.0.0"
+# 广告/推荐专用路径，不按整个业务域名拒绝。
+^https?:\/\/(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?\/v[0-9]+\/ai_rec\/ data-type=text data="{}" status-code=200 header="Content-Type:application/json|Cache-Control:no-store"
+^https?:\/\/(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?\/ws\/faas\/amap-navigation\/card-service-route-plan(?:[/?]|$) data-type=text data="{}" status-code=200 header="Content-Type:application/json|Cache-Control:no-store"
+^https?:\/\/(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?\/ws\/boss\/order_web\/[A-Za-z0-9_]{8}_information(?:[/?]|$) data-type=text data="{}" status-code=200 header="Content-Type:application/json|Cache-Control:no-store"
+^https?:\/\/(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?\/ws\/shield\/scene\/recommend(?:[/?]|$) data-type=text data="{}" status-code=200 header="Content-Type:application/json|Cache-Control:no-store"
+^https?:\/\/(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?\/ws\/valueadded\/weather(?:[/?]|$) data-type=text data="{}" status-code=200 header="Content-Type:application/json|Cache-Control:no-store"
+
+[URL Rewrite]
+^https?:\/\/(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?\/ws\/asa\/ads_attribution(?:[/?]|$) - reject
+
+[Script]
+高德页面净化 = type=http-response,pattern=^https?:\/\/(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?\/ws\/(?:message\/notice\/list|faas\/amap-navigation\/main-page|msgbox\/pull|shield\/dsp\/profile\/index\/nodefaas|shield\/search\/new_hotword|shield\/frogserver\/aocs\/updatable|shield\/search\/nearbyrec_smart|promotion-web\/resource)(?:[/?]|$),requires-body=true,max-size=2097152,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-cleaner.js?v=2.0.0,script-update-interval=3600,timeout=10
+高德净化诊断 = type=generic,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-cleaner.js?v=2.0.0,script-update-interval=3600,timeout=10
 
 [MITM]
 hostname = %APPEND% *.amap.com
-
-# ────────────────────────────────────────────────────────────
-# 备注：
-# 1. 已包含明文 amdc.m.taobao.com 调度处理：严格按 AMap User-Agent
-#    限定，无需额外 MITM 淘宝域；不对其它 App 的调度响应作改写。
-# 2. 高德若某天加了证书固定，表现为地图打不开/一直转圈 —— 关掉
-#    本模块即可恢复（无持久改动）。
-# 3. 导航、定位、检索等核心功能域名不在拦截列表，不受影响。
-# ────────────────────────────────────────────────────────────

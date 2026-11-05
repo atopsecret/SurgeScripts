@@ -1,19 +1,19 @@
 name: 京东去广告（Egern 原生）
 description: 原生脚本处理开屏与导航配置，静默运行、不发送通知；仅保留本地诊断记录。底栏效果需对应 App 实际请求和响应。
 author: skernelx
-homepage: https://github.com/skernelx/SurgeScripts
+homepage: https://github.com/atopsecret/SurgeScripts
 scriptings:
 - http_response:
     name: 京东去广告原生处理
     match: '^https?://api\.m\.jd\.com/client\.action(?:\?|$)'
-    script_url: https://raw.githubusercontent.com/skernelx/SurgeScripts/master/jd/jd-ad-block.egern.js?v=eg-native-20261102-r2-silent
+    script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-ad-block.egern.js?v=eg-native-20261102-r2-silent
     body_required: true
     max_size: 2097152
     timeout: 30
     update_interval: 3600
 - generic:
     name: 京东去广告诊断
-    script_url: https://raw.githubusercontent.com/skernelx/SurgeScripts/master/jd/jd-ad-block.egern.js?v=eg-native-20261102-r2-silent
+    script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-ad-block.egern.js?v=eg-native-20261102-r2-silent
     timeout: 30
     update_interval: 3600
 rules:

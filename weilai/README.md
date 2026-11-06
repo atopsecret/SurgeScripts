@@ -2,7 +2,7 @@
 
 Surge 脚本 2.1.6。请求钩子保存已知蔚来业务接口中的 Bearer 凭据，定时任务每天 09:00 使用它签到。手动运行任务仅用于立即验证，不是每日操作要求；旧的网页触发入口已移除。
 
-另提供独立 [Egern 原生模块](weilai-auto-checkin.egern.yaml)与[脚本](weilai-auto-checkin.egern.js) 3.1.2。它不使用 Surge 全局，也不自动搬运 Surge 凭据。下节先说明 Surge；Egern 的当日统计观察与防重复边界见后文。
+另提供独立 [Egern 原生模块](weilai-auto-checkin.egern.yaml)与[脚本](weilai-auto-checkin.egern.js) 3.1.3。它不使用 Surge 全局，也不自动搬运 Surge 凭据。下节先说明 Surge；Egern 的当日统计观察与防重复边界见后文。
 
 ## 安装与依赖
 
@@ -14,7 +14,7 @@ Surge 脚本 2.1.6。请求钩子保存已知蔚来业务接口中的 Bearer 凭
 
 ## 日志与通知
 
-凭据更新通知只显示“凭据已更新”，没有正文。Egern 将 30 秒内的多次凭据变化合并为一次提醒，每次有效捕获仍照常保存；相同凭据不重复提醒。
+凭据更新通知只显示“凭据已更新”，没有正文。Egern 将 30 秒内的多次凭据变化合并为一次提醒；Token 与 UA 都没变化时不重复写凭据，也不重复提醒。新 Token 或有效 UA 变化仍会保存。
 
 成功通知示例：
 
@@ -60,23 +60,36 @@ node --test weilai/tests/checkin.test.cjs
 
 运行时接口依据 [Surge 官方脚本接口文档](https://manual.nssurge.com/scripting/api.html)。兼容 JSC 没有 `clearTimeout` 的环境；迟到回调由结束标记忽略。
 
-## Egern 原生版 3.1.2
+## Egern 原生版 3.1.3
 
 安装地址：
 
 ```text
-https://raw.githubusercontent.com/atopsecret/SurgeScripts/refs/heads/main/weilai/weilai-auto-checkin.egern.yaml?v=3.1.2
+https://raw.githubusercontent.com/atopsecret/SurgeScripts/refs/heads/main/weilai/weilai-auto-checkin.egern.yaml?v=3.1.3
 ```
 
 1. 导入原生 YAML，并安装、信任 Egern 当前 CA。解密只追加三个既有蔚来主机与已知业务路径，不扩到车辆控制域名。
-2. 在 Egern 下重新打开已登录的蔚来 App 的签到或个人页面。请求脚本只读取 Authorization 与 UA，不读 body、不签到；新凭据保存后发简短无声提醒，30 秒内不重复提醒，同凭据静默。
+2. 在 Egern 下重新打开已登录的蔚来 App 的签到或个人页面。请求脚本只读取 Authorization 与 UA，不读 body、不签到；新凭据保存后发简短无声提醒，30 秒内不重复提醒，同 Token 同 UA 不重写凭据。
 3. `蔚来自动签到 · Egern` 是 `schedule`，cron 为 `0 9 * * *`。需要立即执行时手动运行这条定时任务；不是运行 generic，也不使用伪造域名。
 4. `蔚来本地诊断 · Egern` 是 generic，只读本地状态，返回合法 widget 并写日志；不发通知、不发送签到、不显示 Token。
 5. `蔚来统计观察 · Egern` 是 response 钩子，只读取现有固定签到端点的成功响应。它不发送请求、不重新抓取凭据、不修改响应内容，也不写签到任务锁。
 
-3.0.1 修复了原生存储回读误判：用 `ctx.storage.set()` 写入 JSON 字符串，再用 `get()` 核对原文，不把 JSON 编码器改变对象键顺序当成保存失败。现有凭据键和任务记录键不变，不需要清空存储；真正的写入异常、静默未写入或回读内容不同仍会停止任务。更新模块与远程脚本后，重新打开蔚来 App 即可再次捕获凭据。
+3.0.1 把必要存储改为 `ctx.storage.set()` / `get()` 原始字符串回读，避免 `setJSON()` / `getJSON()` 的对象键顺序差异。3.1.3 进一步修复捕获入口的误报：字段等价的回读可确认，更新的同凭据快照可合并；回读是其它新凭据或失效状态时，让旧捕获退出，不回写旧快照、不报告本次成功。写入前后仍停留在原快照、状态缺失、格式损坏或 API 异常时，明确报告失败，不盲目重试。
 
-捕获、统计观察、定时与诊断四个入口使用同一个已核验的完整提交地址，避免 GitHub Raw 的 `main` 缓存或客户端旧脚本缓存。模块本身仍可跟随 `main` 更新。重新载入配置并更新模块后，运行“蔚来本地诊断”确认显示 `Egern 原生脚本 3.1.2`；仅打开 App 不保证模块与脚本缓存已经更新。相同凭据捕获会保持静默，以本地诊断的“已捕获”状态为准。
+同 Token 同 UA 没有需要更新的业务内容，3.1.3 不再因每个 App 请求重写 `observedAt`。该时间从未用于推断服务端 Token 过期；同凭据的失效标记、`generation` 和当日确认仍保留。任务锁、失效标记及签到确认的严格写入校验没有放宽。
+
+捕获脚本日志现在包含实际执行版本和固定结果码。可选 `weilai_egern_capture_status_v1` 只存版本、记录时间和结果码；本地诊断会显示该记录，以及可用时的 Egern App 版本。诊断记录故障不作废凭据、签到记录或统计。更新后先打开 App，再运行诊断，区分历史通知和新捕获结果：
+
+- `C-SAVED`：已核验保存。
+- `C-UNCHANGED`：凭据及 UA 未变，无需重写。
+- `C-COALESCED`：已有更新的同凭据快照，保留它。
+- `C-SUPERSEDED`：其它请求已更新当前状态，旧捕获退出。
+- `E-READ` / `E-WRITE` / `E-READBACK`：分别是捕获前读取、写入、写后读取 API 异常。
+- `E-EMPTY` / `E-FORMAT` / `E-MISMATCH`：分别是写后缺失、格式异常、未匹配到本次更新。
+
+这些码不包含 Token、账号、请求 URL、响应正文或异常原文。保存失败通知只给出结果码与本地诊断入口，不再将所有错误写成“本地写入未确认”。现有凭据键、提醒键、统计键和任务记录键均不变，不需要清空存储或重复签到。
+
+捕获、统计观察、定时与诊断四个入口使用同一个已核验的完整提交地址，避免 GitHub Raw 的 `main` 缓存或客户端旧脚本缓存。模块本身仍可跟随 `main` 更新。重新载入配置并更新模块后，运行“蔚来本地诊断”确认显示 `Egern 原生脚本 3.1.3`；仅打开 App 不保证模块与脚本缓存已经更新。相同凭据捕获会保持静默，以本地诊断的“已捕获”及新版捕获记录为准。
 
 3.1.1 的提醒时间单独保存在 `weilai_egern_capture_notice_v1`，只存时间戳，不含 Token 或账号代号。提醒记录损坏时重新记录；提醒读写或通知 API 失败不回滚凭据，也不影响签到任务。合并仅针对共享存储中可观察的连续更新；原生存储没有 CAS，不能保证完全并发的不同执行器绝不重复提醒。
 
@@ -96,7 +109,7 @@ https://raw.githubusercontent.com/atopsecret/SurgeScripts/refs/heads/main/weilai
 
 ### 凭据、幂等与任务锁
 
-凭据只在 `weilai_egern_auth_state_v1` 保存，包含 Token、观察时间、失效标记、合法 UA 和 `generation`。新 Token 换一代，同 Token 保留失效标记与代号；A→B→A 也不会误认成原来的在途任务。不读 `weilai_auth_state_v1` 或其他旧 Surge 键。
+凭据只在 `weilai_egern_auth_state_v1` 保存，包含 Token、观察时间、失效标记、合法 UA 和 `generation`。新 Token 换一代，同 Token 保留失效标记与代号；同 Token 同 UA 不反复更新时间。A→B→A 也不会误认成原来的在途任务。不读 `weilai_auth_state_v1` 或其他旧 Surge 键。
 
 任务记录 `weilai_egern_checkin_v1` 只存任务 ID、代号、锁时间、已确认日期/有限统计及可选字段类型，不重复存 Token。所有必要存储写入都回读确认；核心状态不可读、结构不符或加锁未确认时不发 POST。真实目标请求可修复损坏的凭据状态；损坏任务记录不自动删掉或当作空记录。可选观察缓存或诊断元数据故障不作废凭据、不删除有效确认记录。
 
@@ -117,7 +130,7 @@ Egern `ctx.storage` 没有文档化的 CAS、事务或跨进程互斥保证。�
 
 ### Egern 离线验证
 
-原生上下文测试使用内存存储、虚拟时钟、虚构响应和凭据，覆盖 JSON 键重排、真正的存储失败、累计别名、当日缓存、响应原字节透传、凭据代号与日界、独立观察记录、可选诊断元数据及无额外请求；同时运行 Surge 回归：
+原生上下文测试使用内存存储、虚拟时钟、虚构响应和凭据，覆盖 JSON 键重排、同凭据重复捕获、可观察的并发写入接管、存储失败结果码、累计别名、当日缓存、响应原字节透传、凭据代号与日界、独立观察记录、可选诊断元数据及无额外请求；同时运行 Surge 回归：
 
 ```sh
 node --input-type=module --check < weilai/weilai-auto-checkin.egern.js
@@ -125,6 +138,6 @@ node --experimental-vm-modules --test weilai/tests/egern.test.cjs
 node --test weilai/tests/checkin.test.cjs
 ```
 
-2026-11-06 全模块脚本回归 340/340、公共静态测试 17/17；其中蔚来 Surge 48 项、Egern 76 项，无失败或跳过。
+3.1.2 基线：全模块脚本回归 340/340、公共静态测试 17/17；其中蔚来 Surge 48 项、Egern 76 项，无失败或跳过。3.1.3 增补捕获并发、写入结果及只读诊断测试；发布前运行全量回归。
 
-测试依赖 Node.js 20+、Python 3 与 PyYAML（只解析公开 YAML）。依据 [Egern 原生 API](https://egernapp.com/zh-CN/docs/javascript-api/)与[脚本配置](https://egernapp.com/docs/configuration/scriptings/)。本轮仅做离线通知与回归验证，未执行真实签到、手机导入、CA 信任、锁屏定时或跨脚本存储共享验收。
+测试依赖 Node.js 20+、Python 3 与 PyYAML（只解析公开 YAML）。依据 [Egern 原生 API](https://egernapp.com/zh-CN/docs/javascript-api/)与[脚本配置](https://egernapp.com/docs/configuration/scriptings/)。并发误报能在离线模拟中复现，但仅凭旧通知无法判定手机当次失败的原因；需看更新后的实际版本、捕获记录及结果码。未执行真实签到、手机导入、CA 信任、锁屏定时或跨脚本存储共享验收。

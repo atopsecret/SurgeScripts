@@ -2,15 +2,16 @@
 // Build: 无需构建
 // Run: 导入 weilai-auto-checkin.egern.yaml；重新捕获凭据；定时任务每天 09:00
 // Deps: Egern ctx API；测试：node --experimental-vm-modules --test weilai/tests/egern.test.cjs
-// Version: 3.1.2
+// Version: 3.1.3
 // Author: atopsecret；与本目录 Surge 版使用相同业务路径，凭据存储独立。
 
 export const CONFIG = Object.freeze({
-    version: "3.1.2",
+    version: "3.1.3",
     stateKey: "weilai_egern_auth_state_v1",
     journalKey: "weilai_egern_checkin_v1",
     statisticsKey: "weilai_egern_statistics_v1",
     captureNoticeKey: "weilai_egern_capture_notice_v1",
+    captureStatusKey: "weilai_egern_capture_status_v1",
     captureNoticeCooldownMs: 30000,
     endpoint: "https://gateway-front-external.nio.com/moat/10086/c/award_cn/checkin",
     budgetMs: 24000,
@@ -27,6 +28,9 @@ const statNumber = value => typeof value === "number" && Number.isSafeInteger(va
 const validStats = value => record(value) && Object.keys(value).every(key =>
     ["consecutive", "total"].includes(key) && statNumber(value[key]));
 class StateFormatError extends Error {}
+class CaptureStorageError extends Error {
+    constructor(code) { super(code); this.code = code; }
+}
 class TimeoutError extends Error {}
 class TaskStop extends Error {
     constructor(title, body, keepLease = false) { super(title); this.title = title; this.body = body; this.keepLease = keepLease; }
@@ -45,9 +49,7 @@ function header(headers, name) {
     const value = headers && headers.get(name);
     return typeof value === "string" ? value : "";
 }
-function readJSON(ctx, key) {
-    // 原生 get() 先区分“没有键”和损坏的 JSON；不回退读取 Surge 或旧凭据键。
-    const raw = ctx.storage.get(key);
+function storedJSON(raw) {
     if (raw === null) return null;
     if (typeof raw !== "string" || !raw) throw new StateFormatError("invalid-storage");
     let parsed;
@@ -55,18 +57,83 @@ function readJSON(ctx, key) {
     if (parsed === null) throw new StateFormatError("invalid-null");
     return parsed;
 }
+function readJSON(ctx, key) {
+    // 原生 get() 先区分“没有键”和损坏的 JSON；不回退读取 Surge 或旧凭据键。
+    return storedJSON(ctx.storage.get(key));
+}
 function writeVerified(ctx, key, value) {
     // 原生 JSON 编码器不保证对象键顺序；统一存取原始字符串，仍回读验证真正写入。
     const encoded = JSON.stringify(value);
     ctx.storage.set(key, encoded);
     if (ctx.storage.get(key) !== encoded) throw new Error("storage-not-confirmed");
 }
-function readState(ctx) {
-    const state = readJSON(ctx, CONFIG.stateKey);
+function validatedState(state) {
     if (state === null) return null;
     if (!record(state) || !validToken(state.token) || !validTime(state.observedAt) ||
         typeof state.invalid !== "boolean" || !validId(state.generation)) throw new StateFormatError("invalid-state");
     return state;
+}
+function readState(ctx) { return validatedState(readJSON(ctx, CONFIG.stateKey)); }
+const CAPTURE_RESULTS = Object.freeze({
+    "C-SAVED": "凭据已保存",
+    "C-UNCHANGED": "凭据未变化，无需重写",
+    "C-COALESCED": "同凭据并发捕获已合并",
+    "C-SUPERSEDED": "当前状态已由其它请求更新",
+    "E-READ": "捕获前读取异常",
+    "E-WRITE": "写入 API 异常",
+    "E-READBACK": "写后读取 API 异常",
+    "E-EMPTY": "写后未读到凭据",
+    "E-FORMAT": "写后状态格式异常",
+    "E-MISMATCH": "写后状态不匹配"
+});
+function captureResult(ctx, code) {
+    // 只记录固定结果码、时间和版本。记录失败不能回滚凭据或触发重试。
+    console.log("[蔚来捕获] Egern 原生脚本 " + CONFIG.version + "；" + code + "；" + CAPTURE_RESULTS[code]);
+    let previous;
+    try { previous = readJSON(ctx, CONFIG.captureStatusKey); }
+    catch (error) {
+        if (error instanceof StateFormatError) previous = null;
+        else return;
+    }
+    try {
+        const at = Date.now();
+        if (record(previous) && previous.version === CONFIG.version && previous.code === code &&
+            validTime(previous.at) && previous.at <= at && code === "C-UNCHANGED" && at - previous.at < 30000) return;
+        ctx.storage.set(CONFIG.captureStatusKey, JSON.stringify({ version: CONFIG.version, at, code }));
+    } catch (_) { /* 可选诊断记录不可用时，固定结果码仍留在捕获脚本日志。 */ }
+}
+function sameCaptureState(a, b) {
+    return a && b && a.token === b.token && a.observedAt === b.observedAt && a.invalid === b.invalid &&
+        a.generation === b.generation && (a.userAgent === undefined ? "" : a.userAgent) === (b.userAgent === undefined ? "" : b.userAgent);
+}
+function saveCapture(ctx, expected, previous) {
+    const encoded = JSON.stringify(expected);
+    try { ctx.storage.set(CONFIG.stateKey, encoded); }
+    catch (_) { throw new CaptureStorageError("E-WRITE"); }
+    let raw;
+    try { raw = ctx.storage.get(CONFIG.stateKey); }
+    catch (_) { throw new CaptureStorageError("E-READBACK"); }
+    if (raw === encoded) return "C-SAVED";
+    let current;
+    try { current = validatedState(storedJSON(raw)); }
+    catch (_) { throw new CaptureStorageError("E-FORMAT"); }
+    if (!current) throw new CaptureStorageError("E-EMPTY");
+    const ua = current.userAgent === undefined ? "" : current.userAgent;
+    if (!(ua === "" || validUA(ua))) throw new CaptureStorageError("E-FORMAT");
+    if (sameCaptureState(current, expected)) return "C-SAVED";
+    // 仍是捕获前的快照，只能说明原凭据还在，不能证明这次更新已写入。
+    if (sameCaptureState(current, previous)) throw new CaptureStorageError("E-MISMATCH");
+    // 原文不同不等于没有保存：字段相同可确认，更新的同凭据快照可合并。
+    // 仅捕获允许这个判断；任务锁、签到确认仍使用严格回读，不放宽其归属检查。
+    if (current.token === expected.token && current.invalid === expected.invalid && current.observedAt >= expected.observedAt) {
+        return "C-COALESCED";
+    }
+    if (current.observedAt >= expected.observedAt &&
+        (current.token !== expected.token || current.generation !== expected.generation || current.invalid !== expected.invalid)) {
+        // 不回写旧快照，也不把其它请求保存的凭据说成本次保存成功。
+        return "C-SUPERSEDED";
+    }
+    throw new CaptureStorageError("E-MISMATCH");
 }
 function uniqueId() {
     return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2) + "-" + Math.random().toString(36).slice(2);
@@ -107,17 +174,31 @@ function capture(ctx) {
     catch (error) {
         // 真正的新请求可以修复损坏的状态；读取 API 不可用时则停止，不猜旧状态。
         if (error instanceof StateFormatError) previous = null;
-        else { report(ctx, "凭据状态无法读取", "请检查 Egern 本地存储后重新打开蔚来 App。"); return; }
+        else { captureResult(ctx, "E-READ"); report(ctx, "凭据状态无法读取", "请查看蔚来本地诊断。错误：E-READ"); return; }
     }
     const same = previous && previous.token === token;
     const ua = header(ctx.request.headers, "user-agent");
+    const userAgent = validUA(ua) ? ua : (same && validUA(previous.userAgent) ? previous.userAgent : "");
+    if (same && (previous.userAgent === undefined ? "" : previous.userAgent) === userAgent) {
+        // observedAt 不承担过期判断；同凭据同 UA 没有必要让每个请求争写整个状态。
+        captureResult(ctx, "C-UNCHANGED");
+        return;
+    }
     const state = {
         token, observedAt: Date.now(), invalid: Boolean(same && previous.invalid),
-        userAgent: validUA(ua) ? ua : (same && validUA(previous.userAgent) ? previous.userAgent : ""),
+        userAgent,
         generation: same ? previous.generation : uniqueId()
     };
-    try { writeVerified(ctx, CONFIG.stateKey, state); }
-    catch (_) { report(ctx, "凭据保存失败", "本地写入未确认，请检查存储后重新打开蔚来 App。"); return; }
+    let result;
+    try { result = saveCapture(ctx, state, previous); }
+    catch (error) {
+        const code = error instanceof CaptureStorageError ? error.code : "E-WRITE";
+        captureResult(ctx, code);
+        report(ctx, "凭据保存失败", "请查看蔚来本地诊断。错误：" + code);
+        return;
+    }
+    captureResult(ctx, result);
+    if (result === "C-SUPERSEDED") return;
     if (!same) report(ctx, "凭据已更新", "", claimCaptureNotice(ctx));
 }
 
@@ -474,6 +555,7 @@ async function runCheckin(ctx) {
 }
 function diagnostic(ctx) {
     const lines = ["Egern 原生脚本 " + CONFIG.version];
+    if (ctx.app && typeof ctx.app.version === "string" && /^\d+(?:\.\d+){1,3}$/.test(ctx.app.version)) lines.push("Egern 版本：" + ctx.app.version);
     try {
         const state = readState(ctx), journal = readJournal(ctx);
         lines.push("凭据：" + (!state ? "尚未捕获" : state.invalid ? "已标记失效，请重新登录" : "已捕获（不显示内容）"));
@@ -493,7 +575,15 @@ function diagnostic(ctx) {
         }
         lines.push("任务锁：" + (journal.lock && journal.lock.expiresAt > Date.now() ? "有效，等待任务结束或到期" : "无有效锁"));
     } catch (_) { lines.push("本地状态无法读取；此诊断不发送签到请求。"); }
-    lines.push("仅定时任务执行 POST；诊断不抓取、搬运或输出凭据。");
+    try {
+        const status = readJSON(ctx, CONFIG.captureStatusKey);
+        if (record(status) && typeof status.version === "string" && /^\d+(?:\.\d+){1,3}$/.test(status.version) &&
+            validTime(status.at) && typeof status.code === "string" && Object.prototype.hasOwnProperty.call(CAPTURE_RESULTS, status.code)) {
+            lines.push("捕获记录：" + CAPTURE_RESULTS[status.code] + "（" + status.code + "）");
+            lines.push("捕获版本：" + status.version + "；记录时间：" + new Date(status.at).toISOString());
+        } else lines.push("捕获记录：暂无新版记录；可打开蔚来 App 后再查看。");
+    } catch (_) { lines.push("捕获记录无法读取；请查看凭据捕获脚本日志。"); }
+    lines.push("此诊断只读本地状态，不发送签到请求。");
     for (const line of lines) console.log("[蔚来诊断] " + line);
     return { type: "widget", padding: 12, children: [{ type: "text", text: lines.join("\n") }] };
 }

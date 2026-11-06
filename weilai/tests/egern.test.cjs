@@ -15,6 +15,7 @@ const yaml = JSON.parse(execFileSync('python3', ['-c', 'import json,sys,yaml; pr
     path.join(root, 'weilai-auto-checkin.egern.yaml')], { encoding: 'utf8', timeout: 5000 }));
 const KEY = 'weilai_egern_auth_state_v1', JOURNAL = 'weilai_egern_checkin_v1', OBSERVATION = 'weilai_egern_statistics_v1';
 const NOTICE = 'weilai_egern_capture_notice_v1';
+const CAPTURE_STATUS = 'weilai_egern_capture_status_v1';
 const TOKEN = 'Bearer OFFLINE_FIXTURE_NOT_A_REAL_TOKEN', NEW_TOKEN = 'Bearer OTHER_OFFLINE_FIXTURE_NOT_REAL';
 const GENERATION = 'offline_generation_a', NEXT = 'offline_generation_b';
 const NOW = Date.parse('2026-11-05T01:00:00Z');
@@ -102,6 +103,10 @@ async function harness(options = {}) {
     function read(key) {
         reads.push(key);
         if (options.readThrows) throw Error('SECRET_STORAGE_READ');
+        if (options.readHook) {
+            const value = options.readHook(key, store, reads);
+            if (value !== undefined) return value;
+        }
         return store.has(key) ? store.get(key) : null;
     }
     function response(reply) {
@@ -249,11 +254,12 @@ test('同 Token 静默、保留 invalid 和 generation；新 Token 才重置标�
     assert.equal(JSON.parse(store.get(KEY)).invalid, false); assert.notEqual(JSON.parse(store.get(KEY)).generation, GENERATION);
     assert.equal(subtitle(changed), '凭据已更新');
 });
-test('合法 UA 可延续；同凭据只更新时间，不生成新的每日身份', async () => {
+test('合法 UA 可延续；同凭据无变更时不重写观察时间或每日身份', async () => {
     const store = stateStore({ observedAt: NOW - 1000 });
     const h = await harness({ store, request: captureRequest(undefined, TOKEN, 'Unknown/1') });
     const saved = JSON.parse(store.get(KEY));
-    assert.equal(saved.userAgent, 'NIOAppCN/6.10.0 offline'); assert.equal(saved.observedAt, NOW); assert.equal(saved.generation, GENERATION);
+    assert.equal(saved.userAgent, 'NIOAppCN/6.10.0 offline'); assert.equal(saved.observedAt, NOW - 1000); assert.equal(saved.generation, GENERATION);
+    assert.equal(h.writes.some(([key]) => key === KEY), false);
     assert.equal(h.notices.length, 0);
 });
 test('启动连发凭据在三十秒内合并提醒，仍保存最新 Token、UA 与 generation', async () => {
@@ -271,7 +277,7 @@ test('启动连发凭据在三十秒内合并提醒，仍保存最新 Token、UA
         assert.equal(saved.invalid, false);
         if (previous) token === previous.token ? assert.equal(saved.generation, previous.generation) : assert.notEqual(saved.generation, previous.generation);
         assert.equal(store.get(NOTICE), String(offset < 30000 ? NOW : NOW + 30000));
-        assert.deepEqual([...store.keys()].sort(), [KEY, NOTICE].sort());
+        assert.deepEqual([...store.keys()].sort(), [KEY, NOTICE, CAPTURE_STATUS].sort());
         assert.equal(h.posts.length, 0); assertPrivate(h); previous = saved;
     }
     assert.equal(notices, 2);
@@ -327,6 +333,155 @@ test('原始字符串回读被替换时仍拒绝凭据保存成功', async () =>
     } });
     assert.equal(subtitle(h), '凭据保存失败'); assert.equal(h.posts.length, 0);
     assert.equal(JSON.parse(h.store.get(KEY)).observedAt, NOW - 1); assertPrivate(h);
+});
+test('重复捕获相同 Token 和 UA 不重写凭据、代号或当日记录', async () => {
+    const store = confirmedStore({ consecutive: 564, total: 570 });
+    setObservation(store);
+    const before = new Map(store);
+    const h = await harness({ store, clock: { now: NOW + 1000 }, request: captureRequest() }); await h.promise;
+    assert.equal(h.writes.some(([key]) => key === KEY), false);
+    for (const key of [KEY, JOURNAL, OBSERVATION]) assert.equal(store.get(key), before.get(key));
+    assert.equal(h.notices.length, 0); assert.equal(h.posts.length, 0); assertPrivate(h);
+});
+test('同凭据的更新捕获抢先完成回读，不把有效新快照误报为保存失败', async () => {
+    let newer;
+    const h = await harness({ store: new Map(), request: captureRequest(), writeHook: (key, value, store) => {
+        if (key !== KEY) return;
+        newer = { ...value, observedAt: NOW + 1, generation: NEXT, userAgent: 'NIOAppCN/6.10.0 concurrent' };
+        store.set(key, JSON.stringify(newer)); return false;
+    } }); await h.promise;
+    assert.deepEqual(JSON.parse(h.store.get(KEY)), newer);
+    assert.equal(subtitle(h), '凭据已更新'); assert.doesNotMatch(h.logs.join('\n'), /凭据保存失败/);
+    assert.equal(h.writes.filter(([key]) => key === KEY).length, 1);
+    assert.equal(h.posts.length, 0); assertPrivate(h);
+});
+test('回读遇到其它新凭据时尊重新快照，不回写旧 Token、不误报保存失败或成功', async () => {
+    const store = stateStore(); let newer;
+    const h = await harness({ store, clock: { now: NOW + 1000 }, request: captureRequest(undefined, NEW_TOKEN),
+        writeHook: (key, value, target) => {
+            if (key !== KEY) return;
+            newer = { ...value, token: TOKEN, observedAt: NOW + 1001, generation: NEXT };
+            target.set(key, JSON.stringify(newer)); return false;
+        } }); await h.promise;
+    assert.deepEqual(JSON.parse(store.get(KEY)), newer); assert.equal(h.notices.length, 0);
+    assert.match(h.logs.join('\n'), /C-SUPERSEDED/); assert.doesNotMatch(h.logs.join('\n'), /凭据保存失败|凭据已更新/);
+    assert.equal(h.writes.filter(([key]) => key === KEY).length, 1); assert.equal(h.posts.length, 0); assertPrivate(h);
+});
+test('回读中当前凭据已被标记失效时不解除失效，也不提醒捕获成功', async () => {
+    const h = await harness({ store: new Map(), request: captureRequest(), writeHook: (key, value, store) => {
+        if (key !== KEY) return;
+        store.set(key, JSON.stringify({ ...value, invalid: true, observedAt: NOW + 1 })); return false;
+    } }); await h.promise;
+    assert.equal(JSON.parse(h.store.get(KEY)).invalid, true); assert.equal(h.notices.length, 0);
+    assert.match(h.logs.join('\n'), /C-SUPERSEDED/); assert.equal(h.posts.length, 0); assertPrivate(h);
+});
+test('凭据回读仅 JSON 键顺序变化时按字段确认，不把序列化差异当保存失败', async () => {
+    const h = await harness({ store: new Map(), request: captureRequest(), writeHook: (key, value, store) => {
+        if (key !== KEY) return;
+        store.set(key, JSON.stringify(reordered(value))); return false;
+    } }); await h.promise;
+    assert.equal(subtitle(h), '凭据已更新'); assert.equal(JSON.parse(h.store.get(KEY)).token, TOKEN);
+    assert.equal(h.posts.length, 0); assertPrivate(h);
+});
+test('静默未写入且仍是捕获前快照时不误判为其它请求接管或保存成功', async () => {
+    for (const request of [captureRequest(undefined, NEW_TOKEN), captureRequest(undefined, TOKEN, 'NIOAppCN/6.11.0 offline')]) {
+        const store = stateStore(), before = store.get(KEY);
+        const h = await harness({ store, request, writeHook: key => key === KEY ? false : undefined }); await h.promise;
+        assert.equal(store.get(KEY), before); assert.equal(subtitle(h), '凭据保存失败');
+        assert.match(h.notices[0].body, /E-MISMATCH/); assert.doesNotMatch(h.logs.join('\n'), /C-COALESCED|C-SUPERSEDED/);
+        assert.equal(h.posts.length, 0); assertPrivate(h);
+    }
+});
+test('同凭据并发合并不能吞掉非法 UA、旧时间或损坏回读', async () => {
+    for (const patch of [{ observedAt: NOW - 1 }, { userAgent: 'NIOAppCN/6.10.0\r\nSECRET_INJECTION' },
+        { generation: 'bad generation' }, { observedAt: NOW + 3600000 }, { token: 'Bearer short' }]) {
+        const h = await harness({ store: new Map(), request: captureRequest(), writeHook: (key, value, store) => {
+            if (key !== KEY) return;
+            store.set(key, JSON.stringify({ ...value, ...patch })); return false;
+        } }); await h.promise;
+        assert.equal(subtitle(h), '凭据保存失败'); assert.equal(h.posts.length, 0);
+        assert.doesNotMatch(h.logs.join('\n'), /C-COALESCED|C-SUPERSEDED/); assertPrivate(h);
+    }
+});
+test('捕获失败区分写入、回读、缺失、格式及不匹配，诊断不显示异常原文或凭据', async () => {
+    for (const [code, options] of [
+        ['E-WRITE', { writeHook: key => { if (key === KEY) throw Error('SECRET_WRITE_REASON'); } }],
+        ['E-READBACK', { readHook: (key, store, reads) => { if (key === KEY && reads.filter(x => x === KEY).length > 1) throw Error('SECRET_READ_REASON'); } }],
+        ['E-EMPTY', { writeHook: key => key === KEY ? false : undefined }],
+        ['E-FORMAT', { writeHook: (key, value, store) => { if (key === KEY) { store.set(key, 'SECRET_BAD_JSON'); return false; } } }],
+        ['E-MISMATCH', { writeHook: (key, value, store) => { if (key === KEY) { store.set(key, JSON.stringify({ ...value, observedAt: NOW - 1 })); return false; } } }],
+    ]) {
+        const h = await harness({ ...options, store: new Map(), request: captureRequest() }); await h.promise;
+        assert.equal(subtitle(h), '凭据保存失败'); assert.equal(h.notices[0].body, '请查看蔚来本地诊断。错误：' + code);
+        assert.match(h.logs.join('\n'), new RegExp('Egern 原生脚本 ' + h.namespace.CONFIG.version.replaceAll('.', '\\.') + '；' + code));
+        assert.deepEqual(JSON.parse(h.store.get(CAPTURE_STATUS)), { version: h.namespace.CONFIG.version, at: NOW, code });
+        const writes = h.writes.length, diagnostic = await h.invoke({ app: { version: '2.21.0' } });
+        assert.match(diagnostic.children[0].text, /Egern 版本：2\.21\.0/);
+        assert.ok(diagnostic.children[0].text.includes('（' + code + '）'));
+        assert.equal(h.writes.length, writes); assert.equal(h.posts.length, 0); assert.equal(h.store.has(JOURNAL), false); assertPrivate(h);
+        assert.doesNotMatch(JSON.stringify(diagnostic), /SECRET_|Bearer|OFFLINE_FIXTURE/);
+    }
+});
+test('捕获前读取异常有独立结果码，不覆盖凭据，也不启动签到', async () => {
+    const store = stateStore(), before = store.get(KEY);
+    const h = await harness({ store, request: captureRequest(undefined, NEW_TOKEN),
+        readHook: key => { if (key === KEY) throw Error('SECRET_INITIAL_READ'); } }); await h.promise;
+    assert.equal(store.get(KEY), before); assert.equal(h.writes.some(([key]) => key === KEY), false);
+    assert.equal(subtitle(h), '凭据状态无法读取'); assert.match(h.logs.join('\n'), /E-READ；捕获前读取异常/);
+    assert.equal(JSON.parse(store.get(CAPTURE_STATUS)).code, 'E-READ'); assert.equal(h.posts.length, 0); assertPrivate(h);
+});
+test('可选捕获诊断记录读写失败不能把已保存凭据说成失败', async () => {
+    for (const failure of ['read', 'write', 'noop']) {
+        const h = await harness({ store: new Map(), request: captureRequest(),
+            readHook: key => { if (key === CAPTURE_STATUS && failure === 'read') throw Error('SECRET_STATUS_READ'); },
+            writeHook: key => {
+                if (key !== CAPTURE_STATUS) return;
+                if (failure === 'write') throw Error('SECRET_STATUS_WRITE');
+                if (failure === 'noop') return false;
+            } }); await h.promise;
+        assert.equal(JSON.parse(h.store.get(KEY)).token, TOKEN); assert.equal(subtitle(h), '凭据已更新');
+        assert.doesNotMatch(h.logs.join('\n'), /凭据保存失败/); assert.equal(h.posts.length, 0); assertPrivate(h);
+    }
+});
+test('存储当前不可写时，相同有效凭据无需重写，不再产生保存失败通知', async () => {
+    const store = confirmedStore({ consecutive: 564, total: 570 }), before = new Map(store);
+    const h = await harness({ store, writeThrows: true, request: captureRequest() }); await h.promise;
+    assert.equal(store.get(KEY), before.get(KEY)); assert.equal(store.get(JOURNAL), before.get(JOURNAL));
+    assert.equal(h.writes.some(([key]) => key === KEY), false); assert.equal(h.notices.length, 0);
+    assert.match(h.logs.join('\n'), /C-UNCHANGED/); assert.doesNotMatch(h.logs.join('\n'), /凭据保存失败/);
+    assert.equal(h.posts.length, 0); assertPrivate(h);
+});
+test('捕获合并不放宽任务锁的严格回读，其它锁仍阻止 POST', async () => {
+    const h = await harness({ writeHook: (key, value, store) => {
+        if (key !== JOURNAL || !value.lock) return;
+        store.set(key, JSON.stringify({ ...value, lock: { ...value.lock, id: NEXT } })); return false;
+    } }); await h.promise;
+    assert.equal(h.posts.length, 0); assert.equal(journal(h).lock.id, NEXT); assertPrivate(h);
+});
+test('重复捕获的可选诊断记录三十秒内不反复写入，仍不改凭据', async () => {
+    const h = await harness({ request: captureRequest() }); await h.promise;
+    const initial = h.writes.length;
+    await h.invoke({ request: captureRequest() });
+    assert.equal(h.writes.length, initial);
+    assert.equal(h.writes.some(([key]) => key === KEY), false);
+    await h.advance(30000); await h.invoke({ request: captureRequest() });
+    assert.equal(h.writes.length, initial + 1);
+    assert.equal(h.writes.at(-1)[0], CAPTURE_STATUS); assert.equal(h.posts.length, 0); assertPrivate(h);
+});
+test('捕获诊断元数据损坏或含额外私密字段不破坏今日记录、不泄露元数据值', async () => {
+    for (const raw of ['SECRET_BROKEN_STATUS', JSON.stringify({ version: '3.1.2', at: NOW, code: 'SECRET_CODE' }),
+        JSON.stringify({ version: '3.1.2', at: NOW, code: {}, secret: TOKEN }),
+        JSON.stringify({ version: '3.1.2', at: NOW, code: 'E-WRITE', secret: TOKEN })]) {
+        const store = confirmedStore({ consecutive: 564, total: 570 }); store.set(CAPTURE_STATUS, raw);
+        const before = new Map(store), h = await harness({ store, generic: true }); await h.promise;
+        assert.match(h.output.children[0].text, /今日记录：已确认\n连续签到：564 天\n累计签到：570 天/);
+        assert.doesNotMatch(JSON.stringify(h.output), /SECRET_|Bearer|OFFLINE_FIXTURE/);
+        assert.deepEqual(store, before); assert.equal(h.writes.length, 0); assert.equal(h.posts.length, 0); assertPrivate(h);
+        await h.invoke({ request: captureRequest() });
+        assert.equal(store.get(KEY), before.get(KEY)); assert.equal(store.get(JOURNAL), before.get(JOURNAL));
+        assert.deepEqual(JSON.parse(store.get(CAPTURE_STATUS)), { version: h.namespace.CONFIG.version, at: NOW, code: 'C-UNCHANGED' });
+        assert.equal(h.notices.length, 0); assert.equal(h.posts.length, 0); assertPrivate(h);
+    }
 });
 test('真实目标请求可修复损坏状态，但不会读取旧 Surge 凭据键', async () => {
     const store = new Map([[KEY, 'BROKEN_SECRET'], ['weilai_auth_state_v1', JSON.stringify(state())], ['weilai_auth_token', TOKEN]]);

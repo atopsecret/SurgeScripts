@@ -2,17 +2,19 @@
 // Build: 无需构建
 // Run: 导入 weilai-auto-checkin.egern.yaml；重新捕获凭据；定时任务每天 09:00
 // Deps: Egern ctx API；测试：node --experimental-vm-modules --test weilai/tests/egern.test.cjs
-// Version: 3.0.1
+// Version: 3.1.0
 // Author: atopsecret；与本目录 Surge 版使用相同业务路径，凭据存储独立。
 
 export const CONFIG = Object.freeze({
-    version: "3.0.1",
+    version: "3.1.0",
     stateKey: "weilai_egern_auth_state_v1",
     journalKey: "weilai_egern_checkin_v1",
+    statisticsKey: "weilai_egern_statistics_v1",
     endpoint: "https://gateway-front-external.nio.com/moat/10086/c/award_cn/checkin",
     budgetMs: 24000,
     requestTimeoutMs: 5000,
     leaseMs: 30000,
+    maxObservationBytes: 262144,
     maxAttempts: 3,
     fallbackUA: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 NIOAppCN/6.10.0 (com.do1.WeiLaiApp; build:2682; OS:iOS) webview/lg _dsbridge"
 });
@@ -20,6 +22,8 @@ const record = value => value !== null && typeof value === "object" && !Array.is
 const validId = value => typeof value === "string" && /^[A-Za-z0-9_-]{1,80}$/.test(value);
 const validTime = value => typeof value === "number" && Number.isFinite(value) && value > 0 && value <= Date.now() + 300000;
 const statNumber = value => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+const validStats = value => record(value) && Object.keys(value).every(key =>
+    ["consecutive", "total"].includes(key) && statNumber(value[key]));
 class StateFormatError extends Error {}
 class TimeoutError extends Error {}
 class TaskStop extends Error {
@@ -114,22 +118,49 @@ function readJournal(ctx) {
         const item = saved.confirmed;
         if (!validId(item.generation) || !validTime(item.confirmedAt) ||
             typeof item.day !== "string" || item.day !== businessDay(item.confirmedAt) ||
-            !record(item.stats) || Object.keys(item.stats).some(key =>
-                !["consecutive", "total"].includes(key) || !statNumber(item.stats[key]))) {
+            !validStats(item.stats)) {
             throw new StateFormatError("invalid-confirmation");
+        }
+        if (item.fields !== undefined && !validFieldTypes(item.fields)) {
+            // 可选诊断元数据损坏时只丢弃本次读取的元数据，不作废有效签到和锁。
+            console.log("[蔚来签到] 统计字段诊断不可用；签到确认仍有效。");
+            return { version: 1, lock: saved.lock, confirmed: { ...item, fields: undefined } };
         }
     }
     return { version: 1, lock: saved.lock, confirmed: saved.confirmed };
 }
-function statistics(data) {
+function statisticFields(data) {
     const stats = record(data.stats) ? data.stats : {};
+    const award = record(data.award_info) ? data.award_info : {};
     const consecutiveFields = [
         ["stats.continuous_checkin_days", stats.continuous_checkin_days],
         ["stats.continuous_days", stats.continuous_days],
         ["continuous_checkin_days", data.continuous_checkin_days],
         ["continuous_days", data.continuous_days]
     ];
-    const totalFields = [["stats.accumulate_days", stats.accumulate_days], ["accumulate_days", data.accumulate_days]];
+    // 保留现有两个字段的优先级，再兼容旧版累计字段；不把缺失值当作零。
+    const totalFields = [
+        ["stats.accumulate_days", stats.accumulate_days], ["accumulate_days", data.accumulate_days],
+        ["stats.accumulateDays", stats.accumulateDays], ["accumulateDays", data.accumulateDays],
+        ["stats.total_days", stats.total_days], ["total_days", data.total_days],
+        ["award_info.accumulate_days", award.accumulate_days], ["award_info.total_days", award.total_days]
+    ];
+    return { consecutiveFields, totalFields };
+}
+function fieldTypes(data) {
+    const { consecutiveFields, totalFields } = statisticFields(data);
+    return Object.fromEntries(consecutiveFields.concat(totalFields).map(([name, value]) => [name,
+        value === undefined ? "missing" : value === null ? "null" : Array.isArray(value) ? "array" : typeof value]));
+}
+function validFieldTypes(value) {
+    if (!record(value)) return false;
+    const names = Object.keys(fieldTypes({}));
+    const types = ["missing", "null", "array", "string", "number", "boolean", "object"];
+    return Object.keys(value).length === names.length && names.every(name =>
+        Object.prototype.hasOwnProperty.call(value, name) && types.includes(value[name]));
+}
+function statistics(data) {
+    const { consecutiveFields, totalFields } = statisticFields(data);
     const first = fields => fields.map(([, value]) => {
         // 只转换有限长度的纯数字串；不接受布尔值、指数、小数或任意文本。
         if (typeof value === "string" && /^[0-9]{1,16}$/.test(value)) value = Number(value);
@@ -138,14 +169,105 @@ function statistics(data) {
     const consecutive = first(consecutiveFields), total = first(totalFields);
     if (consecutive === undefined || total === undefined) {
         // 固定字段名与类型便于诊断缺统计，不记录响应值或整包正文。
-        const types = consecutiveFields.concat(totalFields).map(([name, value]) =>
-            name + "=" + (value === undefined ? "missing" : typeof value));
+        const types = Object.entries(fieldTypes(data)).map(([name, type]) => name + "=" + type);
         console.log("[蔚来签到] 统计字段类型：" + types.join(", "));
     }
     const output = {};
     if (consecutive !== undefined) output.consecutive = consecutive;
     if (total !== undefined) output.total = total;
     return output;
+}
+function matchingObservation(ctx, state, now = Date.now()) {
+    try {
+        const saved = readJSON(ctx, CONFIG.statisticsKey);
+        if (saved === null) return null;
+        if (!record(saved) || saved.version !== 1 || !validId(saved.generation) ||
+            !validTime(saved.observedAt) || saved.observedAt > now ||
+            saved.day !== businessDay(saved.observedAt) || !validStats(saved.stats)) {
+            throw new StateFormatError("invalid-statistics");
+        }
+        if (saved.generation !== state.generation || saved.day !== businessDay(now)) return null;
+        if (!validFieldTypes(saved.fields)) {
+            console.log("[蔚来签到] 统计观察的字段诊断不可用；仅保留已校验数字。");
+            return { ...saved, fields: undefined };
+        }
+        return saved;
+    } catch (_) {
+        // 可选统计观察损坏不能作废凭据、覆盖任务锁或阻止已确认签到。
+        console.log("[蔚来签到] 本地统计观察记录不可用；未改动签到状态。");
+        return null;
+    }
+}
+function completeStatistics(base, observed) {
+    const output = { ...base };
+    for (const name of ["consecutive", "total"]) {
+        if (!statNumber(output[name]) && observed && statNumber(observed.stats[name])) output[name] = observed.stats[name];
+    }
+    return output;
+}
+// 与项目其它原生模块相同：保留原字节后严格解码，不依赖额外运行时。
+function decodeUTF8(bytes) {
+    const parts = [];
+    let chunk = "";
+    for (let i = 0; i < bytes.length;) {
+        const first = bytes[i++];
+        let point = first, count = 0, minimum = 0;
+        if (first >= 0xc2 && first <= 0xdf) { point &= 0x1f; count = 1; minimum = 0x80; }
+        else if (first >= 0xe0 && first <= 0xef) { point &= 0x0f; count = 2; minimum = 0x800; }
+        else if (first >= 0xf0 && first <= 0xf4) { point &= 0x07; count = 3; minimum = 0x10000; }
+        else if (first > 0x7f) throw new Error("invalid-utf8");
+        for (let j = 0; j < count; j++) {
+            const next = bytes[i++];
+            if (next === undefined || (next & 0xc0) !== 0x80) throw new Error("invalid-utf8");
+            point = point * 64 + (next & 0x3f);
+        }
+        if (point < minimum || point > 0x10ffff || (point >= 0xd800 && point <= 0xdfff)) throw new Error("invalid-utf8");
+        chunk += String.fromCodePoint(point);
+        if (chunk.length >= 8192) { parts.push(chunk); chunk = ""; }
+    }
+    parts.push(chunk);
+    return parts.join("");
+}
+async function observeStatistics(ctx) {
+    if (!ctx.request || !/^https:\/\/gateway-front-external\.nio\.com\/moat\/10086\/c\/award_cn\/checkin(?:\?|$)/i.test(String(ctx.request.url || "")) ||
+        !["GET", "POST"].includes(String(ctx.request.method || "").toUpperCase()) || ctx.response.status !== 200 ||
+        ctx.response.body === null) return;
+    let snapshot;
+    const startedAt = Date.now();
+    try {
+        snapshot = readState(ctx);
+        if (!snapshot || snapshot.invalid || header(ctx.request.headers, "authorization") !== snapshot.token) return;
+        const charset = /charset\s*=\s*["']?([^\s;"']+)/i.exec(header(ctx.response.headers, "Content-Type"));
+        if (charset && !/^(?:utf-8|utf8|us-ascii)$/i.test(charset[1])) return;
+    } catch (_) { return; }
+    let bytes;
+    // 不独立 race 正文读取：超时后底层读取未取消，提前返回会丢掉稍后读完的原字节。
+    // 执行超时与正文大小由原生 YAML 负责，正文只消费一次并显式回传。
+    try { bytes = new Uint8Array(await ctx.response.arrayBuffer()); }
+    catch (_) {
+        // 读取失败没有足够字节重建正文；不二次消费，也不伪造空响应。
+        console.log("[蔚来签到] 统计观察正文未读完；未补发请求。");
+        return;
+    }
+    try {
+        if (bytes.length > CONFIG.maxObservationBytes) return { body: bytes };
+        const result = JSON.parse(decodeUTF8(bytes).replace(/^\uFEFF/, ""));
+        if (!record(result) || result.result_code !== "success" || !record(result.data) || result.data.checked_in !== true) return { body: bytes };
+        const now = Date.now(), current = readState(ctx);
+        if (!current || current.invalid || current.token !== snapshot.token || current.generation !== snapshot.generation ||
+            businessDay(startedAt) !== businessDay(now)) return { body: bytes };
+        const previous = matchingObservation(ctx, current, now);
+        const stats = { ...(previous ? previous.stats : {}), ...statistics(result.data) };
+        writeVerified(ctx, CONFIG.statisticsKey, {
+            version: 1, generation: current.generation, day: businessDay(now), observedAt: now,
+            stats, fields: fieldTypes(result.data)
+        });
+        console.log("[蔚来签到] 当日统计已观察；未额外发送请求。");
+    } catch (_) {
+        console.log("[蔚来签到] 统计观察未保存；原响应保持不变。");
+    }
+    // 只返回已取得的原字节，不修改状态码、请求头或响应头，也不写任务记录键。
+    return { body: bytes };
 }
 function statsMessage(stats) {
     return "连续签到：" + (statNumber(stats.consecutive) ? stats.consecutive + " 天" : "未知") +
@@ -214,7 +336,8 @@ async function runCheckin(ctx) {
     catch (_) { report(ctx, "凭据或任务状态损坏", "请检查 Egern 本地存储并重新捕获凭据；不会读取旧 Surge 键。"); return; }
     if (!state || state.invalid) { report(ctx, "需要更新凭据", "请在 Egern 开启解密后，重新登录蔚来 App 并打开签到或个人页面。"); return; }
     if (journal.confirmed && journal.confirmed.generation === state.generation && journal.confirmed.day === businessDay()) {
-        report(ctx, "今日签到已确认（本地记录）", statsMessage(journal.confirmed.stats) + "\n本次未发送签到请求。"); return;
+        const stats = completeStatistics(journal.confirmed.stats, matchingObservation(ctx, state));
+        report(ctx, "今日签到已确认（本地记录）", statsMessage(stats) + "\n本次未发送签到请求。"); return;
     }
     if (journal.lock && journal.lock.expiresAt > Date.now()) {
         report(ctx, "已有签到任务", "本地任务锁尚未到期，本次不重复提交。"); return;
@@ -304,12 +427,12 @@ async function runCheckin(ctx) {
                 keepLease = true;
                 report(ctx, "签到未确认", "响应格式或业务状态未确认已签到；不自动重试，也不写每日成功记录。"); return;
             }
-            const stats = statistics(result.data);
+            const stats = completeStatistics(statistics(result.data), matchingObservation(ctx, state));
             const latest = guard(ctx, state, lease, deadline).journal;
             const confirmedAt = Date.now();
             try {
                 writeVerified(ctx, CONFIG.journalKey, { ...latest, confirmed: {
-                    generation: state.generation, day: businessDay(confirmedAt), confirmedAt, stats
+                    generation: state.generation, day: businessDay(confirmedAt), confirmedAt, stats, fields: fieldTypes(result.data)
                 } });
             } catch (_) {
                 keepLease = true;
@@ -335,7 +458,18 @@ function diagnostic(ctx) {
         lines.push("凭据：" + (!state ? "尚未捕获" : state.invalid ? "已标记失效，请重新登录" : "已捕获（不显示内容）"));
         const confirmed = state && journal.confirmed && journal.confirmed.generation === state.generation && journal.confirmed.day === businessDay();
         lines.push("今日记录：" + (confirmed ? "已确认" : "未确认"));
-        if (confirmed) lines.push(statsMessage(journal.confirmed.stats));
+        if (confirmed) {
+            const observed = matchingObservation(ctx, state), stats = completeStatistics(journal.confirmed.stats, observed);
+            lines.push(statsMessage(stats));
+            if (!statNumber(journal.confirmed.stats.total) && observed && statNumber(observed.stats.total)) {
+                lines.push("累计来源：当日同凭据的已观察响应");
+            }
+            if (!statNumber(stats.total)) {
+                const fields = (observed && observed.fields) || journal.confirmed.fields;
+                lines.push(fields ? "累计字段类型：" + statisticFields({}).totalFields.map(([name]) => name + "=" + fields[name]).join(", ") :
+                    "旧记录没有字段类型；可打开蔚来签到页等待新响应观察。");
+            }
+        }
         lines.push("任务锁：" + (journal.lock && journal.lock.expiresAt > Date.now() ? "有效，等待任务结束或到期" : "无有效锁"));
     } catch (_) { lines.push("本地状态无法读取；此诊断不发送签到请求。"); }
     lines.push("仅定时任务执行 POST；诊断不抓取、搬运或输出凭据。");
@@ -344,14 +478,12 @@ function diagnostic(ctx) {
 }
 
 export default async function(ctx) {
+    if (ctx.response) return observeStatistics(ctx);
     if (ctx.request) {
-        // http-request 只抓头，不消费 body；response 上下文误挂载也不重复抓取。
-        if (!ctx.response) {
-            try { capture(ctx); } catch (_) { report(ctx, "凭据处理未完成", "本地 API 异常，请检查 Egern 后重新打开蔚来 App。"); }
-        }
+        // http-request 只抓头，不消费正文、不执行签到；response 入口也不重新抓取凭据。
+        try { capture(ctx); } catch (_) { report(ctx, "凭据处理未完成", "本地 API 异常，请检查 Egern 后重新打开蔚来 App。"); }
         return;
     }
-    if (ctx.response) return;
     if (typeof ctx.cron === "string" && ctx.cron.trim()) { await runCheckin(ctx); return; }
     return diagnostic(ctx);
 }

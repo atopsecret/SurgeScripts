@@ -2,11 +2,11 @@
 // Build: 无需构建
 // Run: 导入模块后每天 09:00 自动运行；也可手动运行定时任务立即验证
 // Deps: Surge 脚本 API；测试：node --test weilai/tests/checkin.test.cjs
-// Version: 2.1.3
+// Version: 2.1.4
 (function () {
     "use strict";
     const CONFIG = {
-        version: "2.1.3",
+        version: "2.1.4",
         stateKey: "weilai_auth_state_v1",
         endpoint: "https://gateway-front-external.nio.com/moat/10086/c/award_cn/checkin",
         budgetMs: 24000, requestTimeoutSeconds: 5, maxAttempts: 3,
@@ -84,13 +84,20 @@
     }
     function statsMessage(data) {
         const stats = data.stats && typeof data.stats === "object" && !Array.isArray(data.stats) ? data.stats : {};
+        const award = data.award_info && typeof data.award_info === "object" && !Array.isArray(data.award_info) ? data.award_info : {};
         const consecutiveFields = [
             ["stats.continuous_checkin_days", stats.continuous_checkin_days],
             ["stats.continuous_days", stats.continuous_days],
             ["continuous_checkin_days", data.continuous_checkin_days],
             ["continuous_days", data.continuous_days]
         ];
-        const totalFields = [["stats.accumulate_days", stats.accumulate_days], ["accumulate_days", data.accumulate_days]];
+        // 保留现有字段优先级，再兼容旧版累计字段；零值仍是有效统计。
+        const totalFields = [
+            ["stats.accumulate_days", stats.accumulate_days], ["accumulate_days", data.accumulate_days],
+            ["stats.accumulateDays", stats.accumulateDays], ["accumulateDays", data.accumulateDays],
+            ["stats.total_days", stats.total_days], ["total_days", data.total_days],
+            ["award_info.accumulate_days", award.accumulate_days], ["award_info.total_days", award.total_days]
+        ];
         const first = fields => fields.map(([, value]) => {
             // 只转换有限长度的纯数字串，拒绝任意文本和不安全的整数。
             if (typeof value === "string" && /^[0-9]{1,16}$/.test(value)) value = Number(value);

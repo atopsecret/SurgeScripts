@@ -3,7 +3,7 @@
 # Run: 在 Egern 模块中导入；信任 Egern CA；打开蔚来 App 重新捕获凭据
 # Deps: 本目录 weilai-auto-checkin.egern.js；凭据只在 Egern 本地存储
 name: 蔚来自动签到 · Egern
-description: 3.1.2 原生版；签到成功通知带表情，凭据提醒简短；保留提醒合并、累计统计、每日去重与本地诊断，四入口固定同一脚本提交。
+description: 3.1.3 原生版；修复重复及并发捕获的保存误报，区分写入失败原因；保留签到表情、累计统计、每日去重与只读诊断，四入口固定同一脚本提交。
 author: atopsecret（Surge 原版 skernelx）
 homepage: https://github.com/atopsecret/SurgeScripts/tree/main/weilai
 icon: checkmark.seal.fill
@@ -11,14 +11,14 @@ scriptings:
   - http_request:
       name: 蔚来凭据捕获 · Egern
       match: '^https://(?:gateway-front-external\.nio\.com|app\.nio\.com|api\.nio\.com)/(?:moat/10086/+(?:n/c/award/|c/award_cn/)|(?:n/c/)?(?:account/user/|user/|profile/)|app/api/|api/)'
-      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/478e91c5e8e33163696b7dada1898cf4fbc714aa/weilai/weilai-auto-checkin.egern.js?v=3.1.2
+      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/83f898fdd00ea20a4c038a72610e0d0340bfded0/weilai/weilai-auto-checkin.egern.js?v=3.1.3
       body_required: false
       update_interval: 3600
       timeout: 10
   - http_response:
       name: 蔚来统计观察 · Egern
       match: '^https://gateway-front-external\.nio\.com/moat/10086/c/award_cn/checkin(?:\?|$)'
-      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/478e91c5e8e33163696b7dada1898cf4fbc714aa/weilai/weilai-auto-checkin.egern.js?v=3.1.2
+      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/83f898fdd00ea20a4c038a72610e0d0340bfded0/weilai/weilai-auto-checkin.egern.js?v=3.1.3
       body_required: true
       binary_body: true
       max_size: 262144
@@ -27,12 +27,12 @@ scriptings:
   - schedule:
       name: 蔚来自动签到 · Egern
       cron: '0 9 * * *'
-      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/478e91c5e8e33163696b7dada1898cf4fbc714aa/weilai/weilai-auto-checkin.egern.js?v=3.1.2
+      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/83f898fdd00ea20a4c038a72610e0d0340bfded0/weilai/weilai-auto-checkin.egern.js?v=3.1.3
       update_interval: 3600
       timeout: 30
   - generic:
       name: 蔚来本地诊断 · Egern
-      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/478e91c5e8e33163696b7dada1898cf4fbc714aa/weilai/weilai-auto-checkin.egern.js?v=3.1.2
+      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/83f898fdd00ea20a4c038a72610e0d0340bfded0/weilai/weilai-auto-checkin.egern.js?v=3.1.3
       update_interval: 3600
       timeout: 10
 mitm:

@@ -138,6 +138,6 @@ node --experimental-vm-modules --test weilai/tests/egern.test.cjs
 node --test weilai/tests/checkin.test.cjs
 ```
 
-3.1.2 基线：全模块脚本回归 340/340、公共静态测试 17/17；其中蔚来 Surge 48 项、Egern 76 项，无失败或跳过。3.1.3 增补捕获并发、写入结果及只读诊断测试；发布前运行全量回归。
+3.1.2 基线：全模块脚本回归 340/340。3.1.3 回归 354/354、公共静态测试 17/17；其中蔚来 Surge 48 项、Egern 90 项，无失败或跳过。五项重复捕获、并发接管和序列化误报复现，在旧源码上 0/5、新源码上 5/5。
 
 测试依赖 Node.js 20+、Python 3 与 PyYAML（只解析公开 YAML）。依据 [Egern 原生 API](https://egernapp.com/zh-CN/docs/javascript-api/)与[脚本配置](https://egernapp.com/docs/configuration/scriptings/)。并发误报能在离线模拟中复现，但仅凭旧通知无法判定手机当次失败的原因；需看更新后的实际版本、捕获记录及结果码。未执行真实签到、手机导入、CA 信任、锁屏定时或跨脚本存储共享验收。

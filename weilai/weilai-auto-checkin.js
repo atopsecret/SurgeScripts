@@ -2,11 +2,11 @@
 // Build: 无需构建
 // Run: 导入模块后每天 09:00 自动运行；也可手动运行定时任务立即验证
 // Deps: Surge 脚本 API；测试：node --test weilai/tests/checkin.test.cjs
-// Version: 2.1.5
+// Version: 2.1.6
 (function () {
     "use strict";
     const CONFIG = {
-        version: "2.1.5",
+        version: "2.1.6",
         stateKey: "weilai_auth_state_v1",
         endpoint: "https://gateway-front-external.nio.com/moat/10086/c/award_cn/checkin",
         budgetMs: 24000, requestTimeoutSeconds: 5, maxAttempts: 3,
@@ -23,9 +23,14 @@
         }
         if (subtitle) {
             console.log("[蔚来签到] " + subtitle);
-            // message 只来自本地固定文案或经过数字校验的统计，与通知保持一致。
+            // message 只来自本地固定文案或经过数字校验的统计；日志不带通知表情。
             if (message) for (const line of message.split("\n")) console.log("[蔚来签到] " + line);
-            try { $notification.post("蔚来签到", subtitle, message); } catch (_) {}
+            // 只修饰通知展示；日志和服务器成功条件保持原样。
+            const confirmed = subtitle === "今日签到已确认";
+            const noticeTitle = confirmed ? "签到成功 ✅" : subtitle;
+            const noticeBody = confirmed ? (message || "").replace(/^连续签到：/m, "🔥 连续签到：")
+                .replace(/^累计签到：/m, "📊 累计签到：") : message;
+            try { $notification.post("蔚来签到", noticeTitle, noticeBody); } catch (_) {}
         }
         $done({});
     }

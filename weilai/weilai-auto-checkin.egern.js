@@ -2,11 +2,11 @@
 // Build: 无需构建
 // Run: 导入 weilai-auto-checkin.egern.yaml；重新捕获凭据；定时任务每天 09:00
 // Deps: Egern ctx API；测试：node --experimental-vm-modules --test weilai/tests/egern.test.cjs
-// Version: 3.1.1
+// Version: 3.1.2
 // Author: atopsecret；与本目录 Surge 版使用相同业务路径，凭据存储独立。
 
 export const CONFIG = Object.freeze({
-    version: "3.1.1",
+    version: "3.1.2",
     stateKey: "weilai_egern_auth_state_v1",
     journalKey: "weilai_egern_checkin_v1",
     statisticsKey: "weilai_egern_statistics_v1",
@@ -75,7 +75,12 @@ function report(ctx, title, body, notify = true) {
     console.log("[蔚来签到] " + title);
     if (body) for (const line of body.split("\n")) console.log("[蔚来签到] " + line);
     if (notify) {
-        try { ctx.notify({ title: "蔚来签到", subtitle: title, body, sound: false }); }
+        // 通知用简短展示文案；日志、成功判断和每日去重保持原样。
+        const confirmed = title === "今日签到已确认" || title === "今日签到已确认（本地记录）";
+        const subtitle = !confirmed ? title : title === "今日签到已确认（本地记录）" ? "今日已签到 ✅" : "签到成功 ✅";
+        const noticeBody = confirmed ? (body || "").replace(/^连续签到：/m, "🔥 连续签到：")
+            .replace(/^累计签到：/m, "📊 累计签到：").replace(/\n本次未发送签到请求。$/, "") : body;
+        try { ctx.notify({ title: "蔚来签到", subtitle, body: noticeBody, sound: false }); }
         catch (_) { /* 通知失败不改变已完成的请求、状态和本地日志。 */ }
     }
 }

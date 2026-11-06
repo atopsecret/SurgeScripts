@@ -14,6 +14,7 @@ const source = fs.readFileSync(process.env.NIO_EGERN_SOURCE_OVERRIDE || path.joi
 const yaml = JSON.parse(execFileSync('python3', ['-c', 'import json,sys,yaml; print(json.dumps(yaml.safe_load(open(sys.argv[1], encoding="utf-8"))))',
     path.join(root, 'weilai-auto-checkin.egern.yaml')], { encoding: 'utf8', timeout: 5000 }));
 const KEY = 'weilai_egern_auth_state_v1', JOURNAL = 'weilai_egern_checkin_v1', OBSERVATION = 'weilai_egern_statistics_v1';
+const NOTICE = 'weilai_egern_capture_notice_v1';
 const TOKEN = 'Bearer OFFLINE_FIXTURE_NOT_A_REAL_TOKEN', NEW_TOKEN = 'Bearer OTHER_OFFLINE_FIXTURE_NOT_REAL';
 const GENERATION = 'offline_generation_a', NEXT = 'offline_generation_b';
 const NOW = Date.parse('2026-11-05T01:00:00Z');
@@ -189,6 +190,7 @@ test('原生 POST 固定端点/表单/秒时间，超时毫秒，不跳转、不
 test('request 捕获仅读 Headers，不消费 body、不执行签到，存储 API 返回 void 仍有效', async () => {
     const h = await harness({ store: new Map(), request: captureRequest() }); await h.promise;
     assert.equal(h.posts.length, 0); assert.equal(subtitle(h), '凭据已更新');
+    assert.deepEqual(h.notices, [{ title: '蔚来签到', subtitle: '凭据已更新', body: '', sound: false }]);
     const saved = JSON.parse(h.store.get(KEY));
     assert.equal(saved.token, TOKEN); assert.equal(saved.userAgent, 'NIOAppCN/6.10.0 offline');
     assert.match(saved.generation, /^[a-z0-9_-]+$/); assert.equal(saved.observedAt, NOW); assert.equal(saved.invalid, false);
@@ -235,10 +237,66 @@ test('合法 UA 可延续；同凭据只更新时间，不生成新的每日身�
     assert.equal(saved.userAgent, 'NIOAppCN/6.10.0 offline'); assert.equal(saved.observedAt, NOW); assert.equal(saved.generation, GENERATION);
     assert.equal(h.notices.length, 0);
 });
+test('启动连发凭据在三十秒内合并提醒，仍保存最新 Token、UA 与 generation', async () => {
+    const store = new Map(); let previous = null, notices = 0;
+    for (const [offset, token, expectedNotice] of [
+        [0, TOKEN, 1], [1, TOKEN, 0], [100, NEW_TOKEN, 0],
+        [1000, TOKEN, 0], [29999, NEW_TOKEN, 0], [30000, TOKEN, 1],
+    ]) {
+        const ua = 'NIOAppCN/6.10.0 offline-' + offset;
+        const h = await harness({ store, clock: { now: NOW + offset }, request: captureRequest(undefined, token, ua) }); await h.promise;
+        assert.equal(h.notices.length, expectedNotice); notices += h.notices.length;
+        if (expectedNotice) assert.deepEqual(h.notices[0], { title: '蔚来签到', subtitle: '凭据已更新', body: '', sound: false });
+        const saved = JSON.parse(store.get(KEY));
+        assert.equal(saved.token, token); assert.equal(saved.userAgent, ua); assert.equal(saved.observedAt, NOW + offset);
+        assert.equal(saved.invalid, false);
+        if (previous) token === previous.token ? assert.equal(saved.generation, previous.generation) : assert.notEqual(saved.generation, previous.generation);
+        assert.equal(store.get(NOTICE), String(offset < 30000 ? NOW : NOW + 30000));
+        assert.deepEqual([...store.keys()].sort(), [KEY, NOTICE].sort());
+        assert.equal(h.posts.length, 0); assertPrivate(h); previous = saved;
+    }
+    assert.equal(notices, 2);
+});
+test('提醒时间损坏或读写失败不误报凭据保存失败，不阻止后续签到', async () => {
+    for (const raw of ['SECRET_NOTICE', '{}', '[]', 'null', 'true', '-1', '1.5', String(NOW + 1000), String(NOW - 30000)]) {
+        const store = new Map([[NOTICE, raw]]), h = await harness({ store, request: captureRequest() }); await h.promise;
+        assert.equal(JSON.parse(store.get(KEY)).token, TOKEN); assert.equal(store.get(NOTICE), String(NOW));
+        assert.deepEqual(h.notices, [{ title: '蔚来签到', subtitle: '凭据已更新', body: '', sound: false }]);
+        assert.equal(h.posts.length, 0); assertPrivate(h);
+    }
+    for (const failure of ['read', 'throw', 'noop', 'replace']) {
+        const store = new Map([[NOTICE, String(NOW - 60000)]]);
+        if (failure === 'read') {
+            const get = store.get.bind(store);
+            store.get = key => { if (key === NOTICE) throw Error('SECRET_NOTICE_READ'); return get(key); };
+        }
+        const h = await harness({ store, request: captureRequest(), writeHook: (key, value, target) => {
+            if (key !== NOTICE) return;
+            if (failure === 'throw') throw Error('SECRET_NOTICE_WRITE');
+            if (failure === 'noop') return false;
+            if (failure === 'replace') { target.set(key, String(NOW - 1)); return false; }
+        } }); await h.promise;
+        assert.equal(JSON.parse(store.get(KEY)).token, TOKEN); assert.equal(h.notices.length, 0); assert.equal(h.posts.length, 0);
+        assert.equal(store.has(JOURNAL), false); assert.match(h.logs.join('\n'), /凭据已更新/);
+        assert.doesNotMatch(h.logs.join('\n'), /凭据保存失败/); assertPrivate(h);
+        await h.invoke(); assert.equal(h.posts.length, 1); assert.equal(subtitle(h), '今日签到已确认'); assertPrivate(h);
+    }
+});
+test('提醒 API 异常不回滚凭据，也不让启动后的下一次凭据变化重复提醒', async () => {
+    const store = new Map(), first = await harness({ store, request: captureRequest(), notificationThrows: true }); await first.promise;
+    assert.equal(first.notices.length, 0); assert.equal(JSON.parse(store.get(KEY)).token, TOKEN);
+    assert.equal(store.get(NOTICE), String(NOW)); assert.match(first.logs.join('\n'), /凭据已更新/); assertPrivate(first);
+    const next = await harness({ store, clock: { now: NOW + 1000 }, request: captureRequest(undefined, NEW_TOKEN) }); await next.promise;
+    assert.equal(next.notices.length, 0); assert.equal(JSON.parse(store.get(KEY)).token, NEW_TOKEN); assertPrivate(next);
+    const later = await harness({ store, clock: { now: NOW + 30000 }, request: captureRequest() }); await later.promise;
+    assert.deepEqual(later.notices, [{ title: '蔚来签到', subtitle: '凭据已更新', body: '', sound: false }]);
+    assert.equal(JSON.parse(store.get(KEY)).token, TOKEN); assert.equal(later.posts.length, 0); assertPrivate(later);
+});
 test('捕获写入失败或静默未写入，不报告更新成功；读取不可用不覆盖状态', async () => {
     for (const options of [{ writeThrows: true }, { writeNoop: true }]) {
         const h = await harness({ ...options, store: new Map(), request: captureRequest() });
-        assert.equal(subtitle(h), '凭据保存失败'); assert.equal(h.store.size, 0); assertPrivate(h);
+        assert.equal(subtitle(h), '凭据保存失败'); assert.equal(h.store.size, 0);
+        assert.equal(h.reads.includes(NOTICE), false); assert.equal(h.writes.some(([key]) => key === NOTICE), false); assertPrivate(h);
     }
     const h = await harness({ readThrows: true, request: captureRequest(undefined, NEW_TOKEN) });
     assert.equal(subtitle(h), '凭据状态无法读取'); assert.equal(JSON.parse(h.store.get(KEY)).token, TOKEN);

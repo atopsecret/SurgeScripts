@@ -1,18 +1,20 @@
 # 蔚来自动签到
 
-Surge 脚本 2.1.4。请求钩子保存已知蔚来业务接口中的 Bearer 凭据，定时任务每天 09:00 使用它签到。手动运行任务仅用于立即验证，不是每日操作要求；旧的网页触发入口已移除。
+Surge 脚本 2.1.5。请求钩子保存已知蔚来业务接口中的 Bearer 凭据，定时任务每天 09:00 使用它签到。手动运行任务仅用于立即验证，不是每日操作要求；旧的网页触发入口已移除。
 
-另提供独立 [Egern 原生模块](weilai-auto-checkin.egern.yaml)与[脚本](weilai-auto-checkin.egern.js) 3.1.0。它不使用 Surge 全局，也不自动搬运 Surge 凭据。下节先说明 Surge；Egern 的当日统计观察与防重复边界见后文。
+另提供独立 [Egern 原生模块](weilai-auto-checkin.egern.yaml)与[脚本](weilai-auto-checkin.egern.js) 3.1.1。它不使用 Surge 全局，也不自动搬运 Surge 凭据。下节先说明 Surge；Egern 的当日统计观察与防重复边界见后文。
 
 ## 安装与依赖
 
 - [模块](weilai-auto-checkin.sgmodule)和[手动配置](weilai-surge-config.conf)二选一，不重复启用。
 - 使用 Surge iOS 5.9.0 / Mac 5.5.0 或更高版本；关闭请求跳转和自动 Cookie 等选项依赖该版本起提供的接口。Egern 使用独立 YAML，不能套用这些 Surge 版本要求。
-- 从本仓库更新模块后，也要刷新远程脚本缓存。任务日志首行应显示 `脚本版本 2.1.4`。本地测试时，可将两处 `script-path` 都改为客户端内的新版脚本文件。
+- 从本仓库更新模块后，也要刷新远程脚本缓存。任务日志首行应显示 `脚本版本 2.1.5`。本地测试时，可将两处 `script-path` 都改为客户端内的新版脚本文件。
 - 开启 MITM，并安装、信任 Surge 当前 CA。抓取范围仅限配置中的三个主机和已知业务路径。
 - 打开已登录的蔚来 App 的签到或个人页面，看到凭据更新通知后运行任务。没有通知也可能只是凭据未变化。
 
 ## 日志与通知
+
+凭据更新通知只显示“凭据已更新”，没有正文。Egern 将 30 秒内的多次凭据变化合并为一次提醒，每次有效捕获仍照常保存；相同凭据不重复提醒。
 
 成功日志和通知都显示连续签到及累计天数；字段缺失时显示“未知”，日志只列出已知统计字段的类型，不输出字段原文。失败说明也同步写入日志，即使通知不可用，仍能看到原因。日志首行标明实际执行版本，方便识别缓存中的旧脚本。
 
@@ -47,23 +49,25 @@ node --test weilai/tests/checkin.test.cjs
 
 运行时接口依据 [Surge 官方脚本接口文档](https://manual.nssurge.com/scripting/api.html)。兼容 JSC 没有 `clearTimeout` 的环境；迟到回调由结束标记忽略。
 
-## Egern 原生版 3.1.0
+## Egern 原生版 3.1.1
 
 安装地址：
 
 ```text
-https://raw.githubusercontent.com/atopsecret/SurgeScripts/refs/heads/main/weilai/weilai-auto-checkin.egern.yaml?v=3.1.0
+https://raw.githubusercontent.com/atopsecret/SurgeScripts/refs/heads/main/weilai/weilai-auto-checkin.egern.yaml?v=3.1.1
 ```
 
 1. 导入原生 YAML，并安装、信任 Egern 当前 CA。解密只追加三个既有蔚来主机与已知业务路径，不扩到车辆控制域名。
-2. 在 Egern 下重新打开已登录的蔚来 App 的签到或个人页面。请求脚本只读取 Authorization 与 UA，不读 body、不签到；新凭据保存后发一条无声通知，同凭据静默。
+2. 在 Egern 下重新打开已登录的蔚来 App 的签到或个人页面。请求脚本只读取 Authorization 与 UA，不读 body、不签到；新凭据保存后发简短无声提醒，30 秒内不重复提醒，同凭据静默。
 3. `蔚来自动签到 · Egern` 是 `schedule`，cron 为 `0 9 * * *`。需要立即执行时手动运行这条定时任务；不是运行 generic，也不使用伪造域名。
 4. `蔚来本地诊断 · Egern` 是 generic，只读本地状态，返回合法 widget 并写日志；不发通知、不发送签到、不显示 Token。
 5. `蔚来统计观察 · Egern` 是 response 钩子，只读取现有固定签到端点的成功响应。它不发送请求、不重新抓取凭据、不修改响应内容，也不写签到任务锁。
 
 3.0.1 修复了原生存储回读误判：用 `ctx.storage.set()` 写入 JSON 字符串，再用 `get()` 核对原文，不把 JSON 编码器改变对象键顺序当成保存失败。现有凭据键和任务记录键不变，不需要清空存储；真正的写入异常、静默未写入或回读内容不同仍会停止任务。更新模块与远程脚本后，重新打开蔚来 App 即可再次捕获凭据。
 
-捕获、统计观察、定时与诊断四个入口使用同一个已核验的完整提交地址，避免 GitHub Raw 的 `main` 缓存或客户端旧脚本缓存。模块本身仍可跟随 `main` 更新。重新载入配置并更新模块后，运行“蔚来本地诊断”确认显示 `Egern 原生脚本 3.1.0`；仅打开 App 不保证模块与脚本缓存已经更新。相同凭据捕获会保持静默，以本地诊断的“已捕获”状态为准。
+捕获、统计观察、定时与诊断四个入口使用同一个已核验的完整提交地址，避免 GitHub Raw 的 `main` 缓存或客户端旧脚本缓存。模块本身仍可跟随 `main` 更新。重新载入配置并更新模块后，运行“蔚来本地诊断”确认显示 `Egern 原生脚本 3.1.1`；仅打开 App 不保证模块与脚本缓存已经更新。相同凭据捕获会保持静默，以本地诊断的“已捕获”状态为准。
+
+3.1.1 的提醒时间单独保存在 `weilai_egern_capture_notice_v1`，只存时间戳，不含 Token 或账号代号。提醒记录损坏时重新记录；提醒读写或通知 API 失败不回滚凭据，也不影响签到任务。合并仅针对共享存储中可观察的连续更新；原生存储没有 CAS，不能保证完全并发的不同执行器绝不重复提醒。
 
 ### 当日累计统计与被动观察
 
@@ -110,6 +114,6 @@ node --experimental-vm-modules --test weilai/tests/egern.test.cjs
 node --test weilai/tests/checkin.test.cjs
 ```
 
-2026-11-06 全模块脚本回归 335/335、公共静态测试 17/17；其中蔚来 Surge 47 项、Egern 72 项，无失败或跳过。
+2026-11-06 全模块脚本回归 338/338、公共静态测试 17/17；其中蔚来 Surge 47 项、Egern 75 项，无失败或跳过。
 
-测试依赖 Node.js 20+、Python 3 与 PyYAML（只解析公开 YAML）。依据 [Egern 原生 API](https://egernapp.com/zh-CN/docs/javascript-api/)与[脚本配置](https://egernapp.com/docs/configuration/scriptings/)。3.1.0 新观察入口尚未执行真实签到、手机导入、CA 信任、锁屏定时或跨脚本存储共享验收；不会把模拟通过写成真实账号统计恢复。
+测试依赖 Node.js 20+、Python 3 与 PyYAML（只解析公开 YAML）。依据 [Egern 原生 API](https://egernapp.com/zh-CN/docs/javascript-api/)与[脚本配置](https://egernapp.com/docs/configuration/scriptings/)。3.1.1 的观察入口和提醒合并尚未执行真实签到、手机导入、CA 信任、锁屏定时或跨脚本存储共享验收；不会把模拟通过写成真实账号统计恢复。

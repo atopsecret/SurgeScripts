@@ -332,6 +332,7 @@ test('请求回调缺失 response、跳转或畸形 JSON 都不会确认签到',
 test('首抓凭据后定时运行的完整流程，两次任务互不依赖请求上下文', () => {
     const captured = harness({ request: request(), store: [] });
     assert.equal(title(captured), '凭据已更新'); assert.equal(captured.posts.length, 0);
+    assert.deepEqual(captured.notices, [['蔚来签到', '凭据已更新', '']]);
     const cron = harness({ store: [...captured.store], replies: [{}] });
     assert.equal(cron.posts[0].headers.authorization, TOKEN);
     assert.equal(cron.posts[0].headers['user-agent'], 'NIOAppCN/6.10.0 offline');

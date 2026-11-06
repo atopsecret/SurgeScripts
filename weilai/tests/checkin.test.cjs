@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const source = fs.readFileSync(path.join(__dirname, '../weilai-auto-checkin.js'), 'utf8');
+const source = fs.readFileSync(process.env.NIO_SURGE_SOURCE_OVERRIDE || path.join(__dirname, '../weilai-auto-checkin.js'), 'utf8');
 const KEY = 'weilai_auth_state_v1';
 const TOKEN = 'Bearer OFFLINE_FIXTURE_NOT_A_REAL_TOKEN';
 const NEW_TOKEN = 'Bearer ANOTHER_OFFLINE_FIXTURE_TOKEN';
@@ -393,6 +393,58 @@ test('统计字段优先使用合法嵌套值，非法值回退到顶层', () =>
         assert.equal(h.notices[0][2], `连续签到：${consecutive} 天\n累计签到：${total} 天`);
         assert.doesNotMatch(h.logs.join('\n'), /SECRET_STATS/);
     }
+});
+test('旧版累计字段的驼峰、total_days 与 award_info 兼容数字和数字串', () => {
+    for (const value of [570, '570', 0, '0']) {
+        for (const partial of [{ stats: { accumulateDays: value } }, { accumulateDays: value },
+            { stats: { total_days: value } }, { total_days: value },
+            { award_info: { accumulate_days: value } }, { award_info: { total_days: value } }]) {
+            const data = { checked_in: true, ...partial,
+                stats: { continuous_checkin_days: 564, continuous_days: 564, ...partial.stats } };
+            const h = harness({ replies: [{ body: { result_code: 'success', data } }] });
+            assert.equal(h.notices[0][2], `连续签到：564 天\n累计签到：${Number(value)} 天`);
+            assert.equal(h.posts.length, 1); assert.equal(h.done, 1);
+            assert.doesNotMatch(h.logs.join('\n'), /SECRET_|Bearer|OFFLINE_FIXTURE|https?:\/\//);
+        }
+    }
+});
+test('累计别名不覆盖已有合法字段，零值有效，非法主字段才能回退', () => {
+    for (const [partial, total] of [
+        [{ stats: { accumulate_days: 0, accumulateDays: 888, total_days: 999 }, accumulate_days: 777 }, 0],
+        [{ stats: { accumulate_days: null, accumulateDays: 999 }, accumulate_days: '0' }, 0],
+        [{ stats: { accumulate_days: 'SECRET_STATS', accumulateDays: '570' }, accumulate_days: null }, 570],
+    ]) {
+        const data = { checked_in: true, ...partial, stats: { continuous_checkin_days: 564, ...partial.stats } };
+        const h = harness({ replies: [{ body: { result_code: 'success', data } }] });
+        assert.equal(h.notices[0][2], `连续签到：564 天\n累计签到：${total} 天`);
+        assert.equal(h.posts.length, 1); assert.doesNotMatch(h.logs.join('\n'), /SECRET_STATS/);
+    }
+});
+test('累计别名仍拒绝任意文本、不安全数字与无效容器，不泄露响应值', () => {
+    for (const value of [true, {}, [], null, 'SECRET_STATS', '570天', ' 570', '570 ', '5.7e2',
+        -1, 570.5, Number.MAX_SAFE_INTEGER + 1, '9007199254740992']) {
+        const h = harness({ replies: [{ body: { result_code: 'success', data: {
+            checked_in: true, stats: { continuous_checkin_days: 564, accumulateDays: value, total_days: value },
+            accumulateDays: value, total_days: value, award_info: { accumulate_days: value, total_days: value },
+        } } }] });
+        assert.equal(h.notices[0][2], '连续签到：564 天\n累计签到：未知');
+        assert.equal(h.posts.length, 1); assert.doesNotMatch(h.logs.join('\n'), /SECRET_STATS/);
+    }
+    for (const award_info of [[{ total_days: 570 }], 'SECRET_STATS', null, true]) {
+        const h = harness({ replies: [{ body: { result_code: 'success', data: {
+            checked_in: true, stats: { continuous_checkin_days: 564 }, award_info,
+        } } }] });
+        assert.equal(h.notices[0][2], '连续签到：564 天\n累计签到：未知');
+        assert.doesNotMatch(h.logs.join('\n'), /SECRET_STATS/);
+    }
+});
+test('截图中的连续有值累计缺失不补签到、不编造累计数', () => {
+    const h = harness({ replies: [{ body: { result_code: 'success', data: { checked_in: true,
+        stats: { continuous_checkin_days: 564, continuous_days: 564 },
+    } } }] });
+    assert.equal(h.notices[0][2], '连续签到：564 天\n累计签到：未知');
+    assert.match(h.logs.join('\n'), /stats\.accumulate_days=missing, accumulate_days=missing/);
+    assert.equal(h.posts.length, 1); assert.equal(h.done, 1);
 });
 test('定时、缓存版本、解密主机与模块描述一致', () => {
     const root = path.join(__dirname, '..');

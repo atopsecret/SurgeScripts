@@ -20,8 +20,8 @@ Surge 与 Egern 去广告模块、蔚来自动签到脚本。七个主模块均�
   [使用说明](hongguo/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/hongguo/hongguo-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/hongguo/hongguo-adblock.egern.yaml)
 - **戒烟军团**：改写已知响应中的客户端会员标志位，不改变服务端会员资格。
   [使用说明](jyjt/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jyjt/jyjt-member.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jyjt/jyjt-member.egern.yaml)
-- **蔚来自动签到（Surge 2.1.3 / Egern 3.0.1）**：保存已知接口的登录凭据，每日 09:00 使用它签到；修复 Egern 存储回读误判和连续签到统计解析。
-  [使用说明](weilai/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/weilai/weilai-auto-checkin.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/weilai/weilai-auto-checkin.egern.yaml)
+- **蔚来自动签到（Surge 2.1.4 / Egern 3.1.0）**：保存已知接口的登录凭据，每日 09:00 使用它签到；兼容旧版累计统计字段，Egern 可从现有签到响应补全当日统计。
+  [使用说明](weilai/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/weilai/weilai-auto-checkin.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/refs/heads/main/weilai/weilai-auto-checkin.egern.yaml?v=3.1.0)
 
 Egern 使用 `.egern.yaml` 和对应原生脚本，不直接运行 Surge 全局变量脚本。完整安装索引、转换差异与验证边界见 [Egern 说明](egern/README.md)。
 
@@ -44,7 +44,7 @@ Egern 使用 `.egern.yaml` 和对应原生脚本，不直接运行 Surge 全局�
 
 ### 从旧地址迁移
 
-旧账号地址不会因为复制源码自动重定向。已经安装的模块需要换成上面的新链接，并刷新远程脚本缓存。高德模块描述应显示 `2.0.0`；Surge 蔚来任务日志应显示 `脚本版本 2.1.3`，Egern 原生蔚来模块描述应显示 `3.0.1`。
+旧账号地址不会因为复制源码自动重定向。已经安装的模块需要换成上面的新链接，并刷新远程脚本缓存。高德模块描述应显示 `2.0.0`；Surge 蔚来任务日志应显示 `脚本版本 2.1.4`，Egern 原生蔚来模块描述应显示 `3.1.0`。
 
 旧账号迁移不导出或迁移客户端登录凭据。原作者署名和原有本地诊断存储键保留，详见[迁移范围](MIGRATION.md)。Egern 原生重写使用独立存储，行为差异见 [Egern 说明](egern/README.md)。
 
@@ -91,7 +91,7 @@ node --experimental-vm-modules --test --test-reporter=tap \
   jyjt/tests/egern.test.cjs weilai/tests/egern.test.cjs
 ```
 
-高德、蔚来原有 69 项测试保持不变；新增 226 项原生上下文测试，合计 295 项。测试在各模块目录，不恢复已删除的根 `tests/`。字段、匹配和来源子集另有 15 项 Python 测试，依赖 PyYAML 6：
+当前脚本测试共 335 项，其中 Surge 76 项、Egern 原生上下文 259 项。测试在各模块目录，不恢复已删除的根 `tests/`。字段、匹配和来源子集另有 17 项 Python 测试，依赖 PyYAML 6：
 
 ```sh
 python3 egern/validate.py
@@ -100,7 +100,7 @@ python3 -m unittest discover -s egern -p test_validate.py -v
 
 Egern 的 `.egern.js` 是 ES module，单文件语法检查使用 `node --input-type=module --check < 文件名`。上述检查不执行模块业务请求，也不调用真实签到。
 
-本次在 Node.js 26.5.0、Python 3.14.3、PyYAML 6.0.3 下运行：脚本 **295/295**、Python **15/15**，无失败或跳过。另对 Rules 仓库六份原生集合做了 **9,980 条**条件等价检查；两份 LAN 辅助集合各 14 条。
+2026-11-06 在 Node.js 26.5.0、Python 3.14.3、PyYAML 6.0.3 下运行：脚本 **335/335**、Python **17/17**，无失败或跳过。蔚来包含 Surge 47 项和 Egern 72 项，覆盖累计字段兼容、同日统计观察与原字节回传。另对 Rules 仓库六份原生集合做了 **9,980 条**条件等价检查；两份 LAN 辅助集合各 14 条。
 
 离线通过不代替 Surge/Egern 真机配置加载、接口匹配与页面验收。
 

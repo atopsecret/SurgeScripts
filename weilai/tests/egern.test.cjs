@@ -9,10 +9,11 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { execFileSync } = require('node:child_process');
 const root = path.join(__dirname, '..');
-const source = fs.readFileSync(path.join(root, 'weilai-auto-checkin.egern.js'), 'utf8');
+// A/B 只替换本地被测源码；不改变生产模块，也不触发网络请求。
+const source = fs.readFileSync(process.env.NIO_EGERN_SOURCE_OVERRIDE || path.join(root, 'weilai-auto-checkin.egern.js'), 'utf8');
 const yaml = JSON.parse(execFileSync('python3', ['-c', 'import json,sys,yaml; print(json.dumps(yaml.safe_load(open(sys.argv[1], encoding="utf-8"))))',
     path.join(root, 'weilai-auto-checkin.egern.yaml')], { encoding: 'utf8', timeout: 5000 }));
-const KEY = 'weilai_egern_auth_state_v1', JOURNAL = 'weilai_egern_checkin_v1';
+const KEY = 'weilai_egern_auth_state_v1', JOURNAL = 'weilai_egern_checkin_v1', OBSERVATION = 'weilai_egern_statistics_v1';
 const TOKEN = 'Bearer OFFLINE_FIXTURE_NOT_A_REAL_TOKEN', NEW_TOKEN = 'Bearer OTHER_OFFLINE_FIXTURE_NOT_REAL';
 const GENERATION = 'offline_generation_a', NEXT = 'offline_generation_b';
 const NOW = Date.parse('2026-11-05T01:00:00Z');
@@ -23,8 +24,8 @@ const reordered = value => Array.isArray(value) ? value.map(reordered) :
     value !== null && typeof value === 'object' ? Object.fromEntries(Object.keys(value).sort().map(key => [key, reordered(value[key])])) : value;
 const state = (extra = {}) => ({ token: TOKEN, observedAt: NOW, invalid: false, generation: GENERATION, userAgent: 'NIOAppCN/6.10.0 offline', ...extra });
 const stateStore = (extra = {}) => new Map([[KEY, JSON.stringify(state(extra))]]);
-function captureRequest(url = 'https://gateway-front-external.nio.com/moat/10086/c/award_cn/checkin', token = TOKEN, ua = 'NIOAppCN/6.10.0 offline') {
-    return { url, headers: new Headers({ AUTHORIZATION: token, 'User-Agent': ua }), text: () => { throw Error('不能读取捕获请求正文'); } };
+function captureRequest(url = 'https://gateway-front-external.nio.com/moat/10086/c/award_cn/checkin', token = TOKEN, ua = 'NIOAppCN/6.10.0 offline', method = 'POST') {
+    return { url, method, headers: new Headers({ AUTHORIZATION: token, 'User-Agent': ua }), text: () => { throw Error('不能读取捕获请求正文'); } };
 }
 class Headers {
     constructor(values = {}) { Object.assign(this, values); }
@@ -32,6 +33,51 @@ class Headers {
         const key = Object.keys(this).find(key => key.toLowerCase() === name.toLowerCase());
         return !key ? null : Array.isArray(this[key]) ? this[key].join(', ') : this[key];
     }
+}
+// 观察原响应的流与定时 POST 的 text mock 分离；一次性读取必须回传精确原字节。
+function observationResponse(options = {}) {
+    const bytes = options.bytes === undefined ? Buffer.from(options.text === undefined ?
+        JSON.stringify(options.body === undefined ? SIGNED : options.body) : options.text, 'utf8') : Buffer.from(options.bytes);
+    let consumed = 0, resolveRead, rejectRead;
+    return {
+        status: options.status === undefined ? 200 : options.status,
+        headers: new Headers({ 'Content-Type': 'application/json; charset=utf-8', ...options.headers }),
+        body: options.noBody ? null : { stream: 'offline-original-stream' },
+        arrayBuffer: async () => {
+            consumed++; assert.equal(consumed, 1, '观察响应流只能消费一次');
+            if (options.beforeRead) options.beforeRead();
+            if (options.bodyThrows) throw Error('SECRET_OBSERVATION_READ');
+            if (options.defer) await new Promise((resolve, reject) => { resolveRead = resolve; rejectRead = reject; });
+            return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+        },
+        text: () => { throw Error('观察流不允许改用 text 二次读取'); },
+        json: () => { throw Error('观察流不允许改用 json 二次读取'); },
+        finish: () => { assert.equal(typeof resolveRead, 'function'); resolveRead(); },
+        fail: () => { assert.equal(typeof rejectRead, 'function'); rejectRead(Error('SECRET_OBSERVATION_READ')); },
+        get consumed() { return consumed; },
+        get bytes() { return bytes; },
+    };
+}
+const FIELD_NAMES = ['stats.continuous_checkin_days', 'stats.continuous_days', 'continuous_checkin_days', 'continuous_days',
+    'stats.accumulate_days', 'accumulate_days', 'stats.accumulateDays', 'accumulateDays', 'stats.total_days', 'total_days',
+    'award_info.accumulate_days', 'award_info.total_days'];
+const fieldTypes = (extra = {}) => ({ ...Object.fromEntries(FIELD_NAMES.map(name => [name, 'missing'])), ...extra });
+const confirmation = (stats = { consecutive: 564 }, extra = {}) => ({ generation: GENERATION,
+    day: '2026-11-05', confirmedAt: NOW, stats, ...extra });
+function confirmedStore(stats, extra = {}, lock = null) {
+    const store = stateStore(); store.set(JOURNAL, JSON.stringify({ version: 1, lock, confirmed: confirmation(stats, extra) })); return store;
+}
+function setObservation(store, extra = {}) {
+    store.set(OBSERVATION, JSON.stringify({ version: 1, generation: GENERATION, day: '2026-11-05', observedAt: NOW,
+        stats: { consecutive: 564, total: 570 }, fields: fieldTypes({ 'stats.continuous_checkin_days': 'number', 'stats.accumulate_days': 'number' }),
+        ...extra }));
+}
+function assertOriginalBytes(h, response) {
+    assert.equal(response.consumed, 1);
+    assert.deepEqual(Object.keys(h.output), ['body'], '只回传正文，不覆盖原响应状态或响应头');
+    assert.equal(Object.prototype.toString.call(h.output.body), '[object Uint8Array]');
+    assert.deepEqual(Buffer.from(h.output.body), response.bytes);
+    assert.equal(h.posts.length, 0); assert.equal(h.notices.length, 0); assertPrivate(h);
 }
 async function flush() { for (let i = 0; i < 50; i++) await Promise.resolve(); }
 async function harness(options = {}) {
@@ -106,7 +152,8 @@ async function harness(options = {}) {
         } },
     };
     function invoke(params = { cron: '0 9 * * *' }) { return module.namespace.default({ ...ctx, ...params }); }
-    const params = options.request ? { request: options.request } : options.generic ? {} : { cron: '0 9 * * *' };
+    const params = options.request ? { request: options.request, ...(options.response ? { response: options.response } : {}) } :
+        options.response ? { response: options.response } : options.generic ? {} : { cron: '0 9 * * *' };
     const promise = invoke(params);
     promise.then(value => { completed = true; result = value; }, error => { completed = true; taskError = error; });
     await flush();
@@ -120,7 +167,7 @@ async function harness(options = {}) {
         }
         throw Error('虚拟定时器异常循环');
     }
-    return { store, clock, posts, notices, logs, reads, writes, responses, pending, pendingBodies, promise,
+    return { store, clock, timers, posts, notices, logs, reads, writes, responses, pending, pendingBodies, promise,
         namespace: module.namespace, invoke, advance, options, get completed() { return completed; },
         get output() { return result; }, get error() { return taskError; } };
 }
@@ -441,6 +488,67 @@ test('统计字段优先使用合法嵌套值，非法值回退到顶层', async
         assert.equal(h.notices[0].body, `连续签到：${consecutive} 天\n累计签到：${total} 天`); assertPrivate(h);
     }
 });
+test('旧版累计字段的驼峰、total_days 与 award_info 兼容数字和数字串', async () => {
+    for (const value of [570, '570', 0, '0']) {
+        for (const partial of [{ stats: { accumulateDays: value } }, { accumulateDays: value },
+            { stats: { total_days: value } }, { total_days: value },
+            { award_info: { accumulate_days: value } }, { award_info: { total_days: value } }]) {
+            const data = { checked_in: true, ...partial,
+                stats: { continuous_checkin_days: 564, continuous_days: 564, ...partial.stats } };
+            const h = await harness({ replies: [{ body: { result_code: 'success', data } }] });
+            assert.equal(h.notices[0].body, `连续签到：564 天\n累计签到：${Number(value)} 天`);
+            assert.deepEqual(journal(h).confirmed.stats, { consecutive: 564, total: Number(value) });
+            await h.invoke(); assert.equal(h.posts.length, 1); assertPrivate(h);
+        }
+    }
+});
+test('累计别名不覆盖已有合法字段，零值有效，非法主字段才能回退', async () => {
+    for (const [partial, total] of [
+        [{ stats: { accumulate_days: 0, accumulateDays: 888, total_days: 999 }, accumulate_days: 777 }, 0],
+        [{ stats: { accumulate_days: null, accumulateDays: 999 }, accumulate_days: '0' }, 0],
+        [{ stats: { accumulate_days: 'SECRET_STATS', accumulateDays: '570' }, accumulate_days: null }, 570],
+    ]) {
+        const data = { checked_in: true, ...partial, stats: { continuous_checkin_days: 564, ...partial.stats } };
+        const h = await harness({ replies: [{ body: { result_code: 'success', data } }] });
+        assert.equal(h.notices[0].body, `连续签到：564 天\n累计签到：${total} 天`);
+        assert.deepEqual(journal(h).confirmed.stats, { consecutive: 564, total });
+        assert.equal(h.posts.length, 1); assertPrivate(h);
+    }
+});
+test('累计别名仍拒绝任意文本、不安全数字与无效容器，不泄露响应值', async () => {
+    for (const value of [true, {}, [], null, 'SECRET_STATS', '570天', ' 570', '570 ', '5.7e2',
+        -1, 570.5, Number.MAX_SAFE_INTEGER + 1, '9007199254740992']) {
+        const h = await harness({ replies: [{ body: { result_code: 'success', data: {
+            checked_in: true, stats: { continuous_checkin_days: 564, accumulateDays: value, total_days: value },
+            accumulateDays: value, total_days: value, award_info: { accumulate_days: value, total_days: value },
+        } } }] });
+        assert.equal(h.notices[0].body, '连续签到：564 天\n累计签到：未知');
+        assert.deepEqual(journal(h).confirmed.stats, { consecutive: 564 });
+        assert.equal(h.posts.length, 1); assertPrivate(h);
+    }
+    for (const award_info of [[{ total_days: 570 }], 'SECRET_STATS', null, true]) {
+        const h = await harness({ replies: [{ body: { result_code: 'success', data: {
+            checked_in: true, stats: { continuous_checkin_days: 564 }, award_info,
+        } } }] });
+        assert.equal(h.notices[0].body, '连续签到：564 天\n累计签到：未知'); assertPrivate(h);
+    }
+});
+test('截图中的连续有值累计缺失不补签到、不把昨天累计加一', async () => {
+    const store = stateStore();
+    store.set(JOURNAL, JSON.stringify({ version: 1, lock: null, confirmed: {
+        generation: GENERATION, day: '2026-11-05', confirmedAt: NOW,
+        stats: { consecutive: 563, total: 569 },
+    } }));
+    const h = await harness({ store, clock: { now: NOW + 86400000 }, replies: [{ body: {
+        result_code: 'success', data: { checked_in: true,
+            stats: { continuous_checkin_days: 564, continuous_days: 564 } },
+    } }] });
+    assert.equal(h.notices[0].body, '连续签到：564 天\n累计签到：未知');
+    assert.equal(journal(h).confirmed.day, '2026-11-06');
+    assert.deepEqual(journal(h).confirmed.stats, { consecutive: 564 });
+    assert.match(h.logs.join('\n'), /stats\.accumulate_days=missing, accumulate_days=missing/);
+    await h.invoke(); assert.equal(h.posts.length, 1); assertPrivate(h);
+});
 test('确认记录保存失败不伪报防重成功，保留租约并明确说明', async () => {
     const h = await harness({ writeHook: (key, value) => key === JOURNAL && value.confirmed ? false : undefined });
     assert.equal(subtitle(h), '今日签到已确认'); assert.match(h.notices[0].body, /防重复记录未确认保存/);
@@ -457,22 +565,333 @@ test('捕获查询/HTTP 错误/服务端文本/存储异常均不进入日志通
     const h = await harness({ store: new Map(), request: captureRequest('https://app.nio.com/app/api/x?token=SECRET_QUERY') }); assertPrivate(h);
     const run = await harness({ replies: [{ body: { result_code: 'failure', message: 'SECRET_SERVER', data: {} } }] }); assertPrivate(run);
 });
-test('原生 YAML 三入口/版本/09:00/三个 MITM 主机、文件引用都正确', () => {
+test('被动观察原样回传中文/BOM 字节、状态和响应头，不抓凭据或改动签到记录与现有锁', async () => {
+    const lock = { id: 'offline_existing_lock', generation: GENERATION, acquiredAt: NOW - 1000, expiresAt: NOW + 29000 };
+    const store = confirmedStore({ consecutive: 564 }, {}, lock), before = new Map(store);
+    const response = observationResponse({ text: '\uFEFF' + JSON.stringify({ result_code: 'success', data: {
+        checked_in: true, stats: { continuous_checkin_days: 564, accumulate_days: 570 }, message: '蔚来，签到完成🚗',
+    } }), headers: { 'Set-Cookie': 'SECRET_RESPONSE_COOKIE', 'X-Original': '保留原响应头' } });
+    const headers = response.headers, body = response.body;
+    const h = await harness({ store, request: captureRequest(), response }); await h.promise;
+    assertOriginalBytes(h, response); assert.equal(response.status, 200); assert.equal(response.headers, headers); assert.equal(response.body, body);
+    assert.equal(response.headers.get('X-Original'), '保留原响应头'); assert.equal(response.headers.get('Set-Cookie'), 'SECRET_RESPONSE_COOKIE');
+    assert.equal(store.get(KEY), before.get(KEY)); assert.equal(store.get(JOURNAL), before.get(JOURNAL));
+    assert.deepEqual(h.writes.map(([key]) => key), [OBSERVATION]);
+    assert.deepEqual(JSON.parse(store.get(OBSERVATION)).stats, { consecutive: 564, total: 570 });
+    assert.deepEqual(h.reads.filter(key => key === JOURNAL), []);
+});
+test('同日观察补旧 partial 确认的诊断与当天去重通知，只写独立统计键', async () => {
+    const store = confirmedStore(), before = store.get(JOURNAL);
+    const response = observationResponse({ body: { result_code: 'success', data: {
+        checked_in: true, stats: { continuous_checkin_days: 564, total_days: '570' },
+    } } });
+    const h = await harness({ store, request: captureRequest(), response }); await h.promise; assertOriginalBytes(h, response);
+    const diagnostic = await h.invoke({});
+    assert.match(diagnostic.children[0].text, /今日记录：已确认\n连续签到：564 天\n累计签到：570 天/);
+    assert.match(diagnostic.children[0].text, /累计来源：当日同凭据的已观察响应/);
+    await h.invoke(); assert.equal(h.posts.length, 0); assert.equal(subtitle(h), '今日签到已确认（本地记录）');
+    assert.match(h.notices.at(-1).body, /累计签到：570 天\n本次未发送签到请求。/);
+    assert.equal(store.get(JOURNAL), before); assert.deepEqual(h.writes.map(([key]) => key), [OBSERVATION]); assertPrivate(h);
+});
+test('已有有效主统计与零优先，观察只补诊断和新签到的缺值', async () => {
+    for (const primary of [{ consecutive: 0, total: 0 }, { consecutive: 7, total: 11 }, { consecutive: 564 }]) {
+        const total = primary.total === undefined ? 777 : primary.total;
+        const store = confirmedStore(primary); setObservation(store, { stats: { consecutive: 999, total: 777 } });
+        const h = await harness({ store, generic: true }); await h.promise;
+        assert.match(h.output.children[0].text, new RegExp(`连续签到：${primary.consecutive} 天\\n累计签到：${total} 天`));
+        await h.invoke(); assert.equal(h.posts.length, 0); assert.equal(h.writes.length, 0); assertPrivate(h);
+        const fresh = stateStore(); setObservation(fresh, { stats: { consecutive: 999, total: 777 } });
+        const stats = { continuous_checkin_days: primary.consecutive, ...(primary.total === undefined ? {} : { accumulate_days: primary.total }) };
+        const scheduled = await harness({ store: fresh, replies: [{ body: { result_code: 'success', data: { checked_in: true, stats } } }] });
+        await scheduled.promise; assert.equal(scheduled.posts.length, 1);
+        assert.deepEqual(journal(scheduled).confirmed.stats, { consecutive: primary.consecutive, total });
+        assert.equal(scheduled.writes.some(([key]) => key === OBSERVATION || key === KEY), false); assertPrivate(scheduled);
+    }
+});
+test('昨日、未来时间与另一 generation 的观察都不能填入今日确认', async () => {
+    for (const extra of [
+        { day: '2026-11-04', observedAt: NOW - 86400000 },
+        { day: '2026-11-06', observedAt: NOW + 86400000 },
+        { observedAt: NOW + 1000 }, { generation: NEXT },
+    ]) {
+        const store = confirmedStore(); setObservation(store, extra);
+        const h = await harness({ store, generic: true }); await h.promise;
+        assert.match(h.output.children[0].text, /今日记录：已确认\n连续签到：564 天\n累计签到：未知/);
+        assert.doesNotMatch(h.output.children[0].text, /累计来源：|累计签到：570 天/);
+        await h.invoke(); assert.match(h.notices.at(-1).body, /累计签到：未知/);
+        assert.equal(h.posts.length, 0); assert.equal(h.writes.length, 0); assertPrivate(h);
+    }
+});
+test('今日缺累计观察不沿用昨日 569，不自行加一或为补统计重发', async () => {
+    const store = confirmedStore({ consecutive: 563, total: 569 }, { day: '2026-11-04', confirmedAt: NOW - 86400000 });
+    setObservation(store, { day: '2026-11-04', observedAt: NOW - 86400000, stats: { consecutive: 563, total: 569 } });
+    const before = store.get(JOURNAL), partial = { result_code: 'success', data: { checked_in: true,
+        stats: { continuous_checkin_days: 564, continuous_days: 564 } } };
+    const response = observationResponse({ body: partial });
+    const h = await harness({ store, request: captureRequest(), response, replies: [{ body: partial }] }); await h.promise;
+    assertOriginalBytes(h, response); assert.deepEqual(JSON.parse(store.get(OBSERVATION)).stats, { consecutive: 564 });
+    assert.equal(store.get(JOURNAL), before);
+    const diagnostic = await h.invoke({}); assert.match(diagnostic.children[0].text, /今日记录：未确认/);
+    await h.invoke(); assert.equal(h.posts.length, 1); assert.deepEqual(journal(h).confirmed.stats, { consecutive: 564 });
+    assert.equal(h.notices.at(-1).body, '连续签到：564 天\n累计签到：未知');
+    await h.invoke(); assert.equal(h.posts.length, 1); assertPrivate(h);
+});
+test('没有今日 confirmed 时独立观察不冒充签到成功，也不创建 journal 或锁', async () => {
+    const store = stateStore(), before = store.get(KEY), response = observationResponse();
+    const h = await harness({ store, request: captureRequest(), response }); await h.promise; assertOriginalBytes(h, response);
+    const diagnostic = await h.invoke({}); assert.match(diagnostic.children[0].text, /今日记录：未确认/);
+    assert.doesNotMatch(diagnostic.children[0].text, /连续签到：|累计签到：|累计来源：/);
+    assert.equal(store.has(JOURNAL), false); assert.equal(store.get(KEY), before); assert.equal(h.notices.length, 0);
+    assert.deepEqual(h.writes.map(([key]) => key), [OBSERVATION]); assertPrivate(h);
+});
+test('精确既有签到端点的 GET 和 POST 可被动观察，包括原查询与小写方法', async () => {
+    for (const method of ['GET', 'POST', 'get', 'post']) for (const suffix of ['', '?app_id=10086&timestamp=SECRET_QUERY']) {
+        const response = observationResponse();
+        const h = await harness({ request: captureRequest('https://gateway-front-external.nio.com/moat/10086/c/award_cn/checkin' + suffix,
+            TOKEN, undefined, method), response }); await h.promise;
+        assertOriginalBytes(h, response); assert.equal(h.store.has(OBSERVATION), true);
+        assert.deepEqual(h.writes.map(([key]) => key), [OBSERVATION]);
+    }
+});
+test('错误域名/协议/路径/方法和非 200 响应不消费观察流、不写任何状态', async () => {
+    const endpoint = captureRequest().url;
+    const rejected = [
+        ...['https://app.nio.com/app/api/checkin', 'https://api.nio.com/api/checkin', endpoint + '/', endpoint + '-extra', endpoint + '#fragment',
+            endpoint.replace('https:', 'http:'), endpoint.replace('.nio.com/', '.nio.com.evil.test/'),
+            endpoint.replace('.nio.com/', '.nio.com:443/'), endpoint.replace('.nio.com/', '.nio.com@evil.test/')]
+            .map(url => [url, 'POST', 200]),
+        ...['HEAD', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', '', null, undefined].map(method => [endpoint, method, 200]),
+        ...[201, 204, 301, 401, 403, 429, 500, '200'].map(status => [endpoint, 'POST', status]),
+    ];
+    for (const [url, method, status] of rejected) {
+        const store = stateStore(), before = new Map(store), response = observationResponse({ status });
+        const h = await harness({ store, request: { ...captureRequest(url), method }, response }); await h.promise;
+        assert.equal(response.consumed, 0); assert.equal(h.output, undefined); assert.deepEqual(store, before);
+        assert.equal(h.posts.length, 0); assert.equal(h.writes.length, 0); assert.equal(h.notices.length, 0); assertPrivate(h);
+    }
+});
+test('无凭据、失效、损坏、未来保存时间或 Authorization 不一致不消费观察流', async () => {
+    for (const options of [{ store: new Map() }, { store: stateStore({ invalid: true }) },
+        { store: stateStore({ observedAt: NOW + 3600000 }) }, { store: stateStore({ generation: 'bad generation' }) },
+        { store: new Map([[KEY, 'SECRET_BROKEN']]) }, { store: stateStore({ token: NEW_TOKEN }) },
+        { request: captureRequest(undefined, NEW_TOKEN) }, { request: captureRequest(undefined, 'Bearer short') },
+        { request: { ...captureRequest(), headers: new Headers() } }, { readThrows: true }]) {
+        const response = observationResponse(), store = options.store || stateStore(), before = new Map(store);
+        const h = await harness({ ...options, store, request: options.request || captureRequest(), response }); await h.promise;
+        assert.equal(response.consumed, 0); assert.equal(h.output, undefined); assert.deepEqual(store, before);
+        assert.equal(h.posts.length, 0); assert.equal(h.writes.length, 0); assert.equal(h.notices.length, 0); assertPrivate(h);
+    }
+});
+test('无正文或不支持的 charset 不消费；UTF-8 别名与未声明编码保留原字节', async () => {
+    for (const options of [{ noBody: true }, ...['gb2312', 'gbk', 'utf-16', 'iso-8859-1', 'SECRET_CHARSET']
+        .map(charset => ({ headers: { 'Content-Type': 'application/json; charset=' + charset } }))]) {
+        const response = observationResponse(options), h = await harness({ request: captureRequest(), response }); await h.promise;
+        assert.equal(response.consumed, 0); assert.equal(h.output, undefined); assert.equal(h.writes.length, 0);
+        assert.equal(h.posts.length, 0); assertPrivate(h);
+    }
+    for (const contentType of ['application/json', 'application/json; charset=UTF8', "application/json; charset='utf-8'", 'application/json; charset=us-ascii']) {
+        const response = observationResponse({ headers: { 'Content-Type': contentType } });
+        const h = await harness({ request: captureRequest(), response }); await h.promise; assertOriginalBytes(h, response);
+        assert.equal(h.store.has(OBSERVATION), true);
+    }
+});
+test('非 JSON、错误业务码与非 true checked_in 都原样回传，不保存观察', async () => {
+    for (const options of [...['<html>SECRET_BODY</html>', '{', 'null', '[]'].map(text => ({ text })),
+        ...[{ result_code: 'failure', data: { checked_in: true } }, { result_code: 'invalid_token', data: { checked_in: true } },
+            { result_code: 'success', data: [] }, { result_code: 'success', data: null },
+            { result_code: 'success', data: { checked_in: false } }, { result_code: 'success', data: { checked_in: 'true' } },
+            { result_code: 'success', data: {} }].map(body => ({ body }))]) {
+        const store = stateStore(), before = new Map(store), response = observationResponse(options);
+        const h = await harness({ store, request: captureRequest(), response }); await h.promise; assertOriginalBytes(h, response);
+        assert.deepEqual(store, before); assert.equal(h.writes.length, 0);
+    }
+});
+test('非法 UTF-8、截断、过长编码、代理项与越界码点不解析也不破坏原字节', async () => {
+    for (const invalid of [[0x80], [0xff], [0xc0, 0xaf], [0xe0, 0x80, 0xaf], [0xe2, 0x82],
+        [0xed, 0xa0, 0x80], [0xf4, 0x90, 0x80, 0x80], [0xf5, 0x80, 0x80, 0x80]]) {
+        const bytes = Buffer.concat([Buffer.from('{"result_code":"success","data":{"checked_in":true,"message":"'),
+            Buffer.from(invalid), Buffer.from('","stats":{"accumulate_days":570}}}')]);
+        const response = observationResponse({ bytes }), h = await harness({ request: captureRequest(), response }); await h.promise;
+        assertOriginalBytes(h, response); assert.equal(h.writes.length, 0); assert.equal(h.store.has(OBSERVATION), false);
+    }
+});
+test('正文 262144 字节边界可观察，超尺寸正文原样回传且不保存', async () => {
+    const json = Buffer.from(JSON.stringify(SIGNED));
+    for (const length of [262144, 262145]) {
+        const bytes = Buffer.concat([json, Buffer.alloc(length - json.length, 0x20)]), response = observationResponse({ bytes });
+        const h = await harness({ request: captureRequest(), response }); await h.promise; assertOriginalBytes(h, response);
+        assert.equal(h.store.has(OBSERVATION), length === 262144); assert.equal(h.writes.length, length === 262144 ? 1 : 0);
+    }
+});
+test('观察流立即或延迟读取失败只读一次，不二读、不伪造空正文、不补请求', async () => {
+    for (const options of [{ bodyThrows: true }, { defer: true }]) {
+        const store = stateStore(), before = new Map(store), response = observationResponse(options);
+        const h = await harness({ store, request: captureRequest(), response });
+        if (options.defer) { assert.equal(h.completed, false); response.fail(); }
+        await h.promise; assert.equal(h.completed, true); assert.equal(h.error, undefined); assert.equal(response.consumed, 1);
+        assert.equal(h.output, undefined); assert.deepEqual(store, before); assert.equal(h.posts.length, 0);
+        assert.equal(h.writes.length, 0); assert.equal(h.notices.length, 0); assertPrivate(h);
+    }
+});
+test('观察正文 pending 超过三秒仍等待完整字节，不引入独立 race 丢失原响应', async () => {
+    const response = observationResponse({ defer: true, text: '\uFEFF' + JSON.stringify(SIGNED) });
+    const h = await harness({ request: captureRequest(), response }); assert.equal(h.completed, false); assert.equal(response.consumed, 1);
+    await h.advance(4500); assert.equal(h.completed, false); assert.equal(h.writes.length, 0); assert.equal(h.output, undefined);
+    assert.equal(h.timers.size, 0, '观察正文超时只交给原生模块，不创建本地竞争计时器');
+    response.finish(); await h.promise; assertOriginalBytes(h, response);
+    assert.equal(JSON.parse(h.store.get(OBSERVATION)).observedAt, NOW + 4500);
+});
+test('正文返回前 Token/generation/invalid/存储或 UTC+8 日界变化停止写观察', async () => {
+    for (const change of [
+        async h => h.store.set(KEY, JSON.stringify(state({ token: NEW_TOKEN }))),
+        async h => h.store.set(KEY, JSON.stringify(state({ generation: NEXT }))),
+        async h => h.store.set(KEY, JSON.stringify(state({ invalid: true }))),
+        async h => h.store.delete(KEY), async h => h.store.set(KEY, 'SECRET_BROKEN'),
+        async h => { h.options.readThrows = true; }, async h => h.advance(15 * 3600000),
+    ]) {
+        const response = observationResponse({ defer: true }), h = await harness({ request: captureRequest(), response });
+        assert.equal(h.completed, false); await change(h); const before = new Map(h.store);
+        response.finish(); await h.promise; assertOriginalBytes(h, response);
+        assert.equal(h.writes.length, 0); assert.deepEqual(h.store, before);
+    }
+});
+test('同日 partial 新观察保留此前真实缺项，只更新本次实际返回的合法数', async () => {
+    const store = stateStore(); setObservation(store);
+    const response = observationResponse({ body: { result_code: 'success', data: { checked_in: true,
+        stats: { continuous_checkin_days: 565 } } } });
+    const h = await harness({ store, request: captureRequest(), response }); await h.promise; assertOriginalBytes(h, response);
+    assert.deepEqual(JSON.parse(store.get(OBSERVATION)).stats, { consecutive: 565, total: 570 });
+    const nextResponse = observationResponse({ body: { result_code: 'success', data: { checked_in: true, award_info: { total_days: '571' } } } });
+    const nextOutput = await h.invoke({ request: captureRequest(), response: nextResponse });
+    assert.equal(nextResponse.consumed, 1); assert.deepEqual(Object.keys(nextOutput), ['body']);
+    assert.deepEqual(Buffer.from(nextOutput.body), nextResponse.bytes);
+    assert.deepEqual(JSON.parse(store.get(OBSERVATION)).stats, { consecutive: 565, total: 571 });
+    assert.deepEqual(h.writes.map(([key]) => key), [OBSERVATION, OBSERVATION]); assert.equal(store.has(JOURNAL), false); assertPrivate(h);
+});
+test('观察写入异常、静默失败或回读被替换仍保留原 bytes、凭据和 journal', async () => {
+    for (const options of [{ writeThrows: true }, { writeNoop: true }, { writeHook: (key, value, store) => {
+        if (key === OBSERVATION) { store.set(key, JSON.stringify({ ...value, observedAt: NOW - 1 })); return false; }
+    } }]) {
+        const store = confirmedStore(), before = new Map(store), response = observationResponse();
+        const h = await harness({ ...options, store, request: captureRequest(), response }); await h.promise; assertOriginalBytes(h, response);
+        assert.equal(store.get(KEY), before.get(KEY)); assert.equal(store.get(JOURNAL), before.get(JOURNAL));
+        assert.deepEqual(h.writes.map(([key]) => key), [OBSERVATION]);
+        assert.equal(h.logs.some(line => line.includes('当日统计已观察；')), false);
+        assert.match(h.logs.join('\n'), /统计观察未保存；原响应保持不变。/);
+    }
+});
+test('可选观察缓存核心损坏只降级，不阻止正常签到或改动凭据', async () => {
+    for (const raw of ['SECRET_BROKEN', 'null', '[]', '{}', JSON.stringify({ version: 1, generation: GENERATION,
+        day: '2026-11-05', observedAt: NOW, stats: { total: -1 }, fields: fieldTypes() }),
+        JSON.stringify({ version: 1, generation: GENERATION, day: '2026-11-04', observedAt: NOW, stats: {}, fields: fieldTypes() })]) {
+        const store = stateStore(), before = store.get(KEY); store.set(OBSERVATION, raw);
+        const h = await harness({ store }); await h.promise;
+        assert.equal(h.posts.length, 1); assert.equal(subtitle(h), '今日签到已确认');
+        assert.deepEqual(journal(h).confirmed.stats, { consecutive: 2, total: 4 }); assert.equal(journal(h).lock, null);
+        assert.equal(store.get(KEY), before); assert.equal(store.get(OBSERVATION), raw);
+        assert.equal(h.writes.some(([key]) => key === KEY || key === OBSERVATION), false); assertPrivate(h);
+    }
+});
+test('观察字段元数据损坏只隐藏元数据，保留有效同日数字且不泄露损坏值', async () => {
+    for (const fields of [null, [], { 'stats.accumulate_days': 'SECRET_METADATA' },
+        fieldTypes({ 'stats.accumulate_days': 'SECRET_METADATA' }), fieldTypes({ secret: 'SECRET_METADATA' })]) {
+        for (const stats of [{ consecutive: 564, total: 570 }, { consecutive: 564 }]) {
+            const store = confirmedStore(); setObservation(store, { stats, fields });
+            const h = await harness({ store, generic: true }); await h.promise;
+            assert.match(h.output.children[0].text, /今日记录：已确认\n连续签到：564 天/);
+            assert.match(h.output.children[0].text, stats.total === undefined ? /累计签到：未知/ : /累计签到：570 天/);
+            assert.doesNotMatch(h.output.children[0].text, /累计字段类型：/);
+            await h.invoke(); assert.equal(h.posts.length, 0); assert.equal(h.writes.length, 0); assertPrivate(h);
+        }
+    }
+});
+test('新 confirmed 固定字段类型可直接诊断，响应值与 Token 不进入日志或记录', async () => {
+    const h = await harness({ replies: [{ body: { result_code: 'success', data: { checked_in: true,
+        stats: { continuous_checkin_days: 564, accumulate_days: { token: 'SECRET_RESPONSE_TOKEN' } },
+        message: 'SECRET_SERVER_MESSAGE',
+    } } }] }); await h.promise;
+    assert.deepEqual(journal(h).confirmed.fields, fieldTypes({ 'stats.continuous_checkin_days': 'number', 'stats.accumulate_days': 'object' }));
+    assert.deepEqual(journal(h).confirmed.stats, { consecutive: 564 });
+    const diagnostic = await h.invoke({});
+    assert.match(diagnostic.children[0].text, /累计签到：未知\n累计字段类型：stats\.accumulate_days=object, accumulate_days=missing/);
+    assert.doesNotMatch(JSON.stringify(journal(h)), /SECRET_|Bearer|OFFLINE_FIXTURE/);
+    assert.equal(h.posts.length, 1); assertPrivate(h);
+});
+test('旧 3.0.1 confirmed 没有 fields 仍可诊断与当天去重，不重签或搬写', async () => {
+    for (const stats of [{ consecutive: 563, total: 569 }, { consecutive: 564 }]) {
+        const store = confirmedStore(stats), before = new Map(store), h = await harness({ store, generic: true }); await h.promise;
+        assert.match(h.output.children[0].text, /今日记录：已确认/);
+        assert.match(h.output.children[0].text, stats.total === undefined ? /旧记录没有字段类型/ : /累计签到：569 天/);
+        await h.invoke(); assert.equal(subtitle(h), '今日签到已确认（本地记录）'); assert.equal(h.posts.length, 0);
+        assert.equal(h.writes.length, 0); assert.deepEqual(store, before); assert.equal(journal(h).confirmed.fields, undefined); assertPrivate(h);
+    }
+});
+test('非法 confirmed.fields 只忽略元数据，不废掉有效 today、阻止去重或重签', async () => {
+    const lock = { id: 'offline_existing_lock', generation: GENERATION, acquiredAt: NOW - 1000, expiresAt: NOW + 29000 };
+    for (const fields of [null, [], {}, { 'stats.accumulate_days': 'SECRET_METADATA' },
+        fieldTypes({ 'stats.accumulate_days': 'SECRET_METADATA' }), fieldTypes({ extra: 'string' })]) {
+        const store = confirmedStore({ consecutive: 564 }, { fields }, lock), before = new Map(store);
+        const h = await harness({ store, generic: true }); await h.promise;
+        assert.match(h.output.children[0].text, /今日记录：已确认\n连续签到：564 天\n累计签到：未知/);
+        assert.match(h.output.children[0].text, /任务锁：有效/);
+        assert.doesNotMatch(h.output.children[0].text, /本地状态无法读取|累计字段类型：/);
+        await h.invoke(); assert.equal(subtitle(h), '今日签到已确认（本地记录）');
+        assert.equal(h.posts.length, 0); assert.equal(h.writes.length, 0); assert.deepEqual(store, before); assertPrivate(h);
+    }
+});
+test('被动观察仅保存固定字段名和有限类型，缺统计不伪造数或泄露响应、头与查询', async () => {
+    const store = confirmedStore(), before = new Map(store), response = observationResponse({ headers: { 'X-Secret': 'SECRET_HEADER' },
+        body: { result_code: 'success', message: 'SECRET_SERVER', data: { checked_in: true,
+            stats: { continuous_checkin_days: 'SECRET_VALUE', continuous_days: false, accumulate_days: { token: 'SECRET_TOKEN' },
+                accumulateDays: ['SECRET_ARRAY'], total_days: null },
+            continuous_checkin_days: 'SECRET_STRING', continuous_days: [], accumulate_days: true,
+            accumulateDays: 'SECRET_ALIAS', total_days: -1, award_info: { accumulate_days: {}, total_days: 'SECRET_AWARD' },
+        } } });
+    const h = await harness({ store, request: captureRequest(captureRequest().url + '?token=SECRET_QUERY'), response }); await h.promise;
+    assertOriginalBytes(h, response);
+    const saved = JSON.parse(store.get(OBSERVATION)); assert.deepEqual(saved.stats, {});
+    assert.deepEqual(saved.fields, fieldTypes({ 'stats.continuous_checkin_days': 'string', 'stats.continuous_days': 'boolean',
+        continuous_checkin_days: 'string', continuous_days: 'array', 'stats.accumulate_days': 'object', accumulate_days: 'boolean',
+        'stats.accumulateDays': 'array', accumulateDays: 'string', 'stats.total_days': 'null', total_days: 'number',
+        'award_info.accumulate_days': 'object', 'award_info.total_days': 'string' }));
+    assert.doesNotMatch(store.get(OBSERVATION), /SECRET_|Bearer|OFFLINE_FIXTURE|https?:\/\//);
+    assert.equal(store.get(KEY), before.get(KEY)); assert.equal(store.get(JOURNAL), before.get(JOURNAL));
+    const diagnostic = await h.invoke({}); assert.match(diagnostic.children[0].text, /累计签到：未知\n累计字段类型：/);
+    assertPrivate(h);
+});
+test('原生 YAML 四入口/版本/09:00/三个 MITM 主机、固定脚本引用都正确', () => {
     const version = source.match(/\/\/ Version: ([\d.]+)/)[1];
     assert.ok(yaml.description.startsWith(version));
     assert.ok(source.includes('version: "' + version + '"'));
-    assert.equal(yaml.scriptings.length, 3);
-    const request = yaml.scriptings[0].http_request, schedule = yaml.scriptings[1].schedule, generic = yaml.scriptings[2].generic;
-    assert.equal(new Set([request.script_url, schedule.script_url, generic.script_url]).size, 1);
+    assert.equal(yaml.scriptings.length, 4);
+    assert.deepEqual(yaml.scriptings.map(row => {
+        assert.equal(Object.keys(row).length, 1); return Object.keys(row)[0];
+    }).sort(), ['generic', 'http_request', 'http_response', 'schedule']);
+    const find = type => yaml.scriptings.find(row => row[type])[type];
+    const request = find('http_request'), response = find('http_response'), schedule = find('schedule'), generic = find('generic');
+    assert.equal(new Set([request.script_url, response.script_url, schedule.script_url, generic.script_url]).size, 1);
     assert.equal(request.body_required, false); assert.equal(schedule.cron, '0 9 * * *'); assert.equal(schedule.timeout, 30);
+    assert.equal(response.body_required, true); assert.equal(response.binary_body, true);
+    assert.equal(response.max_size, 262144); assert.equal(response.timeout, 5);
+    assert.equal(response.match, '^https://gateway-front-external\\.nio\\.com/moat/10086/c/award_cn/checkin(?:\\?|$)');
     const pattern = new RegExp(request.match); assert.equal(pattern.test(captureRequest().url), true);
     assert.equal(pattern.test('https://app.nio.com.evil.test/app/api/x'), false);
+    const responsePattern = new RegExp(response.match); assert.equal(responsePattern.test(captureRequest().url), true);
+    assert.equal(responsePattern.test(captureRequest().url + '?app_id=10086'), true);
+    for (const url of [captureRequest().url + '/', captureRequest().url + '-extra', 'https://app.nio.com/app/api/checkin',
+        captureRequest().url.replace('.nio.com/', '.nio.com.evil.test/')]) assert.equal(responsePattern.test(url), false);
     assert.deepEqual(yaml.mitm.hostnames.includes, ['gateway-front-external.nio.com', 'app.nio.com', 'api.nio.com']);
-    for (const row of [request, schedule, generic]) {
-        const url = new URL(row.script_url); assert.equal(url.hostname, 'raw.githubusercontent.com');
-        assert.equal(url.pathname, '/atopsecret/SurgeScripts/39fe49916d989493e16695b4e0c706a9d4a27f2c/weilai/weilai-auto-checkin.egern.js');
-        assert.equal(url.searchParams.get('v'), version); assert.ok(fs.existsSync(path.join(root, path.basename(url.pathname))));
+    for (const row of [request, response, schedule, generic]) {
+        const url = new URL(row.script_url); assert.equal(url.protocol, 'https:'); assert.equal(url.hostname, 'raw.githubusercontent.com');
+        assert.equal(url.port, ''); assert.equal(url.username, ''); assert.equal(url.password, ''); assert.equal(url.hash, '');
+        assert.match(url.pathname, /^\/atopsecret\/SurgeScripts\/[0-9a-f]{40}\/weilai\/weilai-auto-checkin\.egern\.js$/);
+        assert.equal(url.search, '?v=' + version); assert.equal(url.searchParams.get('v'), version);
+        assert.ok(fs.existsSync(path.join(root, path.basename(url.pathname))));
         assert.equal(row.update_interval, 3600);
     }
+    const ref = new URL(request.script_url).pathname.split('/')[3];
+    const pinned = execFileSync('git', ['show', ref + ':weilai/weilai-auto-checkin.egern.js'],
+        { cwd: root, encoding: 'utf8', timeout: 5000 });
+    assert.equal(pinned, source, '四入口固定提交的业务源码必须与本地被测版本逐字一致');
     assert.doesNotMatch(source, /\$(?:done|request|response|persistentStore|httpClient|notification)\b|\bimport\s/);
 });

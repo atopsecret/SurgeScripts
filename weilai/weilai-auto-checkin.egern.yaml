@@ -3,7 +3,7 @@
 # Run: 在 Egern 模块中导入；信任 Egern CA；打开蔚来 App 重新捕获凭据
 # Deps: 本目录 weilai-auto-checkin.egern.js；凭据只在 Egern 本地存储
 name: 蔚来自动签到 · Egern
-description: 3.0.1 原生版；固定已发布脚本提交，避免旧缓存；修复存储回读与连续签到统计，保留每日成功去重和本地诊断。
+description: 3.1.0 原生版；补回累计字段兼容，从现有签到响应补全当日统计；四入口固定同一脚本提交，保留每日去重与本地诊断。
 author: atopsecret（Surge 原版 skernelx）
 homepage: https://github.com/atopsecret/SurgeScripts/tree/main/weilai
 icon: checkmark.seal.fill
@@ -11,19 +11,28 @@ scriptings:
   - http_request:
       name: 蔚来凭据捕获 · Egern
       match: '^https://(?:gateway-front-external\.nio\.com|app\.nio\.com|api\.nio\.com)/(?:moat/10086/+(?:n/c/award/|c/award_cn/)|(?:n/c/)?(?:account/user/|user/|profile/)|app/api/|api/)'
-      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/39fe49916d989493e16695b4e0c706a9d4a27f2c/weilai/weilai-auto-checkin.egern.js?v=3.0.1
+      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/dc51185a93dcd222502d159ca8dab2bb51f68704/weilai/weilai-auto-checkin.egern.js?v=3.1.0
       body_required: false
       update_interval: 3600
       timeout: 10
+  - http_response:
+      name: 蔚来统计观察 · Egern
+      match: '^https://gateway-front-external\.nio\.com/moat/10086/c/award_cn/checkin(?:\?|$)'
+      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/dc51185a93dcd222502d159ca8dab2bb51f68704/weilai/weilai-auto-checkin.egern.js?v=3.1.0
+      body_required: true
+      binary_body: true
+      max_size: 262144
+      update_interval: 3600
+      timeout: 5
   - schedule:
       name: 蔚来自动签到 · Egern
       cron: '0 9 * * *'
-      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/39fe49916d989493e16695b4e0c706a9d4a27f2c/weilai/weilai-auto-checkin.egern.js?v=3.0.1
+      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/dc51185a93dcd222502d159ca8dab2bb51f68704/weilai/weilai-auto-checkin.egern.js?v=3.1.0
       update_interval: 3600
       timeout: 30
   - generic:
       name: 蔚来本地诊断 · Egern
-      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/39fe49916d989493e16695b4e0c706a9d4a27f2c/weilai/weilai-auto-checkin.egern.js?v=3.0.1
+      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/dc51185a93dcd222502d159ca8dab2bb51f68704/weilai/weilai-auto-checkin.egern.js?v=3.1.0
       update_interval: 3600
       timeout: 10
 mitm:

@@ -10,7 +10,7 @@
 - [拼多多](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/pinduoduo/pdd-adblock.egern.yaml)：双条件素材规则、单域 QUIC 与已知页面净化。
 - [红果](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/hongguo/hongguo-adblock.egern.yaml)：78 条广告/上报条件，不拒绝主配置公共 DNS。
 - [戒烟军团](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jyjt/jyjt-member.egern.yaml)：已知明文 SOAP 响应的客户端标志位。
-- [蔚来](https://raw.githubusercontent.com/atopsecret/SurgeScripts/refs/heads/main/weilai/weilai-auto-checkin.egern.yaml?v=3.1.1)：原生凭据捕获、09:00 定时签到、现有响应的当日统计观察和本地诊断；凭据提醒精简并按 30 秒合并。
+- [蔚来](https://raw.githubusercontent.com/atopsecret/SurgeScripts/refs/heads/main/weilai/weilai-auto-checkin.egern.yaml?v=3.1.2)：原生凭据捕获、09:00 定时签到、现有响应的当日统计观察和本地诊断；成功通知带表情，凭据提醒精简并按 30 秒合并。
 
 本次按 Egern 2.21 的当前文档检查。先停用同一 App 的旧兼容模块，再添加原生链接，检查资源下载与脚本版本。HTTPS 改写需要启用 MITM、安装并信任 Egern 当前 CA。红果的域名规则、戒烟军团的已知明文接口不依赖证书。
 
@@ -39,7 +39,7 @@ NAS 原 Surge 网关条件不能从当前公开 Egern 条件策略字段直接�
 
 需要 Node.js 20+、Python 3.11+ 和 PyYAML 6。命令见[仓库说明](../README.md#离线校验)。`validate.py` 只检查本项目所用官方字段，不是 Egern 官方配置解析器。可用 `--rules-dir` 同时验证本地 Rules 仓库原生集合与原列表的逐条等价性。
 
-2026-11-06 脚本回归 **338/338**，其中 Surge 76 项、原生 262 项；公共静态测试 **17/17**。七个 YAML、六个原生 JS 和 9,980 条公共规则条件检查通过。红果不需要响应脚本，其 78 条条件及 Map Local 边界由静态测试覆盖。
+2026-11-06 脚本回归 **340/340**，其中 Surge 77 项、原生 263 项；公共静态测试 **17/17**。七个 YAML、六个原生 JS 和 9,980 条公共规则条件检查通过。红果不需要响应脚本，其 78 条条件及 Map Local 边界由静态测试覆盖。
 
 脚本与静态验证均不发送真实业务请求、不启用搜索程序或 GitHub Actions。静态与模拟通过不等于 Egern 真机导入、证书信任、Tailscale 登录或 App 页面验收。
 

@@ -79,11 +79,21 @@ test('抓包成功结构：秒级时间戳、正确表单、统计及单次结�
     assert.equal(new URL(req.url).searchParams.get('timestamp'), String(NOW / 1000));
     assert.equal(req.body, 'event=checkin'); assert.equal(req.timeout, 5);
     assert.equal(req['auto-redirect'], false); assert.equal(req['auto-cookie'], false);
-    assert.equal(title(h), '今日签到已确认');
-    assert.match(h.notices[0][2], /561 天\n累计签到：567 天/);
+    assert.equal(title(h), '签到成功 ✅');
+    assert.match(h.notices[0][2], /561 天\n📊 累计签到：567 天/);
     assert.ok(h.logs.includes('[蔚来签到] 连续签到：561 天'));
     assert.ok(h.logs.includes('[蔚来签到] 累计签到：567 天'));
     h.advance(30000); assert.equal(h.done, 1);
+});
+test('签到成功通知带表情，日志仍保留确认结果和规范统计', () => {
+    const h = harness({ replies: [{ body: { result_code: 'success', data: {
+        checked_in: true, stats: { continuous_checkin_days: 564, accumulate_days: 570 },
+    } } }] });
+    assert.deepEqual(h.notices, [['蔚来签到', '签到成功 ✅', '🔥 连续签到：564 天\n📊 累计签到：570 天']]);
+    assert.ok(h.logs.includes('[蔚来签到] 今日签到已确认'));
+    assert.ok(h.logs.includes('[蔚来签到] 连续签到：564 天'));
+    assert.ok(h.logs.includes('[蔚来签到] 累计签到：570 天'));
+    assert.equal(h.posts.length, 1); assert.equal(h.done, 1);
 });
 test('Surge JSC 没有 clearTimeout 时也只结束一次', () => {
     const h = harness({ replies: [{}], clearTimer: false });
@@ -111,7 +121,7 @@ test('正常 HTTP 与业务状态缺一不可', () => {
         { body: { result_code: 'success', data: { checked_in: false } } }]) {
         const h = harness({ replies: [reply] }); h.advance(30000);
         assert.equal(h.done, 1); assert.equal(h.posts.length, 1);
-        assert.notEqual(title(h), '今日签到已确认');
+        assert.notEqual(title(h), '签到成功 ✅');
     }
 });
 test('认证失败标记当前凭据且不重试', () => {
@@ -242,12 +252,12 @@ test('普通 403 不会把有效凭据永久锁死，日志也显示拒绝原因
     assert.match(h.logs.join('\n'), /HTTP 403/);
     assert.doesNotMatch(h.logs.join('\n'), /SECRET_WAF_RESPONSE/);
     const next = harness({ store: [...h.store], replies: [{}] });
-    assert.equal(title(next), '今日签到已确认');
+    assert.equal(title(next), '签到成功 ✅');
 });
 test('临时 5xx 即使附有认证字样也不永久作废凭据', () => {
     const h = harness({ replies: [{ status: 503, body: { result_code: 'invalid_token' } }] });
     assert.equal(JSON.parse(h.store.get(KEY)).invalid, false);
-    assert.notEqual(title(h), '今日签到已确认');
+    assert.notEqual(title(h), '签到成功 ✅');
 });
 test('限流等待期间 Token 更新或失效后不重发旧凭据', () => {
     for (const state of [null, { token: NEW_TOKEN, observedAt: NOW, invalid: false },
@@ -326,7 +336,7 @@ test('请求回调缺失 response、跳转或畸形 JSON 都不会确认签到',
         { body: { result_code: 'success', data: { checked_in: 'true' } } }]) {
         const h = harness({ replies: [reply] }); h.advance(30000);
         assert.equal(h.done, 1); assert.equal(h.posts.length, 1);
-        assert.notEqual(title(h), '今日签到已确认');
+        assert.notEqual(title(h), '签到成功 ✅');
     }
 });
 test('首抓凭据后定时运行的完整流程，两次任务互不依赖请求上下文', () => {
@@ -336,7 +346,7 @@ test('首抓凭据后定时运行的完整流程，两次任务互不依赖请�
     const cron = harness({ store: [...captured.store], replies: [{}] });
     assert.equal(cron.posts[0].headers.authorization, TOKEN);
     assert.equal(cron.posts[0].headers['user-agent'], 'NIOAppCN/6.10.0 offline');
-    assert.equal(title(cron), '今日签到已确认');
+    assert.equal(title(cron), '签到成功 ✅');
 });
 test('连续观察同 Token 静默，且保存时间正常更新', () => {
     const h = harness({ request: request(), store: [[KEY, JSON.stringify({ token: TOKEN, observedAt: NOW - 1000, invalid: false })]] });
@@ -358,7 +368,7 @@ test('统计只接受非负安全整数，不输出统计中的任意文本', ()
         const h = harness({ replies: [{ body: { result_code: 'success', data: {
             checked_in: true, stats: { continuous_checkin_days: value, accumulate_days: value },
         } } }] });
-        assert.match(h.notices[0][2], /连续签到：未知\n累计签到：未知/);
+        assert.match(h.notices[0][2], /🔥 连续签到：未知\n📊 累计签到：未知/);
         assert.doesNotMatch(h.logs.join('\n'), /SECRET_STATS/);
     }
 });
@@ -372,7 +382,7 @@ test('统计数字字符串正常显示，零值有效且不会额外签到', ()
     ]) {
         const h = harness({ replies: [{ body: { result_code: 'success', data: { checked_in: true, ...data } } }] });
         assert.equal(h.posts.length, 1); assert.equal(h.done, 1);
-        assert.equal(h.notices[0][2], `连续签到：${consecutive} 天\n累计签到：${total} 天`);
+        assert.equal(h.notices[0][2], `🔥 连续签到：${consecutive} 天\n📊 累计签到：${total} 天`);
         assert.equal(h.logs.some(line => line.includes('统计字段类型：')), false);
     }
 });
@@ -380,7 +390,7 @@ test('顶层连续签到字段 continuous_checkin_days 不丢失', () => {
     const h = harness({ replies: [{ body: { result_code: 'success', data: {
         checked_in: true, continuous_checkin_days: 7, accumulate_days: 11,
     } } }] });
-    assert.equal(h.notices[0][2], '连续签到：7 天\n累计签到：11 天');
+    assert.equal(h.notices[0][2], '🔥 连续签到：7 天\n📊 累计签到：11 天');
 });
 test('统计字段优先使用合法嵌套值，非法值回退到顶层', () => {
     for (const [stats, consecutive, total] of [
@@ -391,7 +401,7 @@ test('统计字段优先使用合法嵌套值，非法值回退到顶层', () =>
         const h = harness({ replies: [{ body: { result_code: 'success', data: {
             checked_in: true, stats, continuous_checkin_days: '8', continuous_days: 9, accumulate_days: '12',
         } } }] });
-        assert.equal(h.notices[0][2], `连续签到：${consecutive} 天\n累计签到：${total} 天`);
+        assert.equal(h.notices[0][2], `🔥 连续签到：${consecutive} 天\n📊 累计签到：${total} 天`);
         assert.doesNotMatch(h.logs.join('\n'), /SECRET_STATS/);
     }
 });
@@ -403,7 +413,7 @@ test('旧版累计字段的驼峰、total_days 与 award_info 兼容数字和数
             const data = { checked_in: true, ...partial,
                 stats: { continuous_checkin_days: 564, continuous_days: 564, ...partial.stats } };
             const h = harness({ replies: [{ body: { result_code: 'success', data } }] });
-            assert.equal(h.notices[0][2], `连续签到：564 天\n累计签到：${Number(value)} 天`);
+            assert.equal(h.notices[0][2], `🔥 连续签到：564 天\n📊 累计签到：${Number(value)} 天`);
             assert.equal(h.posts.length, 1); assert.equal(h.done, 1);
             assert.doesNotMatch(h.logs.join('\n'), /SECRET_|Bearer|OFFLINE_FIXTURE|https?:\/\//);
         }
@@ -417,7 +427,7 @@ test('累计别名不覆盖已有合法字段，零值有效，非法主字段�
     ]) {
         const data = { checked_in: true, ...partial, stats: { continuous_checkin_days: 564, ...partial.stats } };
         const h = harness({ replies: [{ body: { result_code: 'success', data } }] });
-        assert.equal(h.notices[0][2], `连续签到：564 天\n累计签到：${total} 天`);
+        assert.equal(h.notices[0][2], `🔥 连续签到：564 天\n📊 累计签到：${total} 天`);
         assert.equal(h.posts.length, 1); assert.doesNotMatch(h.logs.join('\n'), /SECRET_STATS/);
     }
 });
@@ -428,14 +438,14 @@ test('累计别名仍拒绝任意文本、不安全数字与无效容器，不�
             checked_in: true, stats: { continuous_checkin_days: 564, accumulateDays: value, total_days: value },
             accumulateDays: value, total_days: value, award_info: { accumulate_days: value, total_days: value },
         } } }] });
-        assert.equal(h.notices[0][2], '连续签到：564 天\n累计签到：未知');
+        assert.equal(h.notices[0][2], '🔥 连续签到：564 天\n📊 累计签到：未知');
         assert.equal(h.posts.length, 1); assert.doesNotMatch(h.logs.join('\n'), /SECRET_STATS/);
     }
     for (const award_info of [[{ total_days: 570 }], 'SECRET_STATS', null, true]) {
         const h = harness({ replies: [{ body: { result_code: 'success', data: {
             checked_in: true, stats: { continuous_checkin_days: 564 }, award_info,
         } } }] });
-        assert.equal(h.notices[0][2], '连续签到：564 天\n累计签到：未知');
+        assert.equal(h.notices[0][2], '🔥 连续签到：564 天\n📊 累计签到：未知');
         assert.doesNotMatch(h.logs.join('\n'), /SECRET_STATS/);
     }
 });
@@ -443,7 +453,7 @@ test('截图中的连续有值累计缺失不补签到、不编造累计数', ()
     const h = harness({ replies: [{ body: { result_code: 'success', data: { checked_in: true,
         stats: { continuous_checkin_days: 564, continuous_days: 564 },
     } } }] });
-    assert.equal(h.notices[0][2], '连续签到：564 天\n累计签到：未知');
+    assert.equal(h.notices[0][2], '🔥 连续签到：564 天\n📊 累计签到：未知');
     assert.match(h.logs.join('\n'), /stats\.accumulate_days=missing, accumulate_days=missing/);
     assert.equal(h.posts.length, 1); assert.equal(h.done, 1);
 });

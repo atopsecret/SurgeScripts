@@ -2,11 +2,11 @@
 // Build: 无需构建
 // Run: 导入模块后每天 09:00 自动运行；也可手动运行定时任务立即验证
 // Deps: Surge 脚本 API；测试：node --test weilai/tests/checkin.test.cjs
-// Version: 2.1.4
+// Version: 2.1.5
 (function () {
     "use strict";
     const CONFIG = {
-        version: "2.1.4",
+        version: "2.1.5",
         stateKey: "weilai_auth_state_v1",
         endpoint: "https://gateway-front-external.nio.com/moat/10086/c/award_cn/checkin",
         budgetMs: 24000, requestTimeoutSeconds: 5, maxAttempts: 3,
@@ -79,7 +79,7 @@
         if (!saveState(state)) {
             finish("凭据保存失败", "客户端存储未确认写入，请检查存储后重新打开蔚来 App。"); return;
         }
-        if (!same) finish("凭据已更新", "已保存到客户端本地，可运行签到任务验证。");
+        if (!same) finish("凭据已更新", "");
         else finish();
     }
     function statsMessage(data) {

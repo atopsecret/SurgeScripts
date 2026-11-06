@@ -2,14 +2,16 @@
 // Build: 无需构建
 // Run: 导入 weilai-auto-checkin.egern.yaml；重新捕获凭据；定时任务每天 09:00
 // Deps: Egern ctx API；测试：node --experimental-vm-modules --test weilai/tests/egern.test.cjs
-// Version: 3.1.0
+// Version: 3.1.1
 // Author: atopsecret；与本目录 Surge 版使用相同业务路径，凭据存储独立。
 
 export const CONFIG = Object.freeze({
-    version: "3.1.0",
+    version: "3.1.1",
     stateKey: "weilai_egern_auth_state_v1",
     journalKey: "weilai_egern_checkin_v1",
     statisticsKey: "weilai_egern_statistics_v1",
+    captureNoticeKey: "weilai_egern_capture_notice_v1",
+    captureNoticeCooldownMs: 30000,
     endpoint: "https://gateway-front-external.nio.com/moat/10086/c/award_cn/checkin",
     budgetMs: 24000,
     requestTimeoutMs: 5000,
@@ -77,6 +79,20 @@ function report(ctx, title, body, notify = true) {
         catch (_) { /* 通知失败不改变已完成的请求、状态和本地日志。 */ }
     }
 }
+function claimCaptureNotice(ctx) {
+    // 只合并凭据提醒；每次有效捕获仍照常保存，提醒记录不含 Token 或账号代号。
+    try {
+        const now = Date.now(), raw = ctx.storage.get(CONFIG.captureNoticeKey);
+        const previous = typeof raw === "string" && /^[0-9]{1,16}$/.test(raw) ? Number(raw) : 0;
+        if (statNumber(previous) && previous > 0 && previous <= now && now - previous < CONFIG.captureNoticeCooldownMs) return false;
+        writeVerified(ctx, CONFIG.captureNoticeKey, now);
+        return true;
+    } catch (_) {
+        // 可选提醒失败不能把已经保存成功的凭据说成保存失败，也不补发网络请求。
+        console.log("[蔚来签到] 凭据提醒暂未发送。");
+        return false;
+    }
+}
 function capture(ctx) {
     if (!captureURL(ctx.request.url)) return;
     const token = header(ctx.request.headers, "authorization");
@@ -97,7 +113,7 @@ function capture(ctx) {
     };
     try { writeVerified(ctx, CONFIG.stateKey, state); }
     catch (_) { report(ctx, "凭据保存失败", "本地写入未确认，请检查存储后重新打开蔚来 App。"); return; }
-    if (!same) report(ctx, "凭据已更新", "已保存到 Egern 本地。请运行定时任务验证；不会搬运 Surge 存储。");
+    if (!same) report(ctx, "凭据已更新", "", claimCaptureNotice(ctx));
 }
 
 // 蔚来中国业务使用 UTC+8 日界；cron 仍使用 Egern 的设备时区，不猜测服务器奖励时间。

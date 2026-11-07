@@ -20,8 +20,8 @@ Surge 与 Egern 去广告模块、蔚来自动签到脚本。七个主模块均�
   [使用说明](hongguo/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/hongguo/hongguo-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/hongguo/hongguo-adblock.egern.yaml)
 - **戒烟军团**：改写已知响应中的客户端会员标志位，不改变服务端会员资格。
   [使用说明](jyjt/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jyjt/jyjt-member.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jyjt/jyjt-member.egern.yaml)
-- **蔚来自动签到（Surge 2.1.6 / Egern 3.1.2）**：保存已知接口的登录凭据，每日 09:00 使用它签到；成功通知简短并带表情。兼容旧版累计统计字段，Egern 可从现有签到响应补全当日统计，并合并启动时的凭据提醒。
-  [使用说明](weilai/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/weilai/weilai-auto-checkin.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/refs/heads/main/weilai/weilai-auto-checkin.egern.yaml?v=3.1.2)
+- **蔚来自动签到（Surge 2.1.6 / Egern 3.2.0）**：保存已知接口的登录凭据，每日 09:00 使用它签到；成功通知简短并带表情。Egern 在累计缺失时先做一次有上限的同接口 POST 统计复查，再统一通知；保留当日观察和精简凭据提醒。
+  [使用说明](weilai/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/weilai/weilai-auto-checkin.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/weilai/weilai-auto-checkin.egern.yaml?v=3.2.0)
 
 Egern 使用 `.egern.yaml` 和对应原生脚本，不直接运行 Surge 全局变量脚本。完整安装索引、转换差异与验证边界见 [Egern 说明](egern/README.md)。
 
@@ -44,7 +44,7 @@ Egern 使用 `.egern.yaml` 和对应原生脚本，不直接运行 Surge 全局�
 
 ### 从旧地址迁移
 
-旧账号地址不会因为复制源码自动重定向。已经安装的模块需要换成上面的新链接，并刷新远程脚本缓存。高德模块描述应显示 `2.0.0`；Surge 蔚来任务日志应显示 `脚本版本 2.1.6`，Egern 原生蔚来模块描述应显示 `3.1.2`。
+旧账号地址不会因为复制源码自动重定向。已经安装的模块需要换成上面的新链接，并刷新远程脚本缓存。高德模块描述应显示 `2.0.0`；Surge 蔚来任务日志应显示 `脚本版本 2.1.6`，Egern 原生蔚来模块描述应显示 `3.2.0`。
 
 旧账号迁移不导出或迁移客户端登录凭据。原作者署名和原有本地诊断存储键保留，详见[迁移范围](MIGRATION.md)。Egern 原生重写使用独立存储，行为差异见 [Egern 说明](egern/README.md)。
 

@@ -10,7 +10,7 @@
 - [拼多多](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/pinduoduo/pdd-adblock.egern.yaml)：双条件素材规则、单域 QUIC 与已知页面净化。
 - [红果](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/hongguo/hongguo-adblock.egern.yaml)：78 条广告/上报条件，不拒绝主配置公共 DNS。
 - [戒烟军团](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jyjt/jyjt-member.egern.yaml)：已知明文 SOAP 响应的客户端标志位。
-- [蔚来](https://raw.githubusercontent.com/atopsecret/SurgeScripts/refs/heads/main/weilai/weilai-auto-checkin.egern.yaml?v=3.1.2)：原生凭据捕获、09:00 定时签到、现有响应的当日统计观察和本地诊断；成功通知带表情，凭据提醒精简并按 30 秒合并。
+- [蔚来](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/weilai/weilai-auto-checkin.egern.yaml?v=3.2.0)：原生凭据捕获、09:00 定时签到和本地诊断；累计缺失时先做一次有上限的同接口 POST 统计复查，完成后只通知一次，并保留当日响应观察。
 
 本次按 Egern 2.21 的当前文档检查。先停用同一 App 的旧兼容模块，再添加原生链接，检查资源下载与脚本版本。HTTPS 改写需要启用 MITM、安装并信任 Egern 当前 CA。红果的域名规则、戒烟军团的已知明文接口不依赖证书。
 

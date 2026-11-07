@@ -85,8 +85,9 @@ async function flush() { for (let i = 0; i < 50; i++) await Promise.resolve(); }
 async function harness(options = {}) {
     const clock = options.clock || { now: NOW };
     const store = options.store || stateStore();
-    const timers = new Map(), posts = [], notices = [], logs = [], reads = [], writes = [], pending = [], pendingBodies = [];
+    const timers = new Map(), posts = [], statisticsPosts = [], notices = [], logs = [], reads = [], writes = [], pending = [], pendingBodies = [];
     const replies = options.replies ? [...options.replies] : [];
+    const statisticsReplies = options.statisticsReplies ? [...options.statisticsReplies] : [];
     let serial = 0, completed = false, result, taskError;
     class Clock extends Date { static now() { return clock.now; } }
     const context = vm.createContext({ Date: Clock,
@@ -147,9 +148,15 @@ async function harness(options = {}) {
         },
         notify: value => { if (options.notificationThrows) throw Error('SECRET_NOTIFICATION'); notices.push(plain(value)); },
         http: { post: (url, request) => {
-            posts.push({ url, ...plain(request) });
+            const call = { url, ...plain(request) };
+            posts.push(call);
             if (options.postThrows) throw Error('SECRET_HTTP_THROW');
-            const reply = replies.shift() || {};
+            const saved = store.has(JOURNAL) ? JSON.parse(store.get(JOURNAL)).confirmed : null;
+            const current = store.has(KEY) ? JSON.parse(store.get(KEY)) : null;
+            const isStatistics = saved && current && saved.generation === current.generation &&
+                saved.day === new Date(clock.now + 8 * 3600000).toISOString().slice(0, 10);
+            if (isStatistics) statisticsPosts.push(call);
+            const reply = isStatistics ? statisticsReplies.shift() || { status: 503 } : replies.shift() || {};
             if (reply.before) reply.before(store, options);
             if (reply.error) return Promise.reject(Error('SECRET_NETWORK_ERROR'));
             const res = reply.noResponse ? undefined : response(reply); responses.push(res);
@@ -173,7 +180,7 @@ async function harness(options = {}) {
         }
         throw Error('虚拟定时器异常循环');
     }
-    return { store, clock, timers, posts, notices, logs, reads, writes, responses, pending, pendingBodies, promise,
+    return { store, clock, timers, posts, statisticsPosts, notices, logs, reads, writes, responses, pending, pendingBodies, promise,
         namespace: module.namespace, invoke, advance, options, get completed() { return completed; },
         get output() { return result; }, get error() { return taskError; } };
 }
@@ -538,7 +545,7 @@ test('未到期锁阻止重入，过期锁可回收；确认写入的是自己�
     } });
     assert.equal(stolen.posts.length, 0); assert.equal(journal(stolen).lock.id, 'offline_other_run');
 });
-test('已确认成功按 UTC+8 日界和同凭据 generation 去重，不为统计再 POST', async () => {
+test('已确认成功按 UTC+8 日界和同凭据 generation 去重，完整统计不再 POST', async () => {
     const h = await harness(); await h.promise; await h.invoke();
     assert.equal(h.posts.length, 1); assert.equal(subtitle(h), '今日已签到 ✅');
     assert.equal(journal(h).confirmed.generation, GENERATION); assert.equal(journal(h).confirmed.day, '2026-11-05');
@@ -675,13 +682,15 @@ test('解析/业务状态错误、checked_in 不为 true 均不标记成功或�
         const h = await harness({ replies: [reply] }); assert.equal(h.posts.length, 1); assert.equal(journal(h).confirmed, null); assertPrivate(h);
     }
 });
-test('统计只收非负安全整数，缺失显示未知；不为补统计再请求', async () => {
+test('统计只收非负安全整数，复查失败仍显示未知，零值不额外请求', async () => {
     for (const stats of [{}, { continuous_days: 0, accumulate_days: 0 }, { continuous_checkin_days: -1, accumulate_days: 'SECRET_STATS' },
         { continuous_checkin_days: 1.5, accumulate_days: Number.MAX_SAFE_INTEGER + 1 },
         ...['', ' ', '-1', '1.5', '1e3', 'Infinity', '9007199254740992', '00000000000000000', true, null]
             .map(value => ({ continuous_checkin_days: value, accumulate_days: value }))]) {
         const h = await harness({ replies: [{ body: { result_code: 'success', data: { checked_in: true, stats } } }] });
-        assert.equal(h.posts.length, 1); assert.match(h.notices[0].body, stats.continuous_days === 0 ? /0 天/ : /未知/); assertPrivate(h);
+        assert.equal(h.posts.length, stats.continuous_days === 0 ? 1 : 2);
+        assert.equal(h.statisticsPosts.length, stats.continuous_days === 0 ? 0 : 1);
+        assert.match(h.notices[0].body, stats.continuous_days === 0 ? /0 天/ : /未知/); assertPrivate(h);
         assert.equal(h.logs.some(line => line.includes('统计字段类型：')), stats.continuous_days !== 0);
     }
 });
@@ -756,7 +765,7 @@ test('累计别名仍拒绝任意文本、不安全数字与无效容器，不�
         } } }] });
         assert.equal(h.notices[0].body, '🔥 连续签到：564 天\n📊 累计签到：未知');
         assert.deepEqual(journal(h).confirmed.stats, { consecutive: 564 });
-        assert.equal(h.posts.length, 1); assertPrivate(h);
+        assert.equal(h.posts.length, 2); assert.equal(h.statisticsPosts.length, 1); assertPrivate(h);
     }
     for (const award_info of [[{ total_days: 570 }], 'SECRET_STATS', null, true]) {
         const h = await harness({ replies: [{ body: { result_code: 'success', data: {
@@ -765,7 +774,7 @@ test('累计别名仍拒绝任意文本、不安全数字与无效容器，不�
         assert.equal(h.notices[0].body, '🔥 连续签到：564 天\n📊 累计签到：未知'); assertPrivate(h);
     }
 });
-test('截图中的连续有值累计缺失不补签到、不把昨天累计加一', async () => {
+test('截图中的累计缺失仅有限复查，不把昨天累计加一', async () => {
     const store = stateStore();
     store.set(JOURNAL, JSON.stringify({ version: 1, lock: null, confirmed: {
         generation: GENERATION, day: '2026-11-05', confirmedAt: NOW,
@@ -779,7 +788,7 @@ test('截图中的连续有值累计缺失不补签到、不把昨天累计加�
     assert.equal(journal(h).confirmed.day, '2026-11-06');
     assert.deepEqual(journal(h).confirmed.stats, { consecutive: 564 });
     assert.match(h.logs.join('\n'), /stats\.accumulate_days=missing, accumulate_days=missing/);
-    await h.invoke(); assert.equal(h.posts.length, 1); assertPrivate(h);
+    await h.invoke(); assert.equal(h.posts.length, 3); assert.equal(h.statisticsPosts.length, 2); assertPrivate(h);
 });
 test('确认记录保存失败不伪报防重成功，保留租约并明确说明', async () => {
     const h = await harness({ writeHook: (key, value) => key === JOURNAL && value.confirmed ? false : undefined });
@@ -851,10 +860,11 @@ test('昨日、未来时间与另一 generation 的观察都不能填入今日�
         assert.match(h.output.children[0].text, /今日记录：已确认\n连续签到：564 天\n累计签到：未知/);
         assert.doesNotMatch(h.output.children[0].text, /累计来源：|累计签到：570 天/);
         await h.invoke(); assert.match(h.notices.at(-1).body, /累计签到：未知/);
-        assert.equal(h.posts.length, 0); assert.equal(h.writes.length, 0); assertPrivate(h);
+        assert.equal(h.posts.length, 1); assert.equal(h.statisticsPosts.length, 1);
+        assert.equal(h.writes.length, 2); assertPrivate(h);
     }
 });
-test('今日缺累计观察不沿用昨日 569，不自行加一或为补统计重发', async () => {
+test('今日缺累计观察不沿用昨日 569，有限复查失败仍不自行加一', async () => {
     const store = confirmedStore({ consecutive: 563, total: 569 }, { day: '2026-11-04', confirmedAt: NOW - 86400000 });
     setObservation(store, { day: '2026-11-04', observedAt: NOW - 86400000, stats: { consecutive: 563, total: 569 } });
     const before = store.get(JOURNAL), partial = { result_code: 'success', data: { checked_in: true,
@@ -864,9 +874,10 @@ test('今日缺累计观察不沿用昨日 569，不自行加一或为补统计�
     assertOriginalBytes(h, response); assert.deepEqual(JSON.parse(store.get(OBSERVATION)).stats, { consecutive: 564 });
     assert.equal(store.get(JOURNAL), before);
     const diagnostic = await h.invoke({}); assert.match(diagnostic.children[0].text, /今日记录：未确认/);
-    await h.invoke(); assert.equal(h.posts.length, 1); assert.deepEqual(journal(h).confirmed.stats, { consecutive: 564 });
+    await h.invoke(); assert.equal(h.posts.length, 2); assert.equal(h.statisticsPosts.length, 1);
+    assert.deepEqual(journal(h).confirmed.stats, { consecutive: 564 });
     assert.equal(h.notices.at(-1).body, '🔥 连续签到：564 天\n📊 累计签到：未知');
-    await h.invoke(); assert.equal(h.posts.length, 1); assertPrivate(h);
+    await h.invoke(); assert.equal(h.posts.length, 3); assert.equal(h.statisticsPosts.length, 2); assertPrivate(h);
 });
 test('没有今日 confirmed 时独立观察不冒充签到成功，也不创建 journal 或锁', async () => {
     const store = stateStore(), before = store.get(KEY), response = observationResponse();
@@ -1033,7 +1044,10 @@ test('观察字段元数据损坏只隐藏元数据，保留有效同日数字�
             assert.match(h.output.children[0].text, /今日记录：已确认\n连续签到：564 天/);
             assert.match(h.output.children[0].text, stats.total === undefined ? /累计签到：未知/ : /累计签到：570 天/);
             assert.doesNotMatch(h.output.children[0].text, /累计字段类型：/);
-            await h.invoke(); assert.equal(h.posts.length, 0); assert.equal(h.writes.length, 0); assertPrivate(h);
+            await h.invoke();
+            assert.equal(h.posts.length, stats.total === undefined ? 1 : 0);
+            assert.equal(h.statisticsPosts.length, stats.total === undefined ? 1 : 0);
+            assert.equal(h.writes.length, stats.total === undefined ? 2 : 0); assertPrivate(h);
         }
     }
 });
@@ -1047,15 +1061,18 @@ test('新 confirmed 固定字段类型可直接诊断，响应值与 Token 不�
     const diagnostic = await h.invoke({});
     assert.match(diagnostic.children[0].text, /累计签到：未知\n累计字段类型：stats\.accumulate_days=object, accumulate_days=missing/);
     assert.doesNotMatch(JSON.stringify(journal(h)), /SECRET_|Bearer|OFFLINE_FIXTURE/);
-    assert.equal(h.posts.length, 1); assertPrivate(h);
+    assert.equal(h.posts.length, 2); assert.equal(h.statisticsPosts.length, 1); assertPrivate(h);
 });
-test('旧 3.0.1 confirmed 没有 fields 仍可诊断与当天去重，不重签或搬写', async () => {
+test('旧 3.0.1 confirmed 没有 fields 仍可诊断，缺累计可复查且不搬写凭据', async () => {
     for (const stats of [{ consecutive: 563, total: 569 }, { consecutive: 564 }]) {
         const store = confirmedStore(stats), before = new Map(store), h = await harness({ store, generic: true }); await h.promise;
         assert.match(h.output.children[0].text, /今日记录：已确认/);
         assert.match(h.output.children[0].text, stats.total === undefined ? /旧记录没有字段类型/ : /累计签到：569 天/);
-        await h.invoke(); assert.equal(subtitle(h), '今日已签到 ✅'); assert.equal(h.posts.length, 0);
-        assert.equal(h.writes.length, 0); assert.deepEqual(store, before); assert.equal(journal(h).confirmed.fields, undefined); assertPrivate(h);
+        await h.invoke(); assert.equal(subtitle(h), '今日已签到 ✅');
+        assert.equal(h.posts.length, stats.total === undefined ? 1 : 0);
+        assert.equal(h.statisticsPosts.length, stats.total === undefined ? 1 : 0);
+        assert.equal(h.writes.length, stats.total === undefined ? 2 : 0);
+        assert.deepEqual(store, before); assert.equal(journal(h).confirmed.fields, undefined); assertPrivate(h);
     }
 });
 test('非法 confirmed.fields 只忽略元数据，不废掉有效 today、阻止去重或重签', async () => {
@@ -1067,7 +1084,8 @@ test('非法 confirmed.fields 只忽略元数据，不废掉有效 today、阻�
         assert.match(h.output.children[0].text, /今日记录：已确认\n连续签到：564 天\n累计签到：未知/);
         assert.match(h.output.children[0].text, /任务锁：有效/);
         assert.doesNotMatch(h.output.children[0].text, /本地状态无法读取|累计字段类型：/);
-        await h.invoke(); assert.equal(subtitle(h), '今日已签到 ✅');
+        await h.invoke(); assert.equal(h.notices.length, 0);
+        assert.match(h.logs.join('\n'), /已有统计复查任务/);
         assert.equal(h.posts.length, 0); assert.equal(h.writes.length, 0); assert.deepEqual(store, before); assertPrivate(h);
     }
 });
@@ -1091,6 +1109,156 @@ test('被动观察仅保存固定字段名和有限类型，缺统计不伪造�
     const diagnostic = await h.invoke({}); assert.match(diagnostic.children[0].text, /累计签到：未知\n累计字段类型：/);
     assertPrivate(h);
 });
+const PARTIAL_TODAY = { result_code: 'success', data: { checked_in: true, stats: { continuous_checkin_days: 565 } } };
+const FULL_TODAY = { result_code: 'success', data: { checked_in: true, stats: { continuous_checkin_days: 565, accumulate_days: 571 } } };
+
+test('统计复查：首个响应先存成功，第二次取齐累计后只通知一次', async () => {
+    const h = await harness({ replies: [{ body: PARTIAL_TODAY }], statisticsReplies: [{ body: FULL_TODAY, defer: true }] });
+    assert.equal(h.posts.length, 2); assert.equal(h.statisticsPosts.length, 1);
+    assert.equal(h.notices.length, 0); assert.equal(h.completed, false);
+    assert.deepEqual(journal(h).confirmed.stats, { consecutive: 565 }); assert.ok(journal(h).lock);
+    const request = h.statisticsPosts[0], url = new URL(request.url);
+    assert.equal(url.origin + url.pathname, 'https://gateway-front-external.nio.com/moat/10086/c/award_cn/checkin');
+    assert.equal(url.searchParams.get('app_id'), '10086'); assert.equal(request.body, 'event=checkin');
+    assert.equal(request.redirect, 'manual'); assert.equal(request.credentials, 'omit'); assert.equal(request.insecureTls, false);
+    assert.equal(request.timeout, 5000); assert.equal(request.headers.authorization, TOKEN);
+    h.pending[0](); await h.promise;
+    assert.deepEqual(h.notices, [{ title: '蔚来签到', subtitle: '签到成功 ✅',
+        body: '🔥 连续签到：565 天\n📊 累计签到：571 天', sound: false }]);
+    assert.deepEqual(journal(h).confirmed.stats, { consecutive: 565, total: 571 });
+    assert.equal(journal(h).confirmed.confirmedAt, NOW); assert.equal(journal(h).lock, null);
+    assert.equal(journal(h).confirmed.fields['stats.accumulate_days'], 'number');
+    const widget = await h.invoke({}); assert.match(widget.children[0].text, /累计签到：571 天/);
+    assert.equal(h.posts.length, 2); assertPrivate(h);
+});
+test('统计复查：今日旧记录缺累计时仅复查一次，保存后再运行不追加请求', async () => {
+    const store = confirmedStore({ consecutive: 565 }), before = JSON.parse(store.get(JOURNAL)).confirmed;
+    const h = await harness({ store, statisticsReplies: [{ body: FULL_TODAY }] }); await h.promise;
+    assert.equal(h.posts.length, 1); assert.equal(h.statisticsPosts.length, 1);
+    assert.equal(subtitle(h), '今日已签到 ✅'); assert.match(h.notices[0].body, /累计签到：571 天/);
+    assert.equal(journal(h).confirmed.confirmedAt, before.confirmedAt);
+    assert.deepEqual(journal(h).confirmed.stats, { consecutive: 565, total: 571 });
+    await h.invoke(); assert.equal(h.posts.length, 1); assert.equal(h.notices.length, 2); assertPrivate(h);
+});
+test('统计复查：首个响应已有完整统计或合法零值时不追加请求', async () => {
+    for (const stats of [{ continuous_checkin_days: 565, accumulate_days: 571 }, { continuous_days: 0, accumulate_days: 0 }]) {
+        const h = await harness({ replies: [{ body: { result_code: 'success', data: { checked_in: true, stats } } }] }); await h.promise;
+        assert.equal(h.posts.length, 1); assert.equal(h.statisticsPosts.length, 0); assert.equal(h.notices.length, 1);
+        await h.invoke(); assert.equal(h.posts.length, 1); assertPrivate(h);
+    }
+});
+test('统计复查：晚到的当日观察可在复查失败后补齐最终通知', async () => {
+    const h = await harness({ replies: [{ body: PARTIAL_TODAY }], statisticsReplies: [{ status: 503, defer: true }] });
+    assert.equal(h.notices.length, 0); assert.equal(h.posts.length, 2);
+    setObservation(h.store, { stats: { consecutive: 565, total: 571 } });
+    h.pending[0](); await h.promise;
+    assert.equal(h.notices.length, 1); assert.match(h.notices[0].body, /累计签到：571 天/);
+    assert.deepEqual(journal(h).confirmed.stats, { consecutive: 565, total: 571 }); assertPrivate(h);
+});
+test('统计复查：网络和业务失败不重试、不作废凭据、不丢成功记录', async () => {
+    for (const reply of [{ status: 401 }, { status: 403 }, { status: 429, headers: { 'Retry-After': '1' } },
+        { status: 500 }, { status: 302 }, { noResponse: true }, { error: true }, { text: 'SECRET_BAD_JSON' },
+        { body: { result_code: 'failure', message: 'SECRET_SERVER' } },
+        { body: { result_code: 'success', data: { checked_in: false, stats: { accumulate_days: 571 } } } }]) {
+        const h = await harness({ replies: [{ body: PARTIAL_TODAY }], statisticsReplies: [reply] }); await h.promise;
+        assert.equal(h.posts.length, 2); assert.equal(h.statisticsPosts.length, 1); assert.equal(h.notices.length, 1);
+        assert.equal(subtitle(h), '签到成功 ✅'); assert.match(h.notices[0].body, /累计签到：未知/);
+        assert.deepEqual(journal(h).confirmed.stats, { consecutive: 565 }); assert.equal(journal(h).lock, null);
+        assert.equal(JSON.parse(h.store.get(KEY)).invalid, false); assertPrivate(h);
+    }
+});
+test('统计复查：超时后只通知一次，迟到的成功响应不补写或改通知', async () => {
+    const h = await harness({ replies: [{ body: PARTIAL_TODAY }], statisticsReplies: [{ body: FULL_TODAY, defer: true }] });
+    assert.equal(h.notices.length, 0); await h.advance(5000); await h.promise;
+    assert.equal(h.notices.length, 1); assert.equal(subtitle(h), '签到成功 ✅');
+    const saved = h.store.get(JOURNAL), writes = h.writes.length;
+    h.pending[0](); await flush(); await h.advance(5000);
+    assert.equal(h.notices.length, 1); assert.equal(h.posts.length, 2); assert.equal(h.store.get(JOURNAL), saved);
+    assert.equal(h.writes.length, writes); assert.equal(h.responses[1].consumed, 0); assertPrivate(h);
+});
+test('统计复查：响应正文也受同一个五秒上限约束，迟到正文不能生效', async () => {
+    const h = await harness({ replies: [{ body: PARTIAL_TODAY }], statisticsReplies: [{ bodyHang: true }] });
+    assert.equal(h.notices.length, 0); assert.equal(h.responses[1].consumed, 1);
+    await h.advance(5000); await h.promise; const saved = h.store.get(JOURNAL);
+    h.pendingBodies[0](JSON.stringify(FULL_TODAY)); await flush();
+    assert.equal(h.notices.length, 1); assert.equal(h.store.get(JOURNAL), saved); assertPrivate(h);
+});
+test('统计复查：在途凭据换代时停止，不写入另一账号或通知旧统计', async () => {
+    const h = await harness({ replies: [{ body: PARTIAL_TODAY }], statisticsReplies: [{ body: FULL_TODAY, defer: true }] });
+    h.store.set(KEY, JSON.stringify(state({ token: NEW_TOKEN, generation: NEXT })));
+    h.pending[0](); await h.promise;
+    assert.equal(h.notices.length, 1); assert.equal(subtitle(h), '凭据状态已变化');
+    assert.deepEqual(journal(h).confirmed.stats, { consecutive: 565 });
+    assert.equal(JSON.parse(h.store.get(KEY)).generation, NEXT); assertPrivate(h);
+});
+test('统计复查：在途锁被其它任务接管后不覆盖或释放其它锁', async () => {
+    const h = await harness({ replies: [{ body: PARTIAL_TODAY }], statisticsReplies: [{ body: FULL_TODAY, defer: true }] });
+    const saved = journal(h); saved.lock.id = 'offline_other_lease'; h.store.set(JOURNAL, JSON.stringify(saved));
+    const raw = h.store.get(JOURNAL); h.pending[0](); await h.promise;
+    assert.equal(subtitle(h), '任务锁已变化'); assert.equal(h.store.get(JOURNAL), raw); assertPrivate(h);
+});
+test('统计复查：跨越 UTC+8 日界后不将昨日统计写成今日结果', async () => {
+    const clock = { now: Date.parse('2026-11-05T15:59:59Z') };
+    const h = await harness({ clock, replies: [{ body: PARTIAL_TODAY }], statisticsReplies: [{ body: FULL_TODAY, defer: true }] });
+    await h.advance(2000); h.pending[0](); await h.promise;
+    assert.equal(subtitle(h), '签到日期已变化'); assert.equal(journal(h).confirmed.day, '2026-11-05');
+    assert.deepEqual(journal(h).confirmed.stats, { consecutive: 565 }); assertPrivate(h);
+});
+test('统计复查：累计只补缺失值，保留首个连续数并接受零与纯数字字符串', async () => {
+    for (const [consecutive, observed, total] of [[565, { continuous_checkin_days: 999, accumulate_days: '571' }, 571],
+        [0, { continuous_checkin_days: 2, accumulate_days: '0' }, 0]]) {
+        const h = await harness({ replies: [{ body: { result_code: 'success', data: { checked_in: true,
+            stats: { continuous_checkin_days: consecutive } } } }],
+            statisticsReplies: [{ body: { result_code: 'success', data: { checked_in: true, stats: observed } } }] }); await h.promise;
+        assert.deepEqual(journal(h).confirmed.stats, { consecutive, total }); assert.equal(h.notices.length, 1); assertPrivate(h);
+    }
+});
+test('统计复查：拒绝小于连续数或非法的累计，不猜测昨天加一', async () => {
+    for (const total of [0, 564, -1, 571.5, 'SECRET_TOTAL', '571天', ' 571', '9007199254740992', true, null, {}]) {
+        const h = await harness({ replies: [{ body: PARTIAL_TODAY }], statisticsReplies: [{ body: {
+            result_code: 'success', data: { checked_in: true, stats: { accumulate_days: total } },
+        } }] }); await h.promise;
+        assert.deepEqual(journal(h).confirmed.stats, { consecutive: 565 }); assert.match(h.notices[0].body, /累计签到：未知/);
+        assert.equal(h.posts.length, 2); assertPrivate(h);
+    }
+});
+test('统计复查：初次签到耗尽大部分预算时不追加请求，仍保留成功', async () => {
+    const clock = { now: NOW };
+    const h = await harness({ clock, replies: [{ body: PARTIAL_TODAY, beforeText: () => { clock.now = NOW + 23500; } }] });
+    await h.promise; assert.equal(h.posts.length, 1); assert.equal(h.statisticsPosts.length, 0);
+    assert.equal(subtitle(h), '签到成功 ✅'); assert.equal(journal(h).confirmed.day, '2026-11-05');
+    assert.equal(journal(h).lock, null); assertPrivate(h);
+});
+test('统计复查：初次签到的 429 重试与复查分别计数，总预算不重置', async () => {
+    const h = await harness({ replies: [{ status: 429, headers: { 'Retry-After': '1' } },
+        { status: 429, headers: { 'Retry-After': '1' } }, { body: PARTIAL_TODAY }], statisticsReplies: [{ body: FULL_TODAY }] });
+    await h.advance(2000); await h.promise;
+    assert.equal(h.posts.length, 4); assert.equal(h.statisticsPosts.length, 1); assert.equal(h.notices.length, 1);
+    assert.deepEqual(journal(h).confirmed.stats, { consecutive: 565, total: 571 }); assertPrivate(h);
+});
+test('统计复查：补充统计保存失败仍显示真实结果，原签到确认保持有效', async () => {
+    const h = await harness({ replies: [{ body: PARTIAL_TODAY }], statisticsReplies: [{ body: FULL_TODAY }],
+        writeHook: (key, value) => key === JOURNAL && value.confirmed?.stats.total === 571 ? false : undefined }); await h.promise;
+    assert.equal(h.notices.length, 1); assert.match(h.notices[0].body, /累计签到：571 天/);
+    assert.deepEqual(journal(h).confirmed.stats, { consecutive: 565 }); assert.equal(journal(h).lock, null); assertPrivate(h);
+});
+test('统计复查：保存首次成功时刚好收到完整观察则免去额外请求', async () => {
+    const h = await harness({ replies: [{ body: PARTIAL_TODAY }], writeHook: (key, value, store) => {
+        if (key === JOURNAL && value.confirmed && value.confirmed.stats.total === undefined) {
+            setObservation(store, { stats: { consecutive: 565, total: 571 } });
+        }
+    } }); await h.promise;
+    assert.equal(h.posts.length, 1); assert.equal(h.statisticsPosts.length, 0); assert.equal(h.notices.length, 1);
+    assert.deepEqual(journal(h).confirmed.stats, { consecutive: 565, total: 571 }); assertPrivate(h);
+});
+test('统计复查：并发运行在持锁复查完成前保持静默，不追加请求或提前通知', async () => {
+    const h = await harness({ replies: [{ body: PARTIAL_TODAY }], statisticsReplies: [{ body: FULL_TODAY, defer: true }] });
+    await h.invoke(); assert.equal(h.posts.length, 2); assert.equal(h.notices.length, 0);
+    h.pending[0](); await h.promise;
+    assert.equal(h.posts.length, 2); assert.equal(h.notices.length, 1);
+    assert.match(h.notices[0].body, /累计签到：571 天/); assertPrivate(h);
+});
+
 test('原生 YAML 四入口/版本/09:00/三个 MITM 主机、固定脚本引用都正确', () => {
     const version = source.match(/\/\/ Version: ([\d.]+)/)[1];
     assert.ok(yaml.description.startsWith(version));

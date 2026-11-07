@@ -2,11 +2,11 @@
 // Build: 无需构建
 // Run: 导入 weilai-auto-checkin.egern.yaml；重新捕获凭据；定时任务每天 09:00
 // Deps: Egern ctx API；测试：node --experimental-vm-modules --test weilai/tests/egern.test.cjs
-// Version: 3.1.3
+// Version: 3.2.0
 // Author: atopsecret；与本目录 Surge 版使用相同业务路径，凭据存储独立。
 
 export const CONFIG = Object.freeze({
-    version: "3.1.3",
+    version: "3.2.0",
     stateKey: "weilai_egern_auth_state_v1",
     journalKey: "weilai_egern_checkin_v1",
     statisticsKey: "weilai_egern_statistics_v1",
@@ -431,17 +431,94 @@ function invalidate(ctx, snapshot, lease, deadline) {
     const { current } = guard(ctx, snapshot, lease, deadline);
     writeVerified(ctx, CONFIG.stateKey, { ...current, invalid: true });
 }
+function checkinRequest(state, timeout = CONFIG.requestTimeoutMs) {
+    return {
+        url: CONFIG.endpoint + "?app_id=10086&timestamp=" + Math.floor(Date.now() / 1000),
+        options: {
+            headers: { authorization: state.token, "content-type": "application/x-www-form-urlencoded", accept: "application/json",
+                "user-agent": validUA(state.userAgent) ? state.userAgent : CONFIG.fallbackUA },
+            body: "event=checkin", timeout,
+            redirect: "manual", credentials: "omit", insecureTls: false
+        }
+    };
+}
+function confirmedJournal(ctx, state, lease, day) {
+    // 复查失败不推翻已确认结果；仍严格检查账号、锁与日界。
+    const { journal } = guard(ctx, state, lease, Infinity);
+    if (!journal.confirmed || journal.confirmed.generation !== state.generation ||
+        journal.confirmed.day !== day || businessDay() !== day) {
+        throw new TaskStop("签到日期已变化", "本次统计复查已停止，请查看当前日期的签到记录。");
+    }
+    return journal;
+}
+async function refreshConfirmedStatistics(ctx, state, lease, deadline, day) {
+    let current = confirmedJournal(ctx, state, lease, day);
+    const initial = completeStatistics(current.confirmed.stats, matchingObservation(ctx, state));
+    let supplement = {}, fields;
+    if (!statNumber(initial.total)) {
+        const milliseconds = Math.min(CONFIG.requestTimeoutMs, deadline - Date.now() - 500);
+        if (milliseconds >= 500) {
+            // 旧版的 fetchCheckinStats 也是这个 POST；仅在成功标记已保存后复查一次。
+            // 它不是读取控制台日志或新猜测的 GET，不重试限流、超时或未知响应。
+            console.log("[蔚来签到] 累计统计复查 1/1；完成后统一通知。");
+            try {
+                const { url, options } = checkinRequest(state, milliseconds);
+                const requestDeadline = Date.now() + milliseconds;
+                const response = await limited(() => {
+                    confirmedJournal(ctx, state, lease, day);
+                    if (Date.now() >= requestDeadline) throw new TimeoutError("timeout");
+                    return ctx.http.post(url, options);
+                }, requestDeadline - Date.now());
+                confirmedJournal(ctx, state, lease, day);
+                if (!response || response.status !== 200) throw new Error("statistics-unavailable");
+                const text = await limited(() => response.text(), requestDeadline - Date.now());
+                confirmedJournal(ctx, state, lease, day);
+                const result = JSON.parse(text.replace(/^\uFEFF/, ""));
+                if (!record(result) || result.result_code !== "success" || !record(result.data) ||
+                    result.data.checked_in !== true) throw new Error("statistics-unconfirmed");
+                supplement = statistics(result.data);
+                fields = fieldTypes(result.data);
+            } catch (error) {
+                if (error instanceof TaskStop) throw error;
+                console.log("[蔚来签到] 累计统计复查未补齐；保留已确认签到。");
+            }
+        } else console.log("[蔚来签到] 剩余预算不足，未追加统计复查。");
+    }
+    // 再读一次当日观察，接上等待复查期间才写入的真实统计。
+    current = confirmedJournal(ctx, state, lease, day);
+    const observed = completeStatistics(current.confirmed.stats, matchingObservation(ctx, state));
+    const stats = completeStatistics(observed, { stats: supplement });
+    if (!statNumber(current.confirmed.stats.total) && statNumber(stats.total) &&
+        statNumber(stats.consecutive) && stats.total < stats.consecutive) delete stats.total;
+    if (["consecutive", "total"].some(name => stats[name] !== current.confirmed.stats[name])) {
+        const updatedFields = fields && validFieldTypes(current.confirmed.fields) ? {
+            ...current.confirmed.fields, ...Object.fromEntries(Object.entries(fields).filter(([, type]) => type !== "missing"))
+        } : fields || current.confirmed.fields;
+        try {
+            writeVerified(ctx, CONFIG.journalKey, { ...current, confirmed: { ...current.confirmed, stats,
+                ...(updatedFields ? { fields: updatedFields } : {}) } });
+        } catch (_) { console.log("[蔚来签到] 补充统计未确认保存；本次使用已校验结果。"); }
+    }
+    confirmedJournal(ctx, state, lease, day);
+    return stats;
+}
 async function runCheckin(ctx) {
     console.log("[蔚来签到] Egern 原生脚本版本 " + CONFIG.version);
     let state, journal;
     try { state = readState(ctx); journal = readJournal(ctx); }
     catch (_) { report(ctx, "凭据或任务状态损坏", "请检查 Egern 本地存储并重新捕获凭据；不会读取旧 Surge 键。"); return; }
     if (!state || state.invalid) { report(ctx, "需要更新凭据", "请在 Egern 开启解密后，重新登录蔚来 App 并打开签到或个人页面。"); return; }
-    if (journal.confirmed && journal.confirmed.generation === state.generation && journal.confirmed.day === businessDay()) {
+    const alreadyConfirmed = journal.confirmed && journal.confirmed.generation === state.generation && journal.confirmed.day === businessDay();
+    if (alreadyConfirmed) {
         const stats = completeStatistics(journal.confirmed.stats, matchingObservation(ctx, state));
-        report(ctx, "今日签到已确认（本地记录）", statsMessage(stats) + "\n本次未发送签到请求。"); return;
+        if (statNumber(stats.total)) {
+            report(ctx, "今日签到已确认（本地记录）", statsMessage(stats) + "\n本次未发送签到请求。"); return;
+        }
     }
     if (journal.lock && journal.lock.expiresAt > Date.now()) {
+        if (alreadyConfirmed) {
+            report(ctx, "已有统计复查任务", "等待持锁任务补齐统计并统一通知。", false); return;
+        }
         report(ctx, "已有签到任务", "本地任务锁尚未到期，本次不重复提交。"); return;
     }
     const acquiredAt = Date.now();
@@ -452,19 +529,17 @@ async function runCheckin(ctx) {
         // 短同步临界段 + 写入回读防止常见重入；storage 无 CAS，不宣称跨进程绝对互斥。
         writeVerified(ctx, CONFIG.journalKey, { ...journal, lock: lease });
         acquired = true;
+        if (alreadyConfirmed) {
+            const stats = await refreshConfirmedStatistics(ctx, state, lease, deadline, journal.confirmed.day);
+            report(ctx, "今日签到已确认（本地记录）", statsMessage(stats)); return;
+        }
         for (let attempt = 1; attempt <= CONFIG.maxAttempts; attempt++) {
             guard(ctx, state, lease, deadline);
             if (deadline - Date.now() < CONFIG.requestTimeoutMs + 500) {
                 report(ctx, "签到未完成", "剩余时间不足，请在 App 查看或稍后手动运行。"); return;
             }
             const attemptDeadline = Date.now() + CONFIG.requestTimeoutMs;
-            const url = CONFIG.endpoint + "?app_id=10086&timestamp=" + Math.floor(Date.now() / 1000);
-            const options = {
-                headers: { authorization: state.token, "content-type": "application/x-www-form-urlencoded", accept: "application/json",
-                    "user-agent": validUA(state.userAgent) ? state.userAgent : CONFIG.fallbackUA },
-                body: "event=checkin", timeout: CONFIG.requestTimeoutMs,
-                redirect: "manual", credentials: "omit", insecureTls: false
-            };
+            const { url, options } = checkinRequest(state);
             console.log("[蔚来签到] 提交尝试 " + attempt + "/" + CONFIG.maxAttempts);
             let response;
             try {
@@ -529,7 +604,7 @@ async function runCheckin(ctx) {
                 keepLease = true;
                 report(ctx, "签到未确认", "响应格式或业务状态未确认已签到；不自动重试，也不写每日成功记录。"); return;
             }
-            const stats = completeStatistics(statistics(result.data), matchingObservation(ctx, state));
+            let stats = completeStatistics(statistics(result.data), matchingObservation(ctx, state));
             const latest = guard(ctx, state, lease, deadline).journal;
             const confirmedAt = Date.now();
             try {
@@ -540,7 +615,7 @@ async function runCheckin(ctx) {
                 keepLease = true;
                 report(ctx, "今日签到已确认", statsMessage(stats) + "\n本地防重复记录未确认保存，请勿因存储错误立即重复提交。"); return;
             }
-            guard(ctx, state, lease, deadline);
+            stats = await refreshConfirmedStatistics(ctx, state, lease, deadline, businessDay(confirmedAt));
             // checked_in=true 不能区分新奖励与已签到，只报告已确认结果。
             report(ctx, "今日签到已确认", statsMessage(stats)); return;
         }

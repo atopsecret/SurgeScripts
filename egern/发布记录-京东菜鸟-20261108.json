@@ -1,0 +1,73 @@
+{
+  "checked_at": "2026-11-08T04:55:38.132125+00:00",
+  "commit": "795e2ad34bedbcc768c92c9edc3cc5f40ecd5a4b",
+  "remote_main": "795e2ad34bedbcc768c92c9edc3cc5f40ecd5a4b",
+  "resources": [
+    {
+      "path": "cainiao/cainiao-adblock.egern.js",
+      "url": "https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.js?v=eg-native-20261108-1.0.0",
+      "local_sha256": "54e6d2e6449e4070a0af4082fa0f5fbcbd1217c5447cf5329f5199f15eaabe64",
+      "http_status": 200,
+      "bytes": 10543,
+      "sha256": "54e6d2e6449e4070a0af4082fa0f5fbcbd1217c5447cf5329f5199f15eaabe64",
+      "same_bytes": true
+    },
+    {
+      "path": "cainiao/cainiao-adblock.egern.yaml",
+      "url": "https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.yaml",
+      "local_sha256": "4fdd47d37940cb0dd50b80e23861a4c9a4e1a60a7305c824e88a3fc472e9990a",
+      "http_status": 200,
+      "bytes": 2451,
+      "sha256": "4fdd47d37940cb0dd50b80e23861a4c9a4e1a60a7305c824e88a3fc472e9990a",
+      "same_bytes": true
+    },
+    {
+      "path": "jd/jd-ad-block.egern.js",
+      "url": "https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-ad-block.egern.js?v=2.0.0",
+      "local_sha256": "98e9604bb44ab38c3f27cba34cab96de1c620a28fb619a5533965ecb07433361",
+      "http_status": 200,
+      "bytes": 18119,
+      "sha256": "98e9604bb44ab38c3f27cba34cab96de1c620a28fb619a5533965ecb07433361",
+      "same_bytes": true
+    },
+    {
+      "path": "jd/jd-ad-block.js",
+      "url": "https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-ad-block.js?v=2.0.0",
+      "local_sha256": "c7aa78bd36e47c332bcdba80aba34b71690036652e471043ffebd7f973cab21e",
+      "http_status": 200,
+      "bytes": 17990,
+      "sha256": "c7aa78bd36e47c332bcdba80aba34b71690036652e471043ffebd7f973cab21e",
+      "same_bytes": true
+    },
+    {
+      "path": "jd/jd-adblock.egern.yaml",
+      "url": "https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml",
+      "local_sha256": "497c6dd4cea62a8752ab93e410e3bef5af2bf167189890332f38ad062940a993",
+      "http_status": 200,
+      "bytes": 2892,
+      "sha256": "497c6dd4cea62a8752ab93e410e3bef5af2bf167189890332f38ad062940a993",
+      "same_bytes": true
+    },
+    {
+      "path": "jd/jd-adblock.sgmodule",
+      "url": "https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.sgmodule",
+      "local_sha256": "95c6823444bd999bd395745ca2491bc8e1ef1405fb32017945cba42c41ec71be",
+      "http_status": 200,
+      "bytes": 6173,
+      "sha256": "95c6823444bd999bd395745ca2491bc8e1ef1405fb32017945cba42c41ec71be",
+      "same_bytes": true
+    },
+    {
+      "path": "jd/jd-post-capture.js",
+      "url": "https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-post-capture.js?v=2.0.0",
+      "local_sha256": "e21267065d4875fa97007f0301bd3c0d0079b79087d989c581825407e8c2828d",
+      "http_status": 200,
+      "bytes": 14349,
+      "sha256": "e21267065d4875fa97007f0301bd3c0d0079b79087d989c581825407e8c2828d",
+      "same_bytes": true
+    }
+  ],
+  "checked": 7,
+  "passed": 7,
+  "runtime_verified": false
+}

@@ -1,18 +1,24 @@
-# 菜鸟去广告（Egern 原生）
+# 菜鸟去广告（Surge / Egern）
 
 `eg-native-20261108-1.1.0` 在原有页面清理上补充广告 SDK、UC 曝光和一张已确认的 UC 推广图。新增规则来自菜鸟 `8.11.1105` 的授权抓包核对；原有规则保留固定 Kelee 来源。
 
-本模块使用 Egern 原生规则和 JavaScript API，脚本只处理已捕获的页面响应。
+Surge 与 Egern 各自使用原生模块和脚本。页面处理共用 `cainiao-policy.js`，构建时内联为独立文件；客户端不需要下载公共运行时。Surge 模块的规则、Map Local、页面匹配和解密主机从 Egern YAML 生成。
 
 ## 安装
 
-将下面的地址添加到 Egern 模块：
+Surge：将下面的地址添加到模块，需 Surge iOS `5.9.0+` / Mac `5.5.0+`：
+
+```text
+https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.sgmodule
+```
+
+Egern：将下面的地址添加到模块：
 
 ```text
 https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.yaml
 ```
 
-需要在 Egern 中安装并信任自己的 CA，开启下面七个主机的 HTTPS 解密。不要同时启用会处理相同菜鸟接口的旧模块。
+在所用客户端中安装并信任自己的 CA，开启下面七个主机的 HTTPS 解密。不要同时启用会处理相同菜鸟页面接口的旧模块。
 
 ```text
 netflow-mtop.cainiao.com
@@ -27,6 +33,8 @@ p3-sign.douyinpic.com
 从 `1.0.0` 更新时，在 Egern 模块管理中手动更新模块，确认描述显示 `eg-native-20261108-1.1.0`。只刷新远程脚本不会新增 YAML 中的拦截条件。检查新主机已加入解密范围，然后完全退出并重新打开菜鸟。
 
 广告 SDK 的域名拒绝不需要 HTTPS 解密；UC 曝光路径和图片的 UA 条件需要解密。已下载到 App 缓存的广告仍可能显示，新规则只能控制后续网络请求。
+
+Surge 模块描述显示 `1.1.0`。响应脚本启用二进制正文、完整响应头与 `webview` 引擎；本地诊断小组件为 Egern 专有入口，Surge 使用请求日志检查命中。
 
 ## 覆盖范围
 
@@ -69,7 +77,8 @@ p3-sign.douyinpic.com
 - 仅处理完整 HTTP `200`；非 JSON 媒体类型、非 UTF-8 声明、失败 `ret`、陌生 `code` 和显式业务失败不改写。
 - 列表字段仅接受数组，运营卡片仅接受对象或数组。未知标量类型保留，不创建缺少的路径。接口路径支持数值版本（如 `/1.0/`），不匹配相似 API 后缀。
 - 只有正文发生变化时才清理旧的长度、压缩、缓存和校验头，并设置 JSON UTF-8、`no-store` 与版本头；未触及的多值 Cookie 和业务头保留。
-- Generic 入口“菜鸟去广告诊断”显示版本、固定路由计数与最近状态，不发通知、不请求网络、不保存 URL、Cookie、账号或正文。每项计数封顶 `999999`。计数仅包含三组页面响应处理，域名、URL 和 Map Local 拦截请查看 Egern 请求日志。
+- Surge 在不修改正文时调用 `$done({})` 保留原响应；改写时以 UTF-8 字节返回，并保留完整响应头中的重复 Cookie 顺序。四类 Map Local 的空体与 `404` 和 Egern 一致；Egern 专用 Map Local 版本头不参与业务匹配，Surge 页面响应版本头为 `1.1.0`。
+- Egern Generic 入口“菜鸟去广告诊断”显示版本、固定路由计数与最近状态，不发通知、不请求网络、不保存 URL、Cookie、账号或正文。每项计数封顶 `999999`。计数仅包含三组页面响应处理，域名、URL 和 Map Local 拦截请查看请求日志。
 
 ## 来源
 
@@ -82,11 +91,15 @@ p3-sign.douyinpic.com
 
 `1.1.0` 的 HAR 补充规则独立于上面的固定插件来源。核对样本为 Surge iOS 导出的 169 条请求；原始 HAR、Cookie、设备标识、签名参数和响应正文均未进入仓库。公开记录只包含[主机聚合计数](har-audit-20261108.json)和[验证说明](验证记录-1.1.0.md)。
 
+新增 Surge 版的规则与页面处理来源相同，双端核对数据见[Surge HAR 记录](har-audit-surge-20261108.json)，构建和验证见[Surge 发布说明](验证记录-Surge-1.1.0.md)。
+
 ## 离线验证
 
 需要 Node.js 20+、Python 3 与 PyYAML 6（解析公开 YAML）。测试只使用合成响应，不连接菜鸟服务：
 
 ```sh
+node cainiao/build.mjs --check
+node --check cainiao/cainiao-adblock.js
 node --input-type=module --check < cainiao/cainiao-adblock.egern.js
 node --experimental-vm-modules --test cainiao/tests/*.test.cjs
 python3 egern/validate.py
@@ -96,3 +109,5 @@ python3 -m unittest discover -s egern -p test_validate.py -v
 菜鸟回归 **17/17 → 24/24**，新增广告主机边界、UC 完整路径、素材对象与 UA 双条件、解密范围、业务请求保留及诊断版本检查。全仓脚本 **594/594 → 601/601**，静态测试 **38/38 → 39/39**。
 
 同一份 HAR 的离线匹配 **0/169 → 123/169**，包括 43 条此前返回 HTTP 200 的广告相关请求。这是规则覆盖数量，不代表手机已经拦截成功；真机效果还取决于模块更新、CA、规则顺序和 App 缓存。详见[1.1.0 验证记录](验证记录-1.1.0.md)。
+
+新增 Surge 版后，菜鸟测试 **24/24 → 41/41**，包含 10 项 Surge、7 项双端一致性与构建测试；全仓脚本 **601/601 → 618/618**，静态测试保持 **39/39**。同一份 HAR 两端均匹配 **123/169**，逐条判断差异为零。手机端仍待验收。

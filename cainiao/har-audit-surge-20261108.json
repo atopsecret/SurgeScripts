@@ -1,0 +1,13 @@
+{
+  "version": "1.1.0",
+  "source": "与 har-audit-20261108.json 相同的授权 HAR；只保存聚合计数。",
+  "requests": 169,
+  "egern_matches": 123,
+  "surge_matches": 123,
+  "different_decisions": 0,
+  "matched_http_200": 43,
+  "preserved": 46,
+  "method": "离线解析 Surge 规则后与 Egern 条件逐条核对；未向广告或业务服务重放请求。",
+  "private_har_published": false,
+  "runtime_verified": false
+}

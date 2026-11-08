@@ -1,0 +1,63 @@
+// Engine | Surge iOS 5.9.0+ / Mac 5.5.0+ | JavaScript
+// Build: node cainiao/build.mjs
+// Run: 导入 cainiao/cainiao-adblock.sgmodule
+// Deps: Surge HTTP 脚本 API；纯策略由 cainiao-policy.js 构建时内联
+{{POLICY}}
+const P = CAINIAO_POLICY;
+
+function headerValue(headers, name) {
+    if (Array.isArray(headers)) {
+        const found = headers.find(item => item && String(item.field).toLowerCase() === name);
+        return found ? found.value : "";
+    }
+    for (const key of Object.keys(headers || {})) if (key.toLowerCase() === name) return headers[key];
+    return "";
+}
+
+function contentAllowed(headers) {
+    const type = String(headerValue(headers, "content-type") || "");
+    if (type && !/^\s*(?:application\/(?:[\w.+-]+\+)?json|text\/json)\s*(?:;|$)/i.test(type)) return false;
+    const charset = /charset\s*=\s*["']?([^\s;"']+)/i.exec(type);
+    return !charset || /^(?:utf-8|utf8|us-ascii)$/i.test(charset[1]);
+}
+
+function responseHeaders(input) {
+    const stale = new Set(["content-length", "content-encoding", "transfer-encoding", "etag", "content-md5", "cache-control", "digest", "content-digest", "repr-digest", "content-type", "x-cainiao-cleaner-version"]);
+    const values = [
+        { field: "Content-Type", value: "application/json; charset=utf-8" },
+        { field: "Cache-Control", value: "no-store" },
+        { field: "X-Cainiao-Cleaner-Version", value: P.VERSION },
+    ];
+    if (Array.isArray(input)) return input.filter(item => item && !stale.has(String(item.field).toLowerCase())).concat(values);
+    const output = {};
+    for (const key of Object.keys(input || {})) if (!stale.has(key.toLowerCase())) output[key] = input[key];
+    for (const item of values) output[item.field] = item.value;
+    return output;
+}
+
+function bodyBytes(value) {
+    if (value instanceof Uint8Array) return value;
+    if (value instanceof ArrayBuffer) return new Uint8Array(value);
+    if (ArrayBuffer.isView(value)) return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+    if (typeof value === "string") return new TextEncoder().encode(value);
+    return null;
+}
+
+function main() {
+    if (typeof $request !== "object" || !$request || typeof $response !== "object" || !$response) return;
+    const routeInfo = P.route($request.url);
+    if (!routeInfo || Number($response.status) !== 200 || !contentAllowed($response.headers)) return;
+    const bytes = bodyBytes($response.body);
+    if (!bytes) return;
+    const root = JSON.parse(P.decodeUTF8(bytes));
+    if (!P.record(root) || P.failed(root)) return;
+    const before = JSON.stringify(root);
+    const removed = P.clean(routeInfo, root);
+    const changed = JSON.stringify(root);
+    if (!removed || changed === before) return;
+    return { body: new TextEncoder().encode(changed), headers: responseHeaders($response.headers) };
+}
+
+let result = {};
+try { result = main() || {}; } catch (_) { /* 解析、结构或响应头异常时保留原响应。 */ }
+$done(result);

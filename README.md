@@ -14,8 +14,8 @@ Surge 与 Egern 去广告模块、蔚来自动签到脚本、Apple 天气增强�
   [使用说明](amap/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.egern.yaml)
 - **京东 2.0.0**：十二类接口，补全个人页、订单、新品和物流变体；同步双端匹配与正文保护。
   [使用说明](jd/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml)
-- **菜鸟 1.1.0（Egern）**：广告 SDK、UC 曝光与菜鸟 UA 素材补漏；保留原有广告请求和页面清理。
-  [使用说明](cainiao/README.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.yaml)
+- **菜鸟 1.1.0（Surge / Egern）**：广告 SDK、UC 曝光与菜鸟 UA 素材补漏；双端共用页面清理策略。
+  [使用说明](cainiao/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.yaml)
 - **菜鸟取件小组件 1.1.0（Egern 原生）**：手机查件页登录态自动保存，大号取件码、驿站及待取数量；支持浅深色和锁屏，失败保留旧结果。自动连接需信任本人 Egern CA，无需电脑扫码。
   [手机安装与连接](cainiao-widget/README.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml)
 - **闲鱼**：新旧开屏接口、缓存广告引用、悬浮策略及指定广告素材。
@@ -96,11 +96,11 @@ node --experimental-vm-modules --test --test-reporter=tap \
   amap/tests/egern.test.cjs amap/tests/policy.test.cjs jd/tests/*.test.cjs \
   xianyu/tests/egern.test.cjs pinduoduo/tests/egern.test.cjs \
   jyjt/tests/egern.test.cjs weilai/tests/egern.test.cjs \
-  apple-weather/tests/egern.test.cjs cainiao/tests/egern.test.cjs \
+  apple-weather/tests/egern.test.cjs cainiao/tests/*.test.cjs \
   cainiao-widget/tests/*.test.cjs
 ```
 
-当前脚本测试共 **594 项**：菜鸟取件小组件 83 项、京东 82 项、菜鸟 17 项、高德 87 项、Apple 天气 52 项，其余模块 273 项。测试在各模块目录，不恢复已删除的根 `tests/`。字段、匹配和来源子集另有 **38 项** Python 测试，依赖 PyYAML 6：
+当前脚本测试共 **618 项**：菜鸟取件小组件 83 项、京东 82 项、菜鸟 41 项、高德 87 项、Apple 天气 52 项，其余模块 273 项。测试在各模块目录，不恢复已删除的根 `tests/`。字段、匹配和来源子集另有 **39 项** Python 测试，依赖 PyYAML 6：
 
 ```sh
 python3 egern/validate.py

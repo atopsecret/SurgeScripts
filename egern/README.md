@@ -1,6 +1,6 @@
 # Egern 原生模块
 
-九个独立原生模块。响应脚本用 `export default` 异步函数，逻辑规则和本地响应采用原生 YAML，不把 Surge 脚本包进兼容壳。
+十个独立原生模块。响应脚本用 `export default` 异步函数，逻辑规则、本地响应和小组件采用原生 YAML，不把 Surge 脚本包进兼容壳。
 
 ## 安装链接
 
@@ -8,6 +8,7 @@
 - [高德地图](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.egern.yaml)：2.1.0，RT 开屏 multipart、个人页 v3、十五类页面与内嵌配置净化。
 - [京东 2.0.0](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml)：十二类接口、已知导航、精准开屏素材尺寸与原字节回退。
 - [菜鸟 1.0.0](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.yaml)：明确广告请求、查件页运营字段与龙泉广告位清理，保留未知物流数据。
+- [菜鸟取件小组件 1.0.0](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml)：原生桌面及锁屏组件，无需 MITM；[扫码登录与添加到桌面](../cainiao-widget/README.md)。
 - [闲鱼](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-adblock.egern.yaml)：六个网关、新旧开屏和缓存广告引用。
 - [拼多多](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/pinduoduo/pdd-adblock.egern.yaml)：双条件素材规则、单域 QUIC 与已知页面净化。
 - [红果](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/hongguo/hongguo-adblock.egern.yaml)：78 条广告/上报条件，不拒绝主配置公共 DNS。
@@ -23,6 +24,7 @@
 - 高德 RT 的 multipart 字节、CRLF、边界和响应头与现有版本对应；Map Local 不依赖脚本下载。
 - 京东不清空整个 `start`；陌生导航结构保留，普通商品图片不匹配开屏专用尺寸。
 - 菜鸟迁移固定活动 LPX 的四个拒绝请求和三组响应清理；省去 netflow 整包清空规则，保留查件、寄件、取件码、订单等未知业务结构。
+- 菜鸟取件是另一个独立模块，使用账号个人列表，不捕获或改写 App 请求；可和菜鸟去广告一起使用。Cookie 在设备本地填写，锁屏默认隐藏取件码，失败保留旧快照。
 - 闲鱼默认静默，不把服务端登录错误或错误 `ret` 伪造成成功。
 - 拼多多保留 UA 双条件和单域 QUIC；裸 IP 页面响应必须有精确 API Host，不凭域名子串或 UA 直接认领。保留商品评价图片。已识别的三核心导航仍沿用原来源白名单，可能同时精简其它入口。
 - 红果不复制 `dns.alidns.com`、`doh.pub` 拒绝，不解密整个 `snssdk.com`；金币或看广告解锁入口仍可能受阻。
@@ -53,9 +55,12 @@ NAS 原 Surge 网关条件不能从当前公开 Egern 条件策略字段直接�
 
 2026-11-08 京东 2.0.0 与菜鸟 1.0.0：京东 **44/44 → 82/82**、菜鸟 **17/17**；全仓 **511/511**、静态 **27/27**。九个 YAML、八个原生脚本和京东构建一致性检查通过；细节见[验证记录](验证记录-京东菜鸟-20261108.md)。本轮未做手机导入、CA 信任或页面验收。
 
+2026-11-08 新增菜鸟取件原生小组件 1.0.0：小组件 **44/44**、全仓脚本 **555/555**、公共静态 **35/35**，十个模块与九个自包含脚本通过。扫码助手离线 **32/32**，同源布局预览 **45 个**通过。未执行真实登录或手机验收，见[小组件验证记录](../cainiao-widget/验证记录-1.0.0.md)。
+
 ## 参考
 
 - [Egern 原生 JavaScript API](https://egernapp.com/zh-CN/docs/javascript-api/)
+- [原生小组件与 DSL](https://egernapp.com/zh-CN/docs/configuration/widgets/)
 - [脚本配置](https://egernapp.com/docs/configuration/scriptings/)
 - [模块配置](https://egernapp.com/docs/configuration/modules/)
 - [规则与原生集合](https://egernapp.com/docs/configuration/rules/)

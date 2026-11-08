@@ -6,3 +6,5 @@ __pycache__/
 /recovery/verification/
 /recovery/*.fi
 /recovery/*.marks
+/work/
+*.private.*

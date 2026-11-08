@@ -1,0 +1,2 @@
+# 仅用于本机 PNG / 终端二维码；HTTP、TLS、Cookie 和签名使用标准库。
+qrcode[pil]==8.2

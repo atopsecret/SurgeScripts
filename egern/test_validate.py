@@ -19,10 +19,89 @@ ROOT = file.resolve().parents[1]
 
 class ValidationTests(unittest.TestCase):
     def test_all_native_modules(self):
-        self.assertEqual(len(validator.MODULES), 9)
+        self.assertEqual(len(validator.MODULES), 10)
         for path in validator.MODULES:
             with self.subTest(path=path):
                 validator.validate_module(ROOT / path, ROOT)
+
+    def validate_widget_fixture(self, widgets, scriptings=None):
+        module = {
+            "name": "小组件合同夹具",
+            "description": "只检查合成配置，不访问业务接口",
+            "author": "fixture",
+            "homepage": "https://github.com/atopsecret/SurgeScripts",
+            "scriptings": scriptings if scriptings is not None else [{
+                "generic": {
+                    "name": "fixture-widget",
+                    "script_url": "https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-ad-block.egern.js",
+                }
+            }],
+            "widgets": widgets,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "widget.yaml"
+            path.write_text(validator.yaml.safe_dump(module, allow_unicode=True), encoding="utf-8")
+            return validator.validate_module(path, ROOT)
+
+    def test_widgets_explicit_generic_association(self):
+        paths = self.validate_widget_fixture([{
+            "name": "取件信息",
+            "script_name": "fixture-widget",
+            "env": {"PRIVACY": "true", "REFRESH_MINUTES": "15"},
+        }])
+        self.assertEqual(paths, {ROOT / "jd/jd-ad-block.egern.js"})
+
+    def test_widgets_default_name_and_empty_list(self):
+        self.validate_widget_fixture([{"name": "fixture-widget"}])
+        self.validate_widget_fixture([])
+        self.validate_widget_fixture([{"name": "fixture-widget", "env": {}}])
+
+    def test_widgets_invalid_shape_and_unknown_fields_rejected(self):
+        for widgets in [None, {}, "fixture-widget", [None], ["fixture-widget"], [{}],
+                        [{"name": ""}], [{"name": "   "}], [{"name": False}],
+                        [{"name": "fixture-widget", "url": "https://example.invalid"}]]:
+            with self.subTest(widgets=widgets), self.assertRaises(ValueError):
+                self.validate_widget_fixture(widgets)
+
+    def test_widgets_invalid_env_rejected(self):
+        for env in [None, [], "PRIVACY=true", {"PRIVACY": True}, {"N": 15}, {1: "value"}, {"N": None}]:
+            with self.subTest(env=env), self.assertRaisesRegex(ValueError, "小组件 env 必须为字符串映射"):
+                self.validate_widget_fixture([{"name": "fixture-widget", "env": env}])
+
+    def test_widgets_duplicate_names_rejected(self):
+        with self.assertRaisesRegex(ValueError, "小组件名称重复"):
+            self.validate_widget_fixture([{"name": "fixture-widget"}, {
+                "name": "fixture-widget", "script_name": "fixture-widget", "env": {"N": "1"},
+            }])
+
+    def test_widgets_unknown_or_invalid_script_name_rejected(self):
+        for name in ["missing", "", " ", None, 1, False, []]:
+            with self.subTest(script_name=name), self.assertRaises(ValueError):
+                self.validate_widget_fixture([{"name": "取件信息", "script_name": name}])
+        with self.assertRaisesRegex(ValueError, "脚本不存在于本模块"):
+            self.validate_widget_fixture([{"name": "unknown-default"}])
+
+    def test_widgets_non_generic_script_association_rejected(self):
+        for kind in ["http_request", "http_response", "schedule", "network"]:
+            body = {
+                "name": "fixture-widget",
+                "script_url": "https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-ad-block.egern.js",
+            }
+            if kind.startswith("http_"):
+                body["match"] = "^https://example\\.invalid/"
+            if kind == "schedule":
+                body["cron"] = "0 9 * * *"
+            with self.subTest(kind=kind), self.assertRaisesRegex(ValueError, "只能关联 generic"):
+                self.validate_widget_fixture([{"name": "fixture-widget"}], [{kind: body}])
+
+    def test_duplicate_script_names_rejected_before_widget_resolution(self):
+        body = {
+            "name": "fixture-widget",
+            "script_url": "https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-ad-block.egern.js",
+        }
+        for second in [{"generic": dict(body)}, {"http_response": dict(body, match="^https://example\\.invalid/")}]:
+            with self.subTest(second=second), self.assertRaisesRegex(ValueError, "脚本名称重复"):
+                self.validate_widget_fixture([{"name": "fixture-widget"}], [{"generic": dict(body)}, second])
 
     def test_surgescript_field_rejected(self):
         with self.assertRaises(ValueError):

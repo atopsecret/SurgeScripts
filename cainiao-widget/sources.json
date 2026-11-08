@@ -1,0 +1,109 @@
+{
+  "review_date": "2026-11-08",
+  "assessment": "公开源码静态核对；未执行上游源码、未登录、未调用个人包裹服务。哈希校验对象是固定提交的原文件。",
+  "documentation": [
+    "https://egernapp.com/zh-CN/docs/configuration/widgets/",
+    "https://egernapp.com/zh-CN/docs/javascript-api/"
+  ],
+  "files": [
+    {
+      "repository": "mykohuang/kuaidi-skill",
+      "commit": "da8e16247cd83d7f0b0772f383fda011bb4b89bf",
+      "upstream_path": "kuaidi.py",
+      "bytes": 20571,
+      "git_blob_sha1": "91be7aeeb947fdabbb2f2a194b50e95e881572eb",
+      "sha256": "6d62eef107bd0354b7b802fab1b27e6e288ee478d38adddd1c90c14fb6424e31",
+      "source_url": "https://github.com/mykohuang/kuaidi-skill/blob/da8e16247cd83d7f0b0772f383fda011bb4b89bf/kuaidi.py"
+    },
+    {
+      "repository": "mykohuang/kuaidi-skill",
+      "commit": "da8e16247cd83d7f0b0772f383fda011bb4b89bf",
+      "upstream_path": "LICENSE",
+      "bytes": 1066,
+      "git_blob_sha1": "4cb699445e211990adc52a7a574196d5250a058e",
+      "sha256": "86ce47649551a856c86acbdc646954a3d6f865077ce356742be725c7fc368075",
+      "source_url": "https://github.com/mykohuang/kuaidi-skill/blob/da8e16247cd83d7f0b0772f383fda011bb4b89bf/LICENSE"
+    },
+    {
+      "repository": "polygongfw/pickup-assistant",
+      "commit": "46406c53c40c3fbd8b3ee6f5f899eda9ebb0e338",
+      "upstream_path": "app/src/main/java/com/coldbrew/pickupassistant/data/Api.kt",
+      "bytes": 7682,
+      "git_blob_sha1": "426e8675235fff8422f515c917ac9696211bcdb2",
+      "sha256": "7fba882244803bb8d3d3716c71a6691997669b8cff467ca8641f4d0adc01549b",
+      "source_url": "https://github.com/polygongfw/pickup-assistant/blob/46406c53c40c3fbd8b3ee6f5f899eda9ebb0e338/app/src/main/java/com/coldbrew/pickupassistant/data/Api.kt"
+    },
+    {
+      "repository": "polygongfw/pickup-assistant",
+      "commit": "46406c53c40c3fbd8b3ee6f5f899eda9ebb0e338",
+      "upstream_path": "app/src/main/java/com/coldbrew/pickupassistant/data/Mtop.kt",
+      "bytes": 13804,
+      "git_blob_sha1": "0fc8e1176469cc294c27a027680f52cd6e4d7fab",
+      "sha256": "cef82cb8d6478424126e65ff990df9261ec4ae61c323bcd60f027971a98aa9b6",
+      "source_url": "https://github.com/polygongfw/pickup-assistant/blob/46406c53c40c3fbd8b3ee6f5f899eda9ebb0e338/app/src/main/java/com/coldbrew/pickupassistant/data/Mtop.kt"
+    },
+    {
+      "repository": "polygongfw/pickup-assistant",
+      "commit": "46406c53c40c3fbd8b3ee6f5f899eda9ebb0e338",
+      "upstream_path": "app/src/main/java/com/coldbrew/pickupassistant/data/Models.kt",
+      "bytes": 27888,
+      "git_blob_sha1": "fa751de00ef802238fd755b2ea30851a65b45dc4",
+      "sha256": "05559b4e90f422802a6a1a37768885e15663bbc924a3ef8995ef1a227ec6d1e9",
+      "source_url": "https://github.com/polygongfw/pickup-assistant/blob/46406c53c40c3fbd8b3ee6f5f899eda9ebb0e338/app/src/main/java/com/coldbrew/pickupassistant/data/Models.kt"
+    },
+    {
+      "repository": "polygongfw/pickup-assistant",
+      "commit": "46406c53c40c3fbd8b3ee6f5f899eda9ebb0e338",
+      "upstream_path": "app/src/main/java/com/coldbrew/pickupassistant/data/QrLogin.kt",
+      "bytes": 13576,
+      "git_blob_sha1": "87d66b292813d5c11300ac130957caf4a3114132",
+      "sha256": "d052a14dccfb05af6b158fc45fc2ecb7ee80c427efe1dc2f0e7e778f7c950d4f",
+      "source_url": "https://github.com/polygongfw/pickup-assistant/blob/46406c53c40c3fbd8b3ee6f5f899eda9ebb0e338/app/src/main/java/com/coldbrew/pickupassistant/data/QrLogin.kt"
+    },
+    {
+      "repository": "polygongfw/pickup-assistant",
+      "commit": "46406c53c40c3fbd8b3ee6f5f899eda9ebb0e338",
+      "upstream_path": "app/src/main/java/com/coldbrew/pickupassistant/data/CookieStore.kt",
+      "bytes": 1403,
+      "git_blob_sha1": "97d8806ccd02bd74980c1ed40ea1d1b6932684dd",
+      "sha256": "d5525c76c11a7239959d83b9c0fe1f1bc1a44c89dfde20d22692183738392498",
+      "source_url": "https://github.com/polygongfw/pickup-assistant/blob/46406c53c40c3fbd8b3ee6f5f899eda9ebb0e338/app/src/main/java/com/coldbrew/pickupassistant/data/CookieStore.kt"
+    },
+    {
+      "repository": "polygongfw/pickup-assistant",
+      "commit": "46406c53c40c3fbd8b3ee6f5f899eda9ebb0e338",
+      "upstream_path": "app/src/main/java/com/coldbrew/pickupassistant/data/Cookies.kt",
+      "bytes": 2080,
+      "git_blob_sha1": "bb904ce6096bd98a88bb8056c6e28126e388b709",
+      "sha256": "fac8c354e81e1c2ad515400ded864cde3cdf13bc7eb93e9299c7e8ab19e9836d",
+      "source_url": "https://github.com/polygongfw/pickup-assistant/blob/46406c53c40c3fbd8b3ee6f5f899eda9ebb0e338/app/src/main/java/com/coldbrew/pickupassistant/data/Cookies.kt"
+    },
+    {
+      "repository": "polygongfw/pickup-assistant",
+      "commit": "46406c53c40c3fbd8b3ee6f5f899eda9ebb0e338",
+      "upstream_path": "app/src/main/java/com/coldbrew/pickupassistant/data/SessionStore.kt",
+      "bytes": 5461,
+      "git_blob_sha1": "d655e66242a23b2879e93aa29e7a9d2a16524c01",
+      "sha256": "793e2f34f7ba2400d8adc6117b319b9d28b378a2962c20fd16f79aac7f5d68d4",
+      "source_url": "https://github.com/polygongfw/pickup-assistant/blob/46406c53c40c3fbd8b3ee6f5f899eda9ebb0e338/app/src/main/java/com/coldbrew/pickupassistant/data/SessionStore.kt"
+    },
+    {
+      "repository": "polygongfw/pickup-assistant",
+      "commit": "46406c53c40c3fbd8b3ee6f5f899eda9ebb0e338",
+      "upstream_path": "LICENSE",
+      "bytes": 1987,
+      "git_blob_sha1": "7d4bd85d4d41eded2c17f3c2fd974ca334339dc0",
+      "sha256": "1f38d9e4c2f6f9a16280cb7187746d91f66e6acd118b7bf819a1c88ee9e57a59",
+      "source_url": "https://github.com/polygongfw/pickup-assistant/blob/46406c53c40c3fbd8b3ee6f5f899eda9ebb0e338/LICENSE"
+    },
+    {
+      "repository": "polygongfw/pickup-assistant",
+      "commit": "46406c53c40c3fbd8b3ee6f5f899eda9ebb0e338",
+      "upstream_path": "app/src/test/java/com/coldbrew/pickupassistant/QrLoginTest.kt",
+      "bytes": 11752,
+      "git_blob_sha1": "582467ba6b6732dc271fd38c3475beba732a165d",
+      "sha256": "f1596b0f33a6159e1f6acd452f8ae3a72151ec147b23d7d53f7d91c5868149b9",
+      "source_url": "https://github.com/polygongfw/pickup-assistant/blob/46406c53c40c3fbd8b3ee6f5f899eda9ebb0e338/app/src/test/java/com/coldbrew/pickupassistant/QrLoginTest.kt"
+    }
+  ]
+}

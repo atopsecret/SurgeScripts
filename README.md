@@ -16,6 +16,8 @@ Surge 与 Egern 去广告模块、蔚来自动签到脚本及 Apple 天气增强
   [使用说明](jd/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml)
 - **菜鸟 1.0.0（Egern）**：四个明确广告请求拒绝、查件页运营字段和龙泉广告位清理；保留未知物流业务。
   [使用说明](cainiao/README.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.yaml)
+- **菜鸟取件小组件 1.0.0（Egern 原生）**：大号取件码、驿站、待取数量，支持浅深色和锁屏；首次使用配套本地扫码登录，失败保留上次结果。
+  [安装与扫码说明](cainiao-widget/README.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml)
 - **闲鱼**：新旧开屏接口、缓存广告引用、悬浮策略及指定广告素材。
   [使用说明](xianyu/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-adblock.egern.yaml)
 - **拼多多**：开屏、多多视频入口、首页及订单页已知推广字段。

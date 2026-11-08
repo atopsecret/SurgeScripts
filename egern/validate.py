@@ -3,7 +3,7 @@
 # 构建：无需编译
 # 运行：python3 egern/validate.py [--rules-dir RULES_DIRECTORY]
 # 依赖：PyYAML 6、Node.js 20+；不联网，不调用客户端或业务 API
-"""检查九个原生模块字段、正则、脚本引用和可选公共规则目录。
+"""检查十个原生模块字段、正则、脚本引用和可选公共规则目录。
 
 范围是本项目实际使用的官方文档字段，不伪装成 Egern 官方解析器。
 只读本地文件；不加载私人配置、不执行脚本业务，不证明手机运行可用。
@@ -32,6 +32,7 @@ MODULES = (
     "weilai/weilai-auto-checkin.egern.yaml",
     "apple-weather/apple-weather-enhancer.egern.yaml",
     "cainiao/cainiao-adblock.egern.yaml",
+    "cainiao-widget/cainiao-widget.egern.yaml",
 )
 META = {"name", "description", "author", "homepage", "manual", "icon", "open_url"}
 RULE_TYPES = {"domain", "domain_suffix", "domain_keyword", "domain_regex", "domain_wildcard", "geoip", "ip_cidr", "ip_cidr6", "asn", "url_regex", "user_agent", "dest_port", "protocol", "ssid", "bssid", "cellular"}
@@ -113,7 +114,7 @@ def script_path(url: str, root: Path) -> Path:
 def validate_module(path: Path, root: Path) -> set[Path]:
     module = load(path)
     require(isinstance(module, dict), "模块根必须为映射")
-    require(not set(module) - META - {"rules", "scriptings", "map_locals", "mitm", "env_schema"}, "模块根含非本项目所用官方字段")
+    require(not set(module) - META - {"rules", "scriptings", "map_locals", "mitm", "env_schema", "widgets"}, "模块根含非本项目所用官方字段")
     for key in META & set(module):
         require(isinstance(module[key], str) and bool(module[key]), "模块元数据必须为非空字符串")
     for key in ("name", "description", "author", "homepage"):
@@ -148,12 +149,17 @@ def validate_module(path: Path, root: Path) -> set[Path]:
         require(isinstance(hosts, dict) and not set(hosts) - {"includes", "excludes"}, "MITM 主机形状无效")
         require(all(isinstance(values, list) and all(isinstance(v, str) and v for v in values) for values in hosts.values()), "MITM 主机必须为非空字符串数组")
     paths = set()
-    for item in module.get("scriptings", []):
+    scripts = {}
+    scriptings = module.get("scriptings", [])
+    require(isinstance(scriptings, list), "scriptings 必须为数组")
+    for item in scriptings:
         require(isinstance(item, dict) and len(item) == 1, "脚本条目类型无效")
         kind, body = next(iter(item.items()))
         require(kind in {"http_request", "http_response", "schedule", "generic", "network"} and isinstance(body, dict), "非原生脚本类型")
         require(not set(body) - SCRIPT_FIELDS, "脚本含 Surge 字段或其他非文档字段")
-        require(isinstance(body.get("name"), str) and body["name"], "脚本缺少名称")
+        require(isinstance(body.get("name"), str) and bool(body["name"].strip()), "脚本缺少名称")
+        require(body["name"] not in scripts, "脚本名称重复")
+        scripts[body["name"]] = kind
         paths.add(script_path(body.get("script_url", ""), root))
         if kind in {"http_request", "http_response"}:
             regex(body.get("match"))
@@ -171,6 +177,25 @@ def validate_module(path: Path, root: Path) -> set[Path]:
             require(body["timeout"] <= 600, "脚本超时超过官方上限")
         if "env" in body:
             require(isinstance(body["env"], dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in body["env"].items()), "env 必须为字符串映射")
+    if "widgets" in module:
+        # 官方小组件合同：名称唯一，缺省 script_name 与小组件同名，只关联 generic。
+        # 来源：https://egernapp.com/zh-CN/docs/configuration/widgets/
+        widgets = module["widgets"]
+        require(isinstance(widgets, list), "widgets 必须为数组")
+        names = set()
+        for widget in widgets:
+            require(isinstance(widget, dict) and not set(widget) - {"name", "script_name", "env"}, "小组件条目无效或含非文档字段")
+            name = widget.get("name")
+            require(isinstance(name, str) and bool(name.strip()), "小组件缺少名称")
+            require(name not in names, "小组件名称重复")
+            names.add(name)
+            script_name = widget.get("script_name", name)
+            require(isinstance(script_name, str) and bool(script_name.strip()), "小组件 script_name 必须为非空字符串")
+            require(script_name in scripts, "小组件关联的脚本不存在于本模块")
+            require(scripts[script_name] == "generic", "小组件只能关联 generic 脚本")
+            if "env" in widget:
+                env = widget["env"]
+                require(isinstance(env, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in env.items()), "小组件 env 必须为字符串映射")
     return paths
 
 

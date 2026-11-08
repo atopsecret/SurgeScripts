@@ -1,0 +1,39 @@
+{
+  "checked_at": "2026-11-08",
+  "original_url": "https://kelee.one/Tool/Loon/Lpx/Cainiao_remove_ads.lpx",
+  "original_http_status": 403,
+  "plugin_declared_date": "2026-10-02 13:57:49",
+  "plugin_declared_author": "小白脸",
+  "mirrors": [
+    {
+      "repository": "Moli-X/Tool",
+      "commit": "f4720ca1468bc5d97c7d6fc7771b894acf0770a1",
+      "path": "Loon/Plugin/Kelee/Cainiao_remove_ads.plugin",
+      "url": "https://raw.githubusercontent.com/Moli-X/Tool/f4720ca1468bc5d97c7d6fc7771b894acf0770a1/Loon/Plugin/Kelee/Cainiao_remove_ads.plugin",
+      "sha256": "5cd55de83ad866ad5a4b3b19dedbcf889e97f2b8a10d78a1696a2bd312861191"
+    },
+    {
+      "repository": "fkingikelee/fkikelee",
+      "commit": "d62650fa4b5d8c03f65f03ff0ec2e8afed3226c0",
+      "path": "lpx/Cainiao_remove_ads.lpx",
+      "url": "https://raw.githubusercontent.com/fkingikelee/fkikelee/d62650fa4b5d8c03f65f03ff0ec2e8afed3226c0/lpx/Cainiao_remove_ads.lpx",
+      "sha256": "43df4ff17af92aae48952d6898f86e66e80348cb603cdad095d5fc98f6ab4bd8"
+    }
+  ],
+  "active_sections_identical": true,
+  "active_request_rules": 4,
+  "active_response_jq_rules": 4,
+  "migrated_response_jq_rules": 3,
+  "not_migrated": [
+    "netflow ads 的首项 materialId 非 39017 时整包 data={}，缺少保留未知业务所需的逐项广告判据。",
+    "同目录 Cainiao_remove_ads.js 未被活动插件引用，不计入迁移范围。"
+  ],
+  "inactive_script_observation": {
+    "url": "https://raw.githubusercontent.com/Moli-X/Tool/f4720ca1468bc5d97c7d6fc7771b894acf0770a1/Loon/Plugin/Kelee/Script/Cainiao_remove_ads.js",
+    "sha256": "ab8e150d958c7be49a867e165b302b7e9bf453415837e66da7974b949b770b3a",
+    "declared_date": "2025-05-06 20:50",
+    "referenced_by_active_plugin": false
+  },
+  "implementation": "独立重写原生 JavaScript；保留 Kelee、小白脸和固定镜像出处，不推定第三方整体采用统一许可证。",
+  "runtime_verified": false
+}

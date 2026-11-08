@@ -4,6 +4,7 @@
 # 依赖：PyYAML；不联网、不读取私人配置
 import base64
 import importlib.util
+import json
 from pathlib import Path
 import re
 import tempfile
@@ -18,7 +19,7 @@ ROOT = file.resolve().parents[1]
 
 class ValidationTests(unittest.TestCase):
     def test_all_native_modules(self):
-        self.assertEqual(len(validator.MODULES), 8)
+        self.assertEqual(len(validator.MODULES), 9)
         for path in validator.MODULES:
             with self.subTest(path=path):
                 validator.validate_module(ROOT / path, ROOT)
@@ -88,6 +89,64 @@ class ValidationTests(unittest.TestCase):
         splash = re.compile(next(x["match"] for x in maps if "s1125x2436_jfs" in x["match"]))
         self.assertRegex("https://m.360buyimg.com/mobilecms/s1125x2436_jfs/fixture.jpg", splash)
         self.assertNotRegex("https://m.360buyimg.com/mobilecms/s400x400_jfs/fixture.jpg", splash)
+
+    def test_jd_unique_static_identity_and_recommend_variants(self):
+        data = validator.load(ROOT / "jd/jd-adblock.egern.yaml")
+        patterns = [re.compile(row["match"]) for row in data["map_locals"]]
+        patterns += [re.compile(row["url_regex"]["match"]) for row in data["rules"]]
+        def matches(tail):
+            return any(pattern.search("https://api.m.jd.com/client.action?" + tail) for pattern in patterns)
+        for tail in ["functionId=uniformRecommend0", "client=ios&functionId=uniformRecommend6&v=1", "body=%7B%22x%22%3A%22a=b%22%7D&functionId=queryMaterialAdverts"]:
+            self.assertTrue(matches(tail), tail)
+        for tail in ["functionId=uniformRecommendation", "functionId=uniformRecommend99", "functionId=queryPagePopWindow_extra", "functionId=queryMaterialAdverts&functionId=search", "functionId=queryMaterialAdverts&functionId", "functionId&functionId=queryMaterialAdverts", "%66unctionId=search&functionId=queryMaterialAdverts", "functionId=queryMaterialAdverts&%66unctionId=search"]:
+            self.assertFalse(matches(tail), tail)
+        login = next(pattern for pattern in patterns if "loginType" in pattern.pattern)
+        self.assertRegex("https://api.m.jd.com/?client=ios&loginType=11&v=1", login)
+        for tail in ["loginType=110", "loginType=11&loginType=0", "loginType=11&loginType", "%6CoginType=0&loginType=11"]:
+            self.assertNotRegex("https://api.m.jd.com/?" + tail, login)
+
+    def test_jd_static_rules_equivalent_between_clients(self):
+        data = validator.load(ROOT / "jd/jd-adblock.egern.yaml")
+        text = (ROOT / "jd/jd-adblock.sgmodule").read_text()
+        local = text.split("[Map Local]", 1)[1].split("[MITM]", 1)[0]
+        surge = [line.split(" data-type=", 1)[0].replace(r"\/", "/") for line in local.splitlines() if line.startswith("^")]
+        self.assertEqual(surge, [row["match"] for row in data["map_locals"]])
+
+    def test_jd_binary_response_and_mitm_contract(self):
+        data = validator.load(ROOT / "jd/jd-adblock.egern.yaml")
+        self.assertTrue(data["scriptings"][0]["http_response"]["binary_body"])
+        self.assertEqual(set(data["mitm"]["hostnames"]["includes"]), {"api.m.jd.com", "m.360buyimg.com", "apk.360buyimg.com", "bdsp-x.jd.com", "dsp-x.jd.com"})
+        self.assertTrue(all(row[next(iter(row))]["script_url"].endswith("?v=2.0.0") for row in data["scriptings"]))
+
+    def test_cainiao_known_local_responses_and_scope(self):
+        data = validator.load(ROOT / "cainiao/cainiao-adblock.egern.yaml")
+        self.assertEqual(set(data["mitm"]["hostnames"]["includes"]), {"netflow-mtop.cainiao.com", "nbcps-mtop.cainiao.com", "cn-acs.m.cainiao.com", "e2e-mtop.cainiao.com", "longquan-mtop.cainiao.com"})
+        self.assertNotIn("rules", data)
+        self.assertEqual(len(data["map_locals"]), 4)
+        for row in data["map_locals"]:
+            self.assertEqual(row["status_code"], 404)
+            self.assertEqual(row["body"], "")
+            self.assertEqual(row["headers"]["X-Cainiao-Cleaner-Version"], "eg-native-20261108-1.0.0")
+        patterns = [re.compile(row["match"]) for row in data["map_locals"]]
+        self.assertTrue(any(p.search("https://nbcps-mtop.cainiao.com/gw/mtop.cainiao.nbcps.presentation.fetch.cn/1.0/?x=1") for p in patterns))
+        for url in ["https://nbcps-mtop.cainiao.com.evil.test/gw/mtop.cainiao.nbcps.presentation.fetch.cn", "https://cn-acs.m.cainiao.com/gw/mtop.cainiao.adkeyword.get.cnx", "https://netflow-mtop.cainiao.com/gw/mtop.cainiao.guoguo.nbnetflow.ads.future/1.0/"]:
+            self.assertFalse(any(p.search(url) for p in patterns), url)
+
+    def test_cainiao_native_body_and_fixed_sources(self):
+        data = validator.load(ROOT / "cainiao/cainiao-adblock.egern.yaml")
+        response = data["scriptings"][0]["http_response"]
+        self.assertTrue(response["body_required"])
+        self.assertTrue(response["binary_body"])
+        pattern = re.compile(response["match"])
+        self.assertRegex("https://e2e-mtop.cainiao.com/gw/mtop.cainiao.app.e2e.engine.page.fetch.cn/1.0/", pattern)
+        self.assertNotRegex("https://e2e-mtop.cainiao.com/gw/mtop.cainiao.app.e2e.engine.page.fetch.cnx", pattern)
+        sources = json.loads((ROOT / "cainiao/sources.json").read_text())
+        self.assertEqual(sources["original_http_status"], 403)
+        self.assertEqual(sources["migrated_response_jq_rules"], 3)
+        self.assertFalse(sources["inactive_script_observation"]["referenced_by_active_plugin"])
+        for source in sources["mirrors"]:
+            self.assertRegex(source["commit"], r"^[0-9a-f]{40}$")
+            self.assertRegex(source["sha256"], r"^[0-9a-f]{64}$")
 
     def test_no_public_ca(self):
         for path in validator.MODULES:

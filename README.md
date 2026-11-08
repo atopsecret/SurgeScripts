@@ -1,6 +1,6 @@
 # SurgeScripts
 
-Surge 与 Egern 去广告模块、蔚来自动签到脚本及 Apple 天气增强。八个模块提供独立 Egern 原生版本；各模块可以单独安装，不需要替换整份客户端配置。
+Surge 与 Egern 去广告模块、蔚来自动签到脚本及 Apple 天气增强。九个模块提供独立 Egern 原生版本；各模块可以单独安装，不需要替换整份客户端配置。
 
 当前仓库：[atopsecret/SurgeScripts](https://github.com/atopsecret/SurgeScripts)。安装入口使用 `main`；蔚来 Egern 脚本固定到完整提交地址。
 
@@ -12,8 +12,10 @@ Surge 与 Egern 去广告模块、蔚来自动签到脚本及 Apple 天气增强
   [使用说明](apple-weather/README.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/apple-weather/apple-weather-enhancer.egern.yaml)
 - **高德地图 2.1.0**：保留 RT 开屏，修复个人页 v3；十五类页面与内嵌配置定点净化。
   [使用说明](amap/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.egern.yaml)
-- **京东**：开屏、页面推广、已知底栏导航及短视频组件。
+- **京东 2.0.0**：十二类接口，补全个人页、订单、新品和物流变体；同步双端匹配与正文保护。
   [使用说明](jd/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml)
+- **菜鸟 1.0.0（Egern）**：四个明确广告请求拒绝、查件页运营字段和龙泉广告位清理；保留未知物流业务。
+  [使用说明](cainiao/README.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.yaml)
 - **闲鱼**：新旧开屏接口、缓存广告引用、悬浮策略及指定广告素材。
   [使用说明](xianyu/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-adblock.egern.yaml)
 - **拼多多**：开屏、多多视频入口、首页及订单页已知推广字段。
@@ -46,7 +48,7 @@ Egern 使用 `.egern.yaml` 和对应原生脚本，不直接运行 Surge 全局�
 
 ### 从旧地址迁移
 
-旧账号地址不会因为复制源码自动重定向。已经安装的模块需要换成上面的新链接，并刷新远程脚本缓存。高德模块描述应显示 `2.1.0`；Surge 蔚来任务日志应显示 `脚本版本 2.1.6`，Egern 原生蔚来模块描述应显示 `3.2.0`。
+旧账号地址不会因为复制源码自动重定向。已经安装的模块需要换成上面的新链接，并刷新远程脚本缓存。高德模块描述应显示 `2.1.0`，京东应显示 `2.0.0`，菜鸟应显示 `eg-native-20261108-1.0.0`；Surge 蔚来任务日志应显示 `脚本版本 2.1.6`，Egern 原生蔚来模块描述应显示 `3.2.0`。
 
 旧账号迁移不导出或迁移客户端登录凭据。原作者署名和原有本地诊断存储键保留，详见[迁移范围](MIGRATION.md)。Egern 原生重写使用独立存储，行为差异见 [Egern 说明](egern/README.md)。
 
@@ -70,6 +72,7 @@ RULE-SET,https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/Telegram
 
 - 高德、京东、闲鱼、拼多多的 HTTPS 改写依赖客户端解密；具体主机和脚本入口由模块定义。
 - 红果的域名拒绝不依赖解密，广告接口空响应需要 MITM；Surge 版附带的 DoH 拒绝可能与主配置 DNS 冲突，Egern 原生版已省去这两条。
+- 菜鸟原生版只解密固定的五个业务主机；请求拒绝和响应净化均按活动 LPX 的明确路径执行，不泛封阿里或菜鸟共用域名。
 - 戒烟军团的已知业务接口使用明文 HTTP。客户端显示被改写，不代表服务器授予了会员权限。
 - 蔚来从已知 HTTPS 请求头提取凭据，结果以接口实际返回为准。手动验证请在客户端运行定时任务；旧网页触发入口已移除。
 
@@ -88,13 +91,13 @@ RULE-SET,https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/Telegram
 ```sh
 node --experimental-vm-modules --test --test-reporter=tap \
   amap/tests/cleaner.test.cjs weilai/tests/checkin.test.cjs \
-  amap/tests/egern.test.cjs amap/tests/policy.test.cjs jd/tests/egern.test.cjs \
+  amap/tests/egern.test.cjs amap/tests/policy.test.cjs jd/tests/*.test.cjs \
   xianyu/tests/egern.test.cjs pinduoduo/tests/egern.test.cjs \
   jyjt/tests/egern.test.cjs weilai/tests/egern.test.cjs \
-  apple-weather/tests/egern.test.cjs
+  apple-weather/tests/egern.test.cjs cainiao/tests/egern.test.cjs
 ```
 
-当前脚本测试共 456 项。高德 2.1.0 为 87 项，较 2.0.0 增加 33 项；Apple 天气为 52 项，其中可用性和九组真实二进制用例与原 v3.1.0 发布包作对照。测试在各模块目录，不恢复已删除的根 `tests/`。字段、匹配和来源子集另有 22 项 Python 测试，依赖 PyYAML 6：
+当前脚本测试共 **511 项**：京东 82 项、菜鸟 17 项，高德 87 项、Apple 天气 52 项，其余模块 273 项。测试在各模块目录，不恢复已删除的根 `tests/`。字段、匹配和来源子集另有 **27 项** Python 测试，依赖 PyYAML 6：
 
 ```sh
 python3 egern/validate.py
@@ -110,6 +113,8 @@ Egern 的 `.egern.js` 是 ES module，单文件语法检查使用 `node --input-
 2026-11-08 Apple 天气转换：新增 52/52；全仓脚本 423/423，静态测试 22/22；八个 YAML 与七个原生 JS 字段、引用和语法检查通过。详情见 [Apple 天气验证报告](apple-weather/验证报告.md)。原插件 URL 本次抓取为 403，实际采用固定公开镜像，不声称核实了原站当前内容。
 
 2026-11-08 高德 2.1.0：高德回归 54/54 → 87/87，全仓脚本 423/423 → 456/456，静态 22/22；补全十五类页面与内嵌配置处理，保留 RT 开屏契约。详情见[高德验证报告](amap/验证报告-2.1.0.md)。未做手机真机验证。
+
+2026-11-08 京东 2.0.0 与菜鸟 1.0.0：京东 **44/44 → 82/82**，菜鸟新增 **17/17**，全仓 **456/456 → 511/511**，静态 **22/22 → 27/27**；九个原生 YAML、八个原生脚本检查通过。京东补四接口并统一双端正文保护，菜鸟迁移固定 LPX 的明确广告规则，省去整包清空未知业务的规则。来源、取舍与验证边界见[本次验证记录](egern/验证记录-京东菜鸟-20261108.md)；未做手机验收。
 
 ## 反馈与来源
 

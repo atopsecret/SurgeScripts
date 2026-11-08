@@ -1,0 +1,28 @@
+// Engine | Surge iOS 5.9.0+ / Mac 5.5.0+ | JavaScript
+// Build: node jd/build.mjs
+// Run: 用户去掉 jd-adblock.sgmodule 中可选请求脚本行的注释后生效；默认关闭
+// Deps: Surge 请求脚本 API；默认关闭，风险说明见 jd/方案.md
+{{POLICY}}
+const STORE = "skernelx_jd_pending_v2";
+const TTL = 60000;
+function main() {
+    if (typeof $request === "undefined" || !$request || String($request.method).toUpperCase() !== "POST" || typeof $request.body !== "string") { $done({}); return; }
+    const requestId = typeof $request.id === "string" && /^[A-Za-z0-9._:-]{1,256}$/.test($request.id) ? $request.id : "";
+    if (!requestId) { $done({}); return; }
+    try {
+        const url = new URL($request.url);
+        if (!["http:", "https:"].includes(url.protocol) || url.hostname !== "api.m.jd.com" || url.pathname !== "/client.action" || url.username || url.password) { $done({}); return; }
+        const query = JD_POLICY.queryIdentity(url.href);
+        if (query.present || query.invalid) { $done({}); return; }
+        const headers = $request.headers || {}; const type = headers["Content-Type"] || headers["content-type"] || "";
+        const identity = JD_POLICY.bodyIdentity($request.body, type); if (!identity.id || !JD_POLICY.target(identity.id)) { $done({}); return; }
+        let list; try { list = JSON.parse($persistentStore.read(STORE) || "[]"); } catch (_) { $done({}); return; }
+        if (!Array.isArray(list)) list = [];
+        const time = Date.now();
+        list = list.filter(item => item && typeof item.requestId === "string" && /^[A-Za-z0-9._:-]{1,256}$/.test(item.requestId) && JD_POLICY.target(item.api) && Number.isSafeInteger(item.expires) && item.expires > time && item.expires <= time + TTL && item.requestId !== requestId).map(item => ({ requestId: item.requestId, api: item.api, expires: item.expires }));
+        list.push({ requestId, api: identity.id, expires: Date.now() + TTL });
+        $persistentStore.write(JSON.stringify(list.slice(-64)), STORE);
+    } catch (_) {}
+    $done({});
+}
+main();

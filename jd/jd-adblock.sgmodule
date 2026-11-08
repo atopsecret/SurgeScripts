@@ -1,5 +1,5 @@
 #!name=京东去广告
-#!desc=京东去广告 v1.1：新增 readCustomSurfaceList 底栏逛/视频入口过滤（亮色/深色两套导航，效果依赖 App 下发配置）；保留开屏、首屏浮层、购物车推荐、物流 banner、极速版广告位、ADX、弹窗和二楼清理。支持 Surge / Egern。
+#!desc=京东去广告 v2.0.0：补全订单/新品/个人页与物流变体，统一响应保护和精确匹配；保留开屏、购物车、底栏、极速版、ADX、弹窗和二楼清理。支持 Surge / Egern。
 #!author=skernelx · FFDNS
 #!homepage=https://github.com/atopsecret/SurgeScripts
 #!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Advertising.png
@@ -11,14 +11,12 @@
 #   https://github.com/Thelongdarkorg/loon-plugins
 # Loon → Surge 转换说明：
 #   - response-body-json-jq / json-replace / json-del / replace-regex
-#     → 自托管脚本 jd-ad-block.js（六接口合一分发）
+#     → 自托管脚本 jd-ad-block.js（十二接口共用策略）
 #   - reject-dict（返回 {}）→ Map Local data="{}"
 #   - reject-200（空体 200）→ Map Local data="" status-code=200
 #
-# 关键工程决策（沿用原仓库的 A/B 实证结论）：
-#   1. start 接口不清整个响应、只剥开屏字段 —— App 收到 {} 会判异常
-#      并回退展示本地缓存开屏（表现为隔几天偶发闪一次），
-#      拔掉 JSON 里的开屏配置才是根除法
+# 工程决策：
+#   1. start 接口保留业务配置，只清开屏字段；是否停用既有缓存须真机验证。
 #   2. 开屏大图只拦 s1125x2436_jfs 精确尺寸 —— 360buyimg 是京东全站
 #      图片 CDN，通配 jfs 会把商品图一并打死（首页大面积空白）
 # ------------------------------------------------------------
@@ -34,36 +32,37 @@ URL-REGEX,^http:\/\/\w{32}\.jddebug\.com\/diagnose\?,REJECT
 URL-REGEX,^https?:\/\/apk\.360buyimg\.com\/mpaas2-public\/[^/]*\/(short_video|XJI-short-video),REJECT
 
 [Script]
-# 八接口合一；functionId 支持非首查询参数，2 MiB 上限覆盖较大的导航/皮肤配置。
+# 十二接口合一；functionId 支持非首查询参数，2 MiB 上限覆盖较大的导航/皮肤配置。
 # 底栏来源：qsoyq/stash 与 zirawell/R-Store 的 readCustomSurfaceList 实现。
-京东去广告 = type=http-response,pattern=^https?:\/\/api\.m\.jd\.com\/client\.action\?(?:[^#]*&)?functionId=(start|welcomeHome|deliverLayer|basicConfig|cart|lite_advertising|secondFloor|readCustomSurfaceList)(&|$),requires-body=1,max-size=2097152,script-update-interval=3600,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-ad-block.js?v=jd-nav-1.1.0,timeout=30
+京东去广告 = type=http-response,pattern=^https?:\/\/api\.m\.jd\.com(?::[0-9]+)?\/client\.action(?:\?(?:[^#]*&)?functionId=(start|welcomeHome|deliverLayer|basicConfig|cart|secondFloor|lite_advertising|readCustomSurfaceList|getTabHomeInfo|myOrderInfo|orderTrackBusiness|personinfoBusiness)(?:&|$)|$),requires-body=1,max-size=2097152,binary-body-mode=true,full-header-mode=true,engine=webview,script-update-interval=3600,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-ad-block.js?v=2.0.0,timeout=30
+# 可选 POST 关联（默认禁用）：Surge 请求正文超出 max-size 会终止连接，不像响应脚本那样自动放行；明确需要无查询 functionId 的 POST 时，删除本行开头的“# ”后再启用。详见 jd/方案.md。
+# 京东去广告 POST 关联 = type=http-request,pattern=^https?:\/\/api\.m\.jd\.com(?::[0-9]+)?\/client\.action$,requires-body=true,max-size=33554432,engine=webview,script-update-interval=3600,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-post-capture.js?v=2.0.0,timeout=10
 
 [URL Rewrite]
 # 京东广告交换平台（ADX）实时竞价：直接拒绝
 ^https?:\/\/(bdsp-x|dsp-x)\.jd\.com\/adx\/ - reject
 # 首页小组件广告：直接拒绝
-^https?:\/\/api\.m\.jd\.com\/client\.action\?functionId=getWidgetV1052 - reject
+^https?:\/\/api\.m\.jd\.com(?::[0-9]+)?\/client\.action\?(?:(?!functionId(?:=|&|$))[A-Za-z0-9_.~-]+(?:=[^&#]*)?&)*functionId=getWidgetV1052(?:&(?!functionId(?:=|&|$))[A-Za-z0-9_.~-]+(?:=[^&#]*)?)*$ - reject
 
 [Map Local]
 # 物料广告接口（开屏/信息流物料下发）→ 空 JSON
-^https?:\/\/api\.m\.jd\.com\/client\.action\?functionId=queryMaterialAdverts data-type=text data="{}" status-code=200 header="Content-Type:application/json"
+^https?:\/\/api\.m\.jd\.com(?::[0-9]+)?\/client\.action\?(?:(?!functionId(?:=|&|$))[A-Za-z0-9_.~-]+(?:=[^&#]*)?&)*functionId=queryMaterialAdverts(?:&(?!functionId(?:=|&|$))[A-Za-z0-9_.~-]+(?:=[^&#]*)?)*$ data-type=text data="{}" status-code=200 header="Content-Type:application/json"
 # 开屏大图（仅精确到开屏专用尺寸 s1125x2436_jfs，严禁通配 jfs——会打死商品图）→ 空体 200
 ^https?:\/\/m\.360buyimg\.com\/mobilecms\/s1125x2436_jfs data-type=text data="" status-code=200
 # 页面停留运营弹窗（babel_popup / stayWindowModule，抓包实证）→ 空 JSON
-^https?:\/\/api\.m\.jd\.com\/client\.action\?functionId=queryPagePopWindow data-type=text data="{}" status-code=200 header="Content-Type:application/json"
+^https?:\/\/api\.m\.jd\.com(?::[0-9]+)?\/client\.action\?(?:(?!functionId(?:=|&|$))[A-Za-z0-9_.~-]+(?:=[^&#]*)?&)*functionId=queryPagePopWindow(?:&(?!functionId(?:=|&|$))[A-Za-z0-9_.~-]+(?:=[^&#]*)?)*$ data-type=text data="{}" status-code=200 header="Content-Type:application/json"
 # 登录页推广位 → 空 JSON
-^https?:\/\/api\.m\.jd\.com\/\?loginType=11 data-type=text data="{}" status-code=200 header="Content-Type:application/json"
+^https?:\/\/api\.m\.jd\.com(?::[0-9]+)?\/\?(?:(?!loginType(?:=|&|$))[A-Za-z0-9_.~-]+(?:=[^&#]*)?&)*loginType=11(?:&(?!loginType(?:=|&|$))[A-Za-z0-9_.~-]+(?:=[^&#]*)?)*$ data-type=text data="{}" status-code=200 header="Content-Type:application/json"
 # 推荐/推广接口批 → 空 JSON
-^https?:\/\/api\.m\.jd\.com\/client\.action\?functionId=(cartCouponRecommendGoods|intelligentRecommendSku|obtainGrowingInfo|recommendShop|searchBoxWord|stationPullService|uniformRecommend) data-type=text data="{}" status-code=200 header="Content-Type:application/json"
+^https?:\/\/api\.m\.jd\.com(?::[0-9]+)?\/client\.action\?(?:(?!functionId(?:=|&|$))[A-Za-z0-9_.~-]+(?:=[^&#]*)?&)*functionId=(cartCouponRecommendGoods|intelligentRecommendSku|obtainGrowingInfo|recommendShop|searchBoxWord|stationPullService|uniformRecommend|uniformRecommend0|uniformRecommend6)(?:&(?!functionId(?:=|&|$))[A-Za-z0-9_.~-]+(?:=[^&#]*)?)*$ data-type=text data="{}" status-code=200 header="Content-Type:application/json"
 
 [MITM]
-hostname = %APPEND% api.m.jd.com, m.360buyimg.com
+hostname = %APPEND% api.m.jd.com, m.360buyimg.com, apk.360buyimg.com, bdsp-x.jd.com, dsp-x.jd.com
 
 # ────────────────────────────────────────────────────────────
 # 备注：
-# 1. 360buyimg 只 MITM m.360buyimg.com 单主机（原仓库实证：
-#    整域解密无必要，且京东 App 正常使用不受影响）
+# 1. 图片与组件仅解密 m.360buyimg.com、apk.360buyimg.com 两个精确主机。
 # 2. 比价用户注意：start 接口规则可能使「比价」失效，
-#    不需要可删除 [Script] 中的 start（原仓库同样警示）
-# 3. 搜索、下单、物流查询等核心接口不在拦截列表
+#    不需要时从响应脚本 pattern 的接口列表移除 start；可选 POST 关联保持关闭。
+# 3. 静态规则只接受唯一的完整参数值；未知或编码参数键保守放行。
 # ────────────────────────────────────────────────────────────

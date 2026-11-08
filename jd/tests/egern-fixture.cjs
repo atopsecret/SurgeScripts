@@ -9,7 +9,7 @@ async function loadScript(directory, relative) {
 
 function makeContext(options = {}) {
     const raw = options.body === undefined ? '{}' : options.body;
-    const response = new Response(raw, { status: options.status || 200 });
+    const response = new Response(raw, { status: options.status || 200, headers: options.responseHeaders || { 'Content-Type': 'application/json; charset=utf-8' } });
     const stored = options.stored || new Map();
     const calls = { requestReads: 0, responseReads: 0, gets: 0, sets: 0, notifications: [], network: 0 };
     const ctx = {
@@ -30,8 +30,15 @@ function makeContext(options = {}) {
             status: response.status,
             headers: response.headers,
             body: response.body,
+            async arrayBuffer() {
+                calls.responseReads++;
+                if (calls.responseReads > 1) throw new Error('response-consumed');
+                if (options.readError) throw new Error('mock-response-read-error');
+                return response.arrayBuffer();
+            },
             async text() {
                 calls.responseReads++;
+                if (calls.responseReads > 1) throw new Error('response-consumed');
                 if (options.readError) throw new Error('mock-response-read-error');
                 return response.text();
             }

@@ -1,0 +1,99 @@
+// Engine | Egern 原生 API | JavaScript ES module
+// Build: node jd/build.mjs
+// Run: Egern 导入 jd-adblock.egern.yaml；离线 node --test jd/tests/*.test.cjs
+// Deps: 无；策略由 jd-policy.js 构建时内联
+{{POLICY}}
+const STORE = "skernelx_jd_native_diag_v2";
+
+function loadState(ctx) {
+    try { const value = ctx.storage.getJSON(STORE); return JD_POLICY.record(value) && value.version === JD_POLICY.VERSION ? value : {}; }
+    catch (_) { return {}; }
+}
+function saveState(ctx, state) {
+    try { ctx.storage.setJSON(STORE, { ...state, version: JD_POLICY.VERSION, at: new Date().toISOString() }); } catch (_) {}
+}
+function diagnostics(ctx) {
+    const state = loadState(ctx);
+    const text = ["京东原生版本：" + JD_POLICY.VERSION, state.at ? "最近接口：" + state.api + "；状态：" + state.status : "尚无本版接口记录；不等于模块或证书正常。"];
+    if (state.hits) text.push("目标接口命中：" + state.hits + " 次");
+    if (state.nav) text.push("导航：" + state.nav);
+    console.log(text.join("\n"));
+    return { type: "widget", padding: 12, children: [{ type: "text", text: text.join("\n") }] };
+}
+function responseHeaders(headers) {
+    const stale = ["content-length", "content-encoding", "transfer-encoding", "etag", "content-md5", "content-digest", "repr-digest", "digest", "content-type", "cache-control"];
+    const values = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "X-JD-Cleaner-Version": JD_POLICY.VERSION };
+    const old = [];
+    try {
+        const names = [...new Set([...stale, ...Object.keys(values).map(name => name.toLowerCase())])];
+        for (const name of names) old.push([name, typeof headers.getAll === "function" ? headers.getAll(name) : (headers.get(name) === null ? [] : [headers.get(name)])]);
+        for (const name of stale) headers.delete(name);
+        for (const [name, value] of Object.entries(values)) headers.set(name, value);
+        return headers;
+    } catch (error) {
+        for (const [name, valuesForName] of old) { try { headers.delete(name); for (const value of valuesForName) headers.append(name, value); } catch (_) {} }
+        throw error;
+    }
+}
+function decodeUTF8(bytes) {
+    const parts = []; let chunk = "";
+    for (let i = 0; i < bytes.length;) {
+        const first = bytes[i++]; let point = first, count = 0, minimum = 0;
+        if (first >= 0xc2 && first <= 0xdf) { point &= 0x1f; count = 1; minimum = 0x80; }
+        else if (first >= 0xe0 && first <= 0xef) { point &= 0x0f; count = 2; minimum = 0x800; }
+        else if (first >= 0xf0 && first <= 0xf4) { point &= 7; count = 3; minimum = 0x10000; }
+        else if (first > 0x7f) throw Error("invalid-utf8");
+        for (let j = 0; j < count; j++) { const next = bytes[i++]; if (next === undefined || (next & 0xc0) !== 0x80) throw Error("invalid-utf8"); point = point * 64 + (next & 0x3f); }
+        if (point < minimum || point > 0x10ffff || (point >= 0xd800 && point <= 0xdfff)) throw Error("invalid-utf8");
+        chunk += String.fromCodePoint(point); if (chunk.length > 8192) { parts.push(chunk); chunk = ""; }
+    }
+    parts.push(chunk); return parts.join("");
+}
+function contentAllowed(headers) {
+    try {
+        const type = headers.get("content-type") || "";
+        if (type && !/^\s*(?:application\/(?:[\w.+-]+\+)?json|text\/json)\s*(?:;|$)/i.test(type)) return false;
+        const charset = /charset\s*=\s*["']?([^\s;"']+)/i.exec(type);
+        return !charset || /^(?:utf-8|utf8|us-ascii)$/i.test(charset[1]);
+    } catch (_) { return false; }
+}
+export default async function(ctx) {
+    if (!ctx.request && !ctx.response) return diagnostics(ctx);
+    if (!ctx.request || !ctx.response) return;
+    let url;
+    try {
+        url = new URL(ctx.request.url);
+        if (!["http:", "https:"].includes(url.protocol) || url.hostname !== "api.m.jd.com" || url.pathname !== "/client.action" || url.username || url.password) return;
+    } catch (_) { return; }
+    const identity = await JD_POLICY.requestIdentity(ctx.request, url);
+    if (!identity.id || !JD_POLICY.target(identity.id) || !ctx.response) return;
+    const old = loadState(ctx);
+    const hits = Number.isSafeInteger(old.hits) && old.hits >= 0 ? old.hits : 0;
+    const state = { hits: Math.min(hits + 1, 999999), api: identity.id, status: "未处理" };
+    if (ctx.response.status !== 200) { saveState(ctx, { ...state, status: "非 HTTP 200，未读取正文" }); return; }
+    if (!contentAllowed(ctx.response.headers)) { saveState(ctx, { ...state, status: "非 JSON 或不支持编码，未读取正文" }); return; }
+    let bytes;
+    try { bytes = new Uint8Array(await ctx.response.arrayBuffer()); } catch (_) { saveState(ctx, { ...state, status: "正文读取失败，未改写" }); return; }
+    try {
+        const text = decodeUTF8(bytes);
+        const data = JSON.parse(text);
+        if (!JD_POLICY.record(data)) throw Error("unknown-structure");
+        if (JD_POLICY.failed(data)) {
+            saveState(ctx, { ...state, status: "服务端错误或陌生状态码，原字节放行" });
+            return { body: bytes };
+        }
+        const before = JSON.stringify(data);
+        JD_POLICY.clean(data, identity.id);
+        const changed = JSON.stringify(data);
+        if (changed === before) {
+            saveState(ctx, { ...state, status: "未见可改写字段" });
+            return { body: bytes };
+        }
+        const headers = responseHeaders(ctx.response.headers);
+        saveState(ctx, { ...state, status: "已改写", nav: identity.id === "readCustomSurfaceList" ? "已处理" : undefined });
+        return { body: changed, headers };
+    } catch (_) {
+        saveState(ctx, { ...state, status: "编码、结构或改写异常，原字节放行" });
+        return { body: bytes };
+    }
+}

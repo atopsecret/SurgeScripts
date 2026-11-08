@@ -1,12 +1,13 @@
 # Egern 原生模块
 
-八个独立原生模块。响应脚本用 `export default` 异步函数，逻辑规则和本地响应采用原生 YAML，不把 Surge 脚本包进兼容壳。
+九个独立原生模块。响应脚本用 `export default` 异步函数，逻辑规则和本地响应采用原生 YAML，不把 Surge 脚本包进兼容壳。
 
 ## 安装链接
 
 - [Apple 天气增强](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/apple-weather/apple-weather-enhancer.egern.yaml)：WeatherKit v3.1.0 天气、降水、AQI 和 FlatBuffers；参数使用原生 `env_schema`。
 - [高德地图](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.egern.yaml)：2.1.0，RT 开屏 multipart、个人页 v3、十五类页面与内嵌配置净化。
-- [京东](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml)：八类接口、已知导航、精准开屏素材尺寸。
+- [京东 2.0.0](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml)：十二类接口、已知导航、精准开屏素材尺寸与原字节回退。
+- [菜鸟 1.0.0](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.yaml)：明确广告请求、查件页运营字段与龙泉广告位清理，保留未知物流数据。
 - [闲鱼](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-adblock.egern.yaml)：六个网关、新旧开屏和缓存广告引用。
 - [拼多多](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/pinduoduo/pdd-adblock.egern.yaml)：双条件素材规则、单域 QUIC 与已知页面净化。
 - [红果](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/hongguo/hongguo-adblock.egern.yaml)：78 条广告/上报条件，不拒绝主配置公共 DNS。
@@ -21,6 +22,7 @@
 - HTTP 错误、服务端错误和未知正文保守放行。已读出的正文在解析或处理失败时显式返回，不能把被消费的流当成仍可透传。流读取本身失败时，不能承诺重构没有读完的内容。
 - 高德 RT 的 multipart 字节、CRLF、边界和响应头与现有版本对应；Map Local 不依赖脚本下载。
 - 京东不清空整个 `start`；陌生导航结构保留，普通商品图片不匹配开屏专用尺寸。
+- 菜鸟迁移固定活动 LPX 的四个拒绝请求和三组响应清理；省去 netflow 整包清空规则，保留查件、寄件、取件码、订单等未知业务结构。
 - 闲鱼默认静默，不把服务端登录错误或错误 `ret` 伪造成成功。
 - 拼多多保留 UA 双条件和单域 QUIC；裸 IP 页面响应必须有精确 API Host，不凭域名子串或 UA 直接认领。保留商品评价图片。已识别的三核心导航仍沿用原来源白名单，可能同时精简其它入口。
 - 红果不复制 `dns.alidns.com`、`doh.pub` 拒绝，不解密整个 `snssdk.com`；金币或看广告解锁入口仍可能受阻。
@@ -48,6 +50,8 @@ NAS 原 Surge 网关条件不能从当前公开 Egern 条件策略字段直接�
 2026-11-08 加入 Apple 天气后：脚本 **423/423**，其中新模块 **52/52**；静态 **22/22**。八个 YAML、七个原生 JS 通过检查。Apple 天气源码构建需要其目录内固定的 esbuild/FlatBuffers；已构建产物的离线测试不需要 npm 安装。
 
 同日高德更新到 2.1.0 后：全仓脚本 **456/456**，高德 **87/87**，静态仍为 **22/22**。包含个人页 v3、十五类页面、内嵌配置、业务保留和双端一致性检查；没有完成手机真机验收。见[高德验证报告](../amap/验证报告-2.1.0.md)。
+
+2026-11-08 京东 2.0.0 与菜鸟 1.0.0：京东 **44/44 → 82/82**、菜鸟 **17/17**；全仓 **511/511**、静态 **27/27**。九个 YAML、八个原生脚本和京东构建一致性检查通过；细节见[验证记录](验证记录-京东菜鸟-20261108.md)。本轮未做手机导入、CA 信任或页面验收。
 
 ## 参考
 

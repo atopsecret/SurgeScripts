@@ -3,7 +3,7 @@
 # 构建：无需编译
 # 运行：python3 egern/validate.py [--rules-dir RULES_DIRECTORY]
 # 依赖：PyYAML 6、Node.js 20+；不联网，不调用客户端或业务 API
-"""检查八个原生模块字段、正则、脚本引用和可选公共规则目录。
+"""检查九个原生模块字段、正则、脚本引用和可选公共规则目录。
 
 范围是本项目实际使用的官方文档字段，不伪装成 Egern 官方解析器。
 只读本地文件；不加载私人配置、不执行脚本业务，不证明手机运行可用。
@@ -31,6 +31,7 @@ MODULES = (
     "jyjt/jyjt-member.egern.yaml",
     "weilai/weilai-auto-checkin.egern.yaml",
     "apple-weather/apple-weather-enhancer.egern.yaml",
+    "cainiao/cainiao-adblock.egern.yaml",
 )
 META = {"name", "description", "author", "homepage", "manual", "icon", "open_url"}
 RULE_TYPES = {"domain", "domain_suffix", "domain_keyword", "domain_regex", "domain_wildcard", "geoip", "ip_cidr", "ip_cidr6", "asn", "url_regex", "user_agent", "dest_port", "protocol", "ssid", "bssid", "cellular"}

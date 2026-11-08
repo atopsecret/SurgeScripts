@@ -1,0 +1,608 @@
+{
+  "version": "1.1.1",
+  "baseline_version": "1.1.0",
+  "baseline_commit": "9550b323dab56efbd93083fbfeca5e9ec4c086a7",
+  "source": "用户授权的两次 Surge iOS 抓包；仅保留主机聚合计数。",
+  "method": "读取固定基线和本次构建产物；实际解析两个版本的 Surge 规则，与 Egern 逐请求比较 URL 和 UA。未重放网络请求。",
+  "app_version": "8.11.1105",
+  "surge_version": "5.23.0",
+  "finding": {
+    "cause": "1.1.0 只匹配单个图片对象；第二次素材的目录和 ID 均轮换，四次请求成功返回 HTTP 200。",
+    "material_requests": 4,
+    "distinct_material_bodies": 1,
+    "material_body_bytes": 78044,
+    "material_mime_type": "image/jpeg",
+    "observed_user_agent_forms": 3,
+    "image_review": "已本地查看；素材底部明确包含广告创意与活动商品说明。",
+    "observed_rule_module": "菜鸟去广告",
+    "existing_rules_active": true,
+    "scope": "仅 p3-sign.douyinpic.com 的 tos-cn-p-0051 与 tos-cn-p-0051-ce 两种目录、字母数字下划线连字符素材 ID、~tplv-noop.image 格式，同时要求菜鸟 UA。"
+  },
+  "captures": [
+    {
+      "capture": "2026-11-08-160830",
+      "requests": 169,
+      "before": {
+        "egern": 123,
+        "surge": 123
+      },
+      "after": {
+        "egern": 123,
+        "surge": 123
+      },
+      "lost_coverage": 0,
+      "different_decisions_before": 0,
+      "different_decisions_after": 0,
+      "newly_covered_http_200": 0,
+      "map_local_matches": 0,
+      "response_script_matches": 0,
+      "preserved": 46,
+      "observed": {
+        "http_200": 84,
+        "rejected": 69,
+        "map_local": 12,
+        "url_rewrite": 2,
+        "http_403": 1,
+        "http_400": 1
+      },
+      "module_rule_log_matches": 0,
+      "hosts": [
+        {
+          "host": "acs.m.taobao.com",
+          "requests": 1,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "admonitor-feedback.cn-hangzhou.log.aliyuncs.com",
+          "requests": 36,
+          "before": 36,
+          "after": 36,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "adx-cfg-u1.ubixioe.com",
+          "requests": 3,
+          "before": 3,
+          "after": 3,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "amdc.m.taobao.com",
+          "requests": 19,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "api-access.pangolin-sdk-toutiao-b.com",
+          "requests": 1,
+          "before": 1,
+          "after": 1,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "api-access.pangolin-sdk-toutiao.com",
+          "requests": 2,
+          "before": 2,
+          "after": 2,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "api-access.pangolin-sdk-toutiao1.com",
+          "requests": 9,
+          "before": 9,
+          "after": 9,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "atoken.m.taobao.com",
+          "requests": 2,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "bdlog.tanx.com",
+          "requests": 1,
+          "before": 1,
+          "after": 1,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "cainiao-app-logs.cn-zhangjiakou.log.aliyuncs.com",
+          "requests": 3,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "cn.alicdn.com",
+          "requests": 1,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "df.tanx.com",
+          "requests": 1,
+          "before": 1,
+          "after": 1,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "dualstack-logs.amap.com",
+          "requests": 1,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "dypnsapi.aliyuncs.com",
+          "requests": 1,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "ef-dongfeng.tanx.com",
+          "requests": 3,
+          "before": 3,
+          "after": 3,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "entry-su1.ubixioe.com",
+          "requests": 1,
+          "before": 1,
+          "after": 1,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "err.taobao.com",
+          "requests": 1,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "ipm.atm.youku.com",
+          "requests": 3,
+          "before": 3,
+          "after": 3,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "log-api.pangolin-sdk-toutiao-b.com",
+          "requests": 1,
+          "before": 1,
+          "after": 1,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "mi.gdt.qq.com",
+          "requests": 18,
+          "before": 18,
+          "after": 18,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "mpaasapi.mpaas.cn-hangzhou.aliyuncs.com",
+          "requests": 2,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "mssdk.volces.com",
+          "requests": 3,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "nbnetflow-reply-log.cn-wulanchabu.log.aliyuncs.com",
+          "requests": 2,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "p3-sign.douyinpic.com",
+          "requests": 3,
+          "before": 3,
+          "after": 3,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "report-user-online-event.cn-wulanchabu.log.aliyuncs.com",
+          "requests": 2,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "sdk.1rtb.net",
+          "requests": 2,
+          "before": 2,
+          "after": 2,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "sdk.e.qq.com",
+          "requests": 2,
+          "before": 2,
+          "after": 2,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "sf3-fe-tos.pglstatp-toutiao.com",
+          "requests": 15,
+          "before": 15,
+          "after": 15,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "ssp.iytcdn.com",
+          "requests": 2,
+          "before": 2,
+          "after": 2,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "tnc3-alisc1.zijieapi.com",
+          "requests": 3,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "toblog.ctobsnssdk.com",
+          "requests": 4,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "unet.ucweb.com",
+          "requests": 2,
+          "before": 2,
+          "after": 2,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "v26-be-pack.pglstatp-toutiao.com",
+          "requests": 18,
+          "before": 18,
+          "after": 18,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "ynuf.aliapp.org",
+          "requests": 1,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        }
+      ],
+      "module_rule_log_hosts": {}
+    },
+    {
+      "capture": "2026-11-08-200302",
+      "requests": 156,
+      "before": {
+        "egern": 98,
+        "surge": 98
+      },
+      "after": {
+        "egern": 102,
+        "surge": 102
+      },
+      "lost_coverage": 0,
+      "different_decisions_before": 0,
+      "different_decisions_after": 0,
+      "newly_covered_http_200": 4,
+      "map_local_matches": 0,
+      "response_script_matches": 0,
+      "preserved": 54,
+      "observed": {
+        "rejected": 86,
+        "http_200": 51,
+        "map_local": 13,
+        "url_rewrite": 2,
+        "http_403": 1,
+        "no_response_other": 1,
+        "http_400": 2
+      },
+      "module_rule_log_matches": 83,
+      "hosts": [
+        {
+          "host": "acs.m.taobao.com",
+          "requests": 1,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "admonitor-feedback.cn-hangzhou.log.aliyuncs.com",
+          "requests": 8,
+          "before": 8,
+          "after": 8,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "adx-cfg-u1.ubixioe.com",
+          "requests": 3,
+          "before": 3,
+          "after": 3,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "amdc.m.taobao.com",
+          "requests": 17,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "api-access.pangolin-sdk-toutiao-b.com",
+          "requests": 1,
+          "before": 1,
+          "after": 1,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "api-access.pangolin-sdk-toutiao.com",
+          "requests": 2,
+          "before": 2,
+          "after": 2,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "api-access.pangolin-sdk-toutiao1.com",
+          "requests": 10,
+          "before": 10,
+          "after": 10,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "atoken.m.taobao.com",
+          "requests": 2,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "bdlog.tanx.com",
+          "requests": 1,
+          "before": 1,
+          "after": 1,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "cainiao-app-logs.cn-zhangjiakou.log.aliyuncs.com",
+          "requests": 6,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "cn.alicdn.com",
+          "requests": 1,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "df.tanx.com",
+          "requests": 1,
+          "before": 1,
+          "after": 1,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "dualstack-logs.amap.com",
+          "requests": 1,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "dypnsapi.aliyuncs.com",
+          "requests": 2,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "ef-dongfeng.tanx.com",
+          "requests": 3,
+          "before": 3,
+          "after": 3,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "entry-su1.ubixioe.com",
+          "requests": 1,
+          "before": 1,
+          "after": 1,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "err.taobao.com",
+          "requests": 1,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "guoguouser.cainiao.com",
+          "requests": 2,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "h-adashx.ut.cainiao.com",
+          "requests": 1,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "ipm.atm.youku.com",
+          "requests": 3,
+          "before": 3,
+          "after": 3,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "log-api.pangolin-sdk-toutiao-b.com",
+          "requests": 1,
+          "before": 1,
+          "after": 1,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "mazu.m.qq.com",
+          "requests": 1,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "mi.gdt.qq.com",
+          "requests": 18,
+          "before": 18,
+          "after": 18,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "mpaasapi.mpaas.cn-hangzhou.aliyuncs.com",
+          "requests": 2,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "mssdk.volces.com",
+          "requests": 3,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "nbnetflow-reply-log.cn-wulanchabu.log.aliyuncs.com",
+          "requests": 3,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "p3-sign.douyinpic.com",
+          "requests": 4,
+          "before": 0,
+          "after": 4,
+          "newly_covered_http_200": 4
+        },
+        {
+          "host": "report-user-online-event.cn-wulanchabu.log.aliyuncs.com",
+          "requests": 3,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "sdk.1rtb.net",
+          "requests": 2,
+          "before": 2,
+          "after": 2,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "sdk.e.qq.com",
+          "requests": 4,
+          "before": 4,
+          "after": 4,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "sf3-fe-tos.pglstatp-toutiao.com",
+          "requests": 17,
+          "before": 17,
+          "after": 17,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "ssp.iytcdn.com",
+          "requests": 2,
+          "before": 2,
+          "after": 2,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "tnc3-alisc1.zijieapi.com",
+          "requests": 3,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "toblog.ctobsnssdk.com",
+          "requests": 3,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "unet.ucweb.com",
+          "requests": 9,
+          "before": 9,
+          "after": 9,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "v9-be-pack.pglstatp-toutiao.com",
+          "requests": 12,
+          "before": 12,
+          "after": 12,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "wvcfg.alicdn.com",
+          "requests": 1,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        },
+        {
+          "host": "ynuf.aliapp.org",
+          "requests": 1,
+          "before": 0,
+          "after": 0,
+          "newly_covered_http_200": 0
+        }
+      ],
+      "module_rule_log_hosts": {
+        "admonitor-feedback.cn-hangzhou.log.aliyuncs.com": 8,
+        "adx-cfg-u1.ubixioe.com": 3,
+        "ef-dongfeng.tanx.com": 3,
+        "entry-su1.ubixioe.com": 1,
+        "ipm.atm.youku.com": 3,
+        "log-api.pangolin-sdk-toutiao-b.com": 1,
+        "mi.gdt.qq.com": 18,
+        "sdk.1rtb.net": 2,
+        "sdk.e.qq.com": 4,
+        "sf3-fe-tos.pglstatp-toutiao.com": 17,
+        "ssp.iytcdn.com": 2,
+        "unet.ucweb.com": 9,
+        "v9-be-pack.pglstatp-toutiao.com": 12
+      }
+    }
+  ],
+  "private_har_published": false,
+  "client_import_verified": false,
+  "post_fix_device_verified": false,
+  "limits": "日志证明旧模块部分规则在 Surge 生效；更新后的图片拒绝仅做离线验证。样本没有命中三组页面响应接口，不能据此验证页面脚本或缓存清除。"
+}

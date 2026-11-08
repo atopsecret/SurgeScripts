@@ -204,7 +204,7 @@ class ValidationTests(unittest.TestCase):
         for row in data["map_locals"]:
             self.assertEqual(row["status_code"], 404)
             self.assertEqual(row["body"], "")
-            self.assertEqual(row["headers"]["X-Cainiao-Cleaner-Version"], "eg-native-20261108-1.1.0")
+            self.assertEqual(row["headers"]["X-Cainiao-Cleaner-Version"], "eg-native-20261108-1.1.1")
         patterns = [re.compile(row["match"]) for row in data["map_locals"]]
         self.assertTrue(any(p.search("https://nbcps-mtop.cainiao.com/gw/mtop.cainiao.nbcps.presentation.fetch.cn/1.0/?x=1") for p in patterns))
         for url in ["https://nbcps-mtop.cainiao.com.evil.test/gw/mtop.cainiao.nbcps.presentation.fetch.cn", "https://cn-acs.m.cainiao.com/gw/mtop.cainiao.adkeyword.get.cnx", "https://netflow-mtop.cainiao.com/gw/mtop.cainiao.guoguo.nbnetflow.ads.future/1.0/"]:
@@ -235,7 +235,10 @@ class ValidationTests(unittest.TestCase):
         image = next(row["and"] for row in data["rules"] if "and" in row)
         pattern = re.compile(image["match"][0]["url_regex"]["match"])
         self.assertRegex("https://p3-sign.douyinpic.com/tos-cn-p-0051-ce/ok2sNqJ87HJEDO6BEAI5EftfgaHwlFEDB0oBkD~tplv-noop.image?x-signature=fixture", pattern)
-        self.assertNotRegex("https://p3-sign.douyinpic.com/tos-cn-p-0051-ce/ordinary~tplv-noop.image", pattern)
+        self.assertRegex("https://p3-sign.douyinpic.com/tos-cn-p-0051/ooEkIBANmMqcAhB1Oizkf23JLm4B4iMQhuh3AA~tplv-noop.image?x-signature=fixture", pattern)
+        self.assertRegex("https://p3-sign.douyinpic.com/tos-cn-p-0051-ce/fixtureRotatedCreative_A-1~tplv-noop.image", pattern)
+        for url in ["https://p3-sign.douyinpic.com/tos-cn-p-0051/photo.jpg", "https://p3-sign.douyinpic.com/ordinary/photo~tplv-noop.image", "https://p3-sign.douyinpic.com/tos-cn-p-0051-extra/photo~tplv-noop.image"]:
+            self.assertNotRegex(url, pattern)
         self.assertEqual(image["match"][1]["or"]["match"], [
             {"user_agent": {"match": "Cainiao4iPhone/*"}},
             {"user_agent": {"match": "*com.cainiao.cnwireless*"}},

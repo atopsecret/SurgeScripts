@@ -71,7 +71,7 @@ test('四个请求 Map Local 为 404 空体，精确拒绝后缀与伪造主机'
         'https://cn-acs.m.cainiao.com/gw/mtop.cainiao.guoguo.nbnetflow.ads.mshow?x=1',
         'https://cn-acs.m.cainiao.com/gw/mtop.cainiao.guoguo.nbnetflow.ads.show/2',
     ];
-    for (const url of positives) { const row = local(url); assert.ok(row, url); assert.equal(row.status_code, 404); assert.equal(row.body, ''); assert.equal(row.headers['X-Cainiao-Cleaner-Version'], 'eg-native-20261108-1.1.0'); }
+    for (const url of positives) { const row = local(url); assert.ok(row, url); assert.equal(row.status_code, 404); assert.equal(row.body, ''); assert.equal(row.headers['X-Cainiao-Cleaner-Version'], 'eg-native-20261108-1.1.1'); }
     for (const url of [
         'https://nbcps-mtop.cainiao.com/gw/mtop.cainiao.nbcps.presentation.fetch.cnx',
         'https://netflow-mtop.cainiao.com/gw/mtop.cainiao.guoguo.nbnetflow.ads.index/v1',
@@ -109,7 +109,7 @@ test('e2e fetch.cn 同时清普通 page.fetch 字段与三个额外运营字段'
     assert.equal(result.data.data.activity, undefined);
     assert.equal(result.data.data.vip, undefined);
     assert.deepEqual(result.data.data.order, [6]);
-    assert.equal(output.headers.get('X-Cainiao-Cleaner-Version'), 'eg-native-20261108-1.1.0');
+    assert.equal(output.headers.get('X-Cainiao-Cleaner-Version'), 'eg-native-20261108-1.1.1');
     assert.equal(f.calls.reads, 1);
     assert.equal(f.response.bodyUsed, true);
 });
@@ -273,7 +273,7 @@ test('诊断连续计数，计数封顶且不重新存储未知数据', async ()
     const script = (await load()).default;
     const key = 'skernelx_cainiao_native_diag_v1';
     const api = 'mtop.cainiao.app.e2e.engine.page.fetch.cn';
-    const stored = new Map([[key, JSON.stringify({ version: 'eg-native-20261108-1.1.0', routes: { [api]: { changed: 999998 }, unknown: { token: 'fixture' } }, token: 'fixture' })]]);
+    const stored = new Map([[key, JSON.stringify({ version: 'eg-native-20261108-1.1.1', routes: { [api]: { changed: 999998 }, unknown: { token: 'fixture' } }, token: 'fixture' })]]);
     for (let i = 0; i < 2; i++) await script(fixture({ stored, body: '{"data":{"data":{"banner":[1]}}}' }).ctx);
     const saved = JSON.parse(stored.get(key));
     assert.equal(saved.routes[api].changed, 999999);
@@ -299,19 +299,19 @@ test('netflow 未知广告响应和非目标业务不被响应脚本认领', asy
     }
 });
 
-test('1.1.0 模块与脚本版本同步，诊断不把域名拦截误计为响应改写', async () => {
+test('1.1.1 模块与脚本版本同步，诊断不把域名拦截误计为响应改写', async () => {
     const { VERSION, default: script } = await load();
-    assert.equal(VERSION, 'eg-native-20261108-1.1.0');
+    assert.equal(VERSION, 'eg-native-20261108-1.1.1');
     assert.ok(yaml.description.startsWith(VERSION + '；'));
     for (const item of yaml.scriptings) {
         const entry = item[Object.keys(item)[0]];
         assert.equal(new URL(entry.script_url).searchParams.get('v'), VERSION);
     }
     const key = 'skernelx_cainiao_native_diag_v1';
-    const stored = new Map([[key, JSON.stringify({ version: 'eg-native-20261108-1.0.0', at: '2026-11-08T00:00:00.000Z', routes: {} })]]);
+    const stored = new Map([[key, JSON.stringify({ version: 'eg-native-20261108-1.1.0', at: '2026-11-08T00:00:00.000Z', routes: {} })]]);
     const f = fixture({ generic: true, stored });
     const text = (await script(f.ctx)).children[0].text;
-    assert.match(text, /菜鸟原生版本：eg-native-20261108-1\.1\.0/);
+    assert.match(text, /菜鸟原生版本：eg-native-20261108-1\.1\.1/);
     assert.match(text, /尚未记录到本版本目标接口/);
     assert.match(text, /以上仅统计三个页面响应结构/);
     assert.match(text, /Map Local 拦截请查看请求日志/);

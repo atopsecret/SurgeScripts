@@ -8,6 +8,7 @@ const { readModule, rejects } = require('./rules-fixture.cjs');
 
 const config = readModule();
 const image = 'https://p3-sign.douyinpic.com/tos-cn-p-0051-ce/ok2sNqJ87HJEDO6BEAI5EftfgaHwlFEDB0oBkD~tplv-noop.image';
+const rotatedImage = 'https://p3-sign.douyinpic.com/tos-cn-p-0051/ooEkIBANmMqcAhB1Oizkf23JLm4B4iMQhuh3AA~tplv-noop.image';
 const cainiaoUA = 'Cainiao4iPhone/8.11.1105 (iPhone; iOS 27.2; Scale/3.00)';
 
 test('广告 SDK 主机独立拦截：配置、竞价、素材、曝光与监测不依赖其它模块', () => {
@@ -63,22 +64,43 @@ test('UC 共用主机仅匹配完整曝光接口，保留其它 UC 页面与相�
     ]) assert.equal(rejects(config, url), false, url);
 });
 
-test('UC 素材必须同时命中确认对象和菜鸟 UA，三个已捕获 UA 形式均覆盖', () => {
+test('广告素材必须同时命中菜鸟 UA，三个已捕获 UA 形式均覆盖', () => {
     for (const ua of [
         'TBIOS/Native com.cainiao.cnwireless 8.11.1105 iOS27.2',
         cainiaoUA,
         'Cainiao4iPhone/59673635 CFNetwork/3896.200.61 Darwin/27.2.0',
-    ]) assert.equal(rejects(config, image + '?x-signature=fixture', ua), true, ua);
-    for (const ua of ['', 'Mozilla/5.0', 'Douyin/fixture', 'NotCainiao4iPhone/fixture']) {
-        assert.equal(rejects(config, image, ua), false, ua);
+    ]) for (const url of [image, rotatedImage]) {
+        assert.equal(rejects(config, url + '?x-signature=fixture', ua), true, ua);
     }
+    for (const ua of ['', 'Mozilla/5.0', 'Douyin/fixture', 'NotCainiao4iPhone/fixture']) {
+        for (const url of [image, rotatedImage]) assert.equal(rejects(config, url, ua), false, ua);
+    }
+});
+
+test('两次抓包的目录和素材 ID 轮换均可匹配，不再逐张追加对象', () => {
+    for (const directory of ['tos-cn-p-0051', 'tos-cn-p-0051-ce']) {
+        for (const id of ['ok2sNqJ87HJEDO6BEAI5EftfgaHwlFEDB0oBkD', 'ooEkIBANmMqcAhB1Oizkf23JLm4B4iMQhuh3AA', 'fixtureRotatedCreative20261108_A-1']) {
+            const url = 'https://p3-sign.douyinpic.com:443/' + directory + '/' + id + '~tplv-noop.image?x-signature=rotated-fixture';
+            assert.equal(rejects(config, url, cainiaoUA), true, url);
+        }
+    }
+});
+
+test('素材规则保留普通路径、其它格式、相似主机和目录边界', () => {
     for (const url of [
-        image.replace('ok2sNqJ87HJEDO6BEAI5EftfgaHwlFEDB0oBkD', 'ordinary-image'),
+        'https://p3-sign.douyinpic.com/tos-cn-p-0051/photo.jpg',
+        'https://p3-sign.douyinpic.com/tos-cn-p-0051-ce/photo.image',
+        'https://p3-sign.douyinpic.com/tos-cn-p-0051/~tplv-noop.image',
+        'https://p3-sign.douyinpic.com/tos-cn-p-0051/subdir/photo~tplv-noop.image',
         image.replace('/tos-cn-p-0051-ce/', '/ordinary/'),
+        image.replace('/tos-cn-p-0051-ce/', '/tos-cn-p-0051-extra/'),
+        image.replace('~tplv-noop.image', '~tplv-other.image'),
+        image.replace('https:', 'http:'),
         image + '.other',
         image + '/details',
         image.replace('p3-sign.douyinpic.com', 'p3-sign.douyinpic.com.evil.test'),
         image.replace('p3-sign.douyinpic.com', 'other.douyinpic.com'),
+        image.replace('p3-sign.douyinpic.com', 'user@p3-sign.douyinpic.com'),
     ]) assert.equal(rejects(config, url, cainiaoUA), false, url);
 });
 

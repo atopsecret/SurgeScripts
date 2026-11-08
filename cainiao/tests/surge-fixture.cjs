@@ -10,8 +10,8 @@ const root = path.join(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'cainiao-adblock.js'), 'utf8');
 const moduleText = fs.readFileSync(path.join(root, 'cainiao-adblock.sgmodule'), 'utf8');
 
-function section(name) {
-    const lines = moduleText.split('[' + name + ']')[1]?.split(/\n\[/)[0] || '';
+function section(name, text = moduleText) {
+    const lines = text.split('[' + name + ']')[1]?.split(/\n\[/)[0] || '';
     return lines.split('\n').map(line => line.trim()).filter(line => line && !line.startsWith('#'));
 }
 
@@ -50,8 +50,8 @@ function parseCondition(text) {
     return { [kind]: body };
 }
 
-function readSurgeModule() {
-    return { rules: section('Rule').map(parseCondition) };
+function readSurgeModule(text = moduleText) {
+    return { rules: section('Rule', text).map(parseCondition) };
 }
 
 function runSurge(options = {}) {

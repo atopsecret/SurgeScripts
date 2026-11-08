@@ -43,14 +43,14 @@ const locals = native.map_locals.map(row => {
 const response = native.scriptings.find(item => item.http_response)?.http_response;
 if (!response?.binary_body || !response.body_required) throw Error("缺少二进制响应配置");
 const module = `#!name=菜鸟去广告
-#!desc=${version}；广告 SDK、UC 曝光与菜鸟 UA 素材补漏；四类广告 404、三组页面清理，与 Egern 共用纯策略。
+#!desc=${version}；补开屏素材 ID 和目录轮换，限定菜鸟 UA；保留广告 SDK 拦截、四类广告 404、三组页面清理，与 Egern 共用纯策略。
 #!author=skernelx · Kelee / 小白脸 来源
 #!homepage=https://github.com/atopsecret/SurgeScripts/tree/main/cainiao
 #!category=去广告
 # Engine | Surge iOS 5.9.0+ / Mac 5.5.0+
 # Build: node cainiao/build.mjs
 # Run: 导入本模块；URL、UA 和页面处理需要启用 MITM 并信任本人 Surge CA。
-# 由 Egern 原生规则生成；广告专用域名作用于所有 App，UC 素材同时要求菜鸟 UA。
+# 由 Egern 原生规则生成；广告专用域名作用于所有 App，共享 CDN 素材同时要求菜鸟 UA。
 
 [Rule]
 ${rules.join("\n")}

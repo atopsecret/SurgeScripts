@@ -27,7 +27,7 @@ test('Surge 二进制改写保留多值响应头和顺序，清除旧正文头',
     for (const field of ['content-length', 'content-encoding', 'etag', 'digest', 'content-digest']) {
         assert.equal(output.headers.some(row => row.field.toLowerCase() === field), false, field);
     }
-    assert.equal(output.headers.find(row => row.field === 'X-Cainiao-Cleaner-Version').value, '1.1.0');
+    assert.equal(output.headers.find(row => row.field === 'X-Cainiao-Cleaner-Version').value, '1.1.1');
     assert.equal(JSON.stringify(headers), before);
 });
 
@@ -110,12 +110,18 @@ test('Surge 17 条原生规则解析后与 Egern 完全一致，含嵌套 UA 条
     const surge = readSurgeModule();
     assert.equal(surge.rules.length, 17);
     assert.deepEqual(surge.rules, native.rules);
-    const image = 'https://p3-sign.douyinpic.com/tos-cn-p-0051-ce/ok2sNqJ87HJEDO6BEAI5EftfgaHwlFEDB0oBkD~tplv-noop.image';
-    for (const ua of ['Cainiao4iPhone/fixture', 'TBIOS/Native com.cainiao.cnwireless fixture']) {
-        assert.equal(rejects(surge, image, ua), true);
+    const images = [
+        'https://p3-sign.douyinpic.com/tos-cn-p-0051-ce/ok2sNqJ87HJEDO6BEAI5EftfgaHwlFEDB0oBkD~tplv-noop.image',
+        'https://p3-sign.douyinpic.com/tos-cn-p-0051/ooEkIBANmMqcAhB1Oizkf23JLm4B4iMQhuh3AA~tplv-noop.image',
+        'https://p3-sign.douyinpic.com/tos-cn-p-0051/fixtureRotatedCreative_A-1~tplv-noop.image?x-signature=fixture',
+    ];
+    for (const image of images) {
+        for (const ua of ['Cainiao4iPhone/fixture', 'TBIOS/Native com.cainiao.cnwireless fixture']) {
+            assert.equal(rejects(surge, image, ua), true, image);
+        }
+        assert.equal(rejects(surge, image, 'Douyin/fixture'), false, image);
     }
-    assert.equal(rejects(surge, image, 'Douyin/fixture'), false);
-    assert.equal(rejects(surge, image.replace('ok2sNqJ87HJEDO6BEAI5EftfgaHwlFEDB0oBkD', 'ordinary'), 'Cainiao4iPhone/fixture'), false);
+    assert.equal(rejects(surge, 'https://p3-sign.douyinpic.com/tos-cn-p-0051/photo.jpg', 'Cainiao4iPhone/fixture'), false);
 });
 
 test('Surge 模块启用二进制正文与多值头，七个精确 MITM 主机齐全', () => {
@@ -125,7 +131,7 @@ test('Surge 模块启用二进制正文与多值头，七个精确 MITM 主机�
     for (const option of ['requires-body=true', 'binary-body-mode=true', 'full-header-mode=true', 'engine=webview', 'max-size=2097152', 'script-update-interval=3600']) {
         assert.ok(scripts[0].includes(option), option);
     }
-    assert.ok(scripts[0].includes('cainiao-adblock.js?v=1.1.0'));
+    assert.ok(scripts[0].includes('cainiao-adblock.js?v=1.1.1'));
     const pattern = scripts[0].split(',pattern=')[1].split(',requires-body=')[0];
     assert.equal(pattern, native.scriptings[0].http_response.match);
     const hosts = section('MITM')[0].replace('hostname = %APPEND% ', '').split(', ');

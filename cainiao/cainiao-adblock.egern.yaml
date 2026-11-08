@@ -1,12 +1,75 @@
 name: 菜鸟去广告（Egern 原生）
-description: eg-native-20261108-1.0.0；四个明确广告请求返回 404，三个已知响应结构定点清理；HTTP/业务错误与未知结构保留。
+description: eg-native-20261108-1.1.0；补广告 SDK、UC 曝光与菜鸟专用素材条件；保留四类广告 404 和三组页面清理。
 author: skernelx · Kelee / 小白脸 来源
 homepage: https://github.com/atopsecret/SurgeScripts
+rules:
+# 广告专用主机可直接拒绝；只按本次抓包确认的主机或广告域后缀匹配。
+- domain:
+    match: ssp.iytcdn.com
+    policy: REJECT
+- domain_suffix:
+    match: pangolin-sdk-toutiao.com
+    policy: REJECT
+- domain_suffix:
+    match: pangolin-sdk-toutiao-b.com
+    policy: REJECT
+- domain_suffix:
+    match: pangolin-sdk-toutiao1.com
+    policy: REJECT
+- domain_suffix:
+    match: pglstatp-toutiao.com
+    policy: REJECT
+- domain:
+    match: mi.gdt.qq.com
+    policy: REJECT
+- domain:
+    match: sdk.e.qq.com
+    policy: REJECT
+- domain:
+    match: ef-dongfeng.tanx.com
+    policy: REJECT
+- domain:
+    match: df.tanx.com
+    policy: REJECT
+- domain:
+    match: bdlog.tanx.com
+    policy: REJECT
+- domain:
+    match: ipm.atm.youku.com
+    policy: REJECT
+- domain:
+    match: entry-su1.ubixioe.com
+    policy: REJECT
+- domain:
+    match: adx-cfg-u1.ubixioe.com
+    policy: REJECT
+- domain:
+    match: sdk.1rtb.net
+    policy: REJECT
+- domain:
+    match: admonitor-feedback.cn-hangzhou.log.aliyuncs.com
+    policy: REJECT
+# UC 共用主机只拦本次出现的广告曝光路径。
+- url_regex:
+    match: '^https?://unet\.ucweb\.com(?::[0-9]+)?/v3/ad/show/toutiao/?(?:\?|$)'
+    policy: REJECT
+# 共享图片 CDN：同时要求已确认的 UC 素材对象与菜鸟 UA，不扩大到整个路径目录。
+- and:
+    match:
+    - url_regex:
+        match: '^https://p3-sign\.douyinpic\.com(?::[0-9]+)?/tos-cn-p-0051-ce/ok2sNqJ87HJEDO6BEAI5EftfgaHwlFEDB0oBkD~tplv-noop\.image(?:\?|$)'
+    - or:
+        match:
+        - user_agent:
+            match: 'Cainiao4iPhone/*'
+        - user_agent:
+            match: '*com.cainiao.cnwireless*'
+    policy: REJECT
 scriptings:
 - http_response:
     name: 菜鸟去广告原生处理
     match: '^https://(?:(?:cn-acs\.m|e2e-mtop)\.cainiao\.com(?::[0-9]+)?/gw/mtop\.cainiao\.app\.e2e\.engine\.page\.fetch(?:\.cn)?(?:/[0-9]+(?:\.[0-9]+)*)?/?(?:\?|$)|longquan-mtop\.cainiao\.com(?::[0-9]+)?/gw/mtop\.com\.cainiao\.longquan\.place\.getpageresourcecontent\.cn(?:/[0-9]+(?:\.[0-9]+)*)?/?(?:\?|$))'
-    script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.js?v=eg-native-20261108-1.0.0
+    script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.js?v=eg-native-20261108-1.1.0
     body_required: true
     binary_body: true
     max_size: 2097152
@@ -14,7 +77,7 @@ scriptings:
     timeout: 30
 - generic:
     name: 菜鸟去广告诊断
-    script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.js?v=eg-native-20261108-1.0.0
+    script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.js?v=eg-native-20261108-1.1.0
     update_interval: 3600
     timeout: 30
 map_locals:
@@ -22,25 +85,25 @@ map_locals:
   status_code: 404
   headers:
     Content-Type: text/plain; charset=utf-8
-    X-Cainiao-Cleaner-Version: eg-native-20261108-1.0.0
+    X-Cainiao-Cleaner-Version: eg-native-20261108-1.1.0
   body: ''
 - match: '^https://netflow-mtop\.cainiao\.com(?::[0-9]+)?/gw/mtop\.cainiao\.guoguo\.nbnetflow\.ads\.index(?:/[0-9]+(?:\.[0-9]+)*)?/?(?:\?|$)'
   status_code: 404
   headers:
     Content-Type: text/plain; charset=utf-8
-    X-Cainiao-Cleaner-Version: eg-native-20261108-1.0.0
+    X-Cainiao-Cleaner-Version: eg-native-20261108-1.1.0
   body: ''
 - match: '^https://cn-acs\.m\.cainiao\.com(?::[0-9]+)?/gw/mtop\.cainiao\.adkeyword\.get\.cn(?:/[0-9]+(?:\.[0-9]+)*)?/?(?:\?|$)'
   status_code: 404
   headers:
     Content-Type: text/plain; charset=utf-8
-    X-Cainiao-Cleaner-Version: eg-native-20261108-1.0.0
+    X-Cainiao-Cleaner-Version: eg-native-20261108-1.1.0
   body: ''
 - match: '^https://cn-acs\.m\.cainiao\.com(?::[0-9]+)?/gw/mtop\.cainiao\.guoguo\.nbnetflow\.ads\.m?show(?:/[0-9]+(?:\.[0-9]+)*)?/?(?:\?|$)'
   status_code: 404
   headers:
     Content-Type: text/plain; charset=utf-8
-    X-Cainiao-Cleaner-Version: eg-native-20261108-1.0.0
+    X-Cainiao-Cleaner-Version: eg-native-20261108-1.1.0
   body: ''
 mitm:
   hostnames:
@@ -50,3 +113,5 @@ mitm:
     - cn-acs.m.cainiao.com
     - e2e-mtop.cainiao.com
     - longquan-mtop.cainiao.com
+    - unet.ucweb.com
+    - p3-sign.douyinpic.com

@@ -7,7 +7,7 @@
 - [Apple 天气增强](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/apple-weather/apple-weather-enhancer.egern.yaml)：WeatherKit v3.1.0 天气、降水、AQI 和 FlatBuffers；参数使用原生 `env_schema`。
 - [高德地图](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.egern.yaml)：2.1.0，RT 开屏 multipart、个人页 v3、十五类页面与内嵌配置净化。
 - [京东 2.0.0](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml)：十二类接口、已知导航、精准开屏素材尺寸与原字节回退。
-- [菜鸟 1.0.0](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.yaml)：明确广告请求、查件页运营字段与龙泉广告位清理，保留未知物流数据。
+- [菜鸟 1.1.0](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.yaml)：补广告 SDK、UC 曝光和菜鸟 UA 素材条件，保留原有页面清理。
 - [菜鸟取件小组件 1.1.0](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml)：手机查件页自动捕获登录态，原生桌面及锁屏组件；[手机连接与添加到桌面](../cainiao-widget/README.md)。
 - [闲鱼](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-adblock.egern.yaml)：六个网关、新旧开屏和缓存广告引用。
 - [拼多多](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/pinduoduo/pdd-adblock.egern.yaml)：双条件素材规则、单域 QUIC 与已知页面净化。
@@ -23,7 +23,7 @@
 - HTTP 错误、服务端错误和未知正文保守放行。已读出的正文在解析或处理失败时显式返回，不能把被消费的流当成仍可透传。流读取本身失败时，不能承诺重构没有读完的内容。
 - 高德 RT 的 multipart 字节、CRLF、边界和响应头与现有版本对应；Map Local 不依赖脚本下载。
 - 京东不清空整个 `start`；陌生导航结构保留，普通商品图片不匹配开屏专用尺寸。
-- 菜鸟迁移固定活动 LPX 的四个拒绝请求和三组响应清理；省去 netflow 整包清空规则，保留查件、寄件、取件码、订单等未知业务结构。
+- 菜鸟保留固定活动 LPX 的四个拒绝请求和三组响应清理；1.1.0 补充 17 条广告主机、曝光及 UA 素材条件。省去 netflow 整包清空规则，保留查件、寄件、取件码、订单等未知业务结构。
 - 菜鸟取件是独立模块，自动连接只读两个淘宝 H5 主机请求头，不改写 App 正文；可和菜鸟去广告一起使用。登录态在手机本地保存，个人列表成功才确认连接，锁屏默认隐藏码，失败保留旧快照。需信任本人 Egern CA，未捕获时不冒充已登录。
 - 闲鱼默认静默，不把服务端登录错误或错误 `ret` 伪造成成功。
 - 拼多多保留 UA 双条件和单域 QUIC；裸 IP 页面响应必须有精确 API Host，不凭域名子串或 UA 直接认领。保留商品评价图片。已识别的三核心导航仍沿用原来源白名单，可能同时精简其它入口。
@@ -58,6 +58,8 @@ NAS 原 Surge 网关条件不能从当前公开 Egern 条件策略字段直接�
 2026-11-08 新增菜鸟取件原生小组件 1.0.0：小组件 **44/44**、全仓脚本 **555/555**、公共静态 **35/35**，十个模块与九个自包含脚本通过。扫码助手离线 **32/32**，同源布局预览 **45 个**通过。未执行真实登录或手机验收，见[小组件验证记录](../cainiao-widget/验证记录-1.0.0.md)。
 
 2026-11-08 菜鸟取件小组件 1.1.0：手机登录态捕获、账号隔离屏障与并发归属已实现；小组件 **83/83**、全仓 **594/594**、静态 **38/38**，49 个同源布局检查通过。未执行真机登录，见[1.1.0 验证记录](../cainiao-widget/验证记录-1.1.0.md)。
+
+2026-11-08 菜鸟去广告 1.1.0：授权 HAR 的规则匹配 **0/169 → 123/169**，补上 43 条此前返回 HTTP 200 的广告相关请求；菜鸟 **17/17 → 24/24**、全仓 **594/594 → 601/601**、静态 **38/38 → 39/39**。原始抓包未上传，详见[去广告验证记录](../cainiao/验证记录-1.1.0.md)。真机效果待模块更新后验收。
 
 ## 参考
 

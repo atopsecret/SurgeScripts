@@ -14,7 +14,7 @@ Surge 与 Egern 去广告模块、蔚来自动签到脚本、Apple 天气增强�
   [使用说明](amap/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.egern.yaml)
 - **京东 2.0.0**：十二类接口，补全个人页、订单、新品和物流变体；同步双端匹配与正文保护。
   [使用说明](jd/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml)
-- **菜鸟 1.0.0（Egern）**：四个明确广告请求拒绝、查件页运营字段和龙泉广告位清理；保留未知物流业务。
+- **菜鸟 1.1.0（Egern）**：广告 SDK、UC 曝光与菜鸟 UA 素材补漏；保留原有广告请求和页面清理。
   [使用说明](cainiao/README.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.yaml)
 - **菜鸟取件小组件 1.1.0（Egern 原生）**：手机查件页登录态自动保存，大号取件码、驿站及待取数量；支持浅深色和锁屏，失败保留旧结果。自动连接需信任本人 Egern CA，无需电脑扫码。
   [手机安装与连接](cainiao-widget/README.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml)

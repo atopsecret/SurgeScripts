@@ -35,5 +35,19 @@
     "referenced_by_active_plugin": false
   },
   "implementation": "独立重写原生 JavaScript；保留 Kelee、小白脸和固定镜像出处，不推定第三方整体采用统一许可证。",
+  "har_supplement": {
+    "version": "eg-native-20261108-1.1.0",
+    "checked_at": "2026-11-08",
+    "app_version": "8.11.1105",
+    "capture_creator": "Surge iOS 5.23.0",
+    "captured_requests": 169,
+    "new_native_rules": 17,
+    "matched_before": 0,
+    "matched_after": 123,
+    "previously_http_200_now_covered": 43,
+    "record": "har-audit-20261108.json",
+    "private_har_published": false,
+    "source_relation": "授权抓包确认的独立补充规则，不算作固定 Kelee 插件原有覆盖。"
+  },
   "runtime_verified": false
 }

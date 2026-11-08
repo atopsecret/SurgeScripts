@@ -199,13 +199,12 @@ class ValidationTests(unittest.TestCase):
 
     def test_cainiao_known_local_responses_and_scope(self):
         data = validator.load(ROOT / "cainiao/cainiao-adblock.egern.yaml")
-        self.assertEqual(set(data["mitm"]["hostnames"]["includes"]), {"netflow-mtop.cainiao.com", "nbcps-mtop.cainiao.com", "cn-acs.m.cainiao.com", "e2e-mtop.cainiao.com", "longquan-mtop.cainiao.com"})
-        self.assertNotIn("rules", data)
+        self.assertEqual(set(data["mitm"]["hostnames"]["includes"]), {"netflow-mtop.cainiao.com", "nbcps-mtop.cainiao.com", "cn-acs.m.cainiao.com", "e2e-mtop.cainiao.com", "longquan-mtop.cainiao.com", "unet.ucweb.com", "p3-sign.douyinpic.com"})
         self.assertEqual(len(data["map_locals"]), 4)
         for row in data["map_locals"]:
             self.assertEqual(row["status_code"], 404)
             self.assertEqual(row["body"], "")
-            self.assertEqual(row["headers"]["X-Cainiao-Cleaner-Version"], "eg-native-20261108-1.0.0")
+            self.assertEqual(row["headers"]["X-Cainiao-Cleaner-Version"], "eg-native-20261108-1.1.0")
         patterns = [re.compile(row["match"]) for row in data["map_locals"]]
         self.assertTrue(any(p.search("https://nbcps-mtop.cainiao.com/gw/mtop.cainiao.nbcps.presentation.fetch.cn/1.0/?x=1") for p in patterns))
         for url in ["https://nbcps-mtop.cainiao.com.evil.test/gw/mtop.cainiao.nbcps.presentation.fetch.cn", "https://cn-acs.m.cainiao.com/gw/mtop.cainiao.adkeyword.get.cnx", "https://netflow-mtop.cainiao.com/gw/mtop.cainiao.guoguo.nbnetflow.ads.future/1.0/"]:
@@ -226,6 +225,23 @@ class ValidationTests(unittest.TestCase):
         for source in sources["mirrors"]:
             self.assertRegex(source["commit"], r"^[0-9a-f]{40}$")
             self.assertRegex(source["sha256"], r"^[0-9a-f]{64}$")
+
+    def test_cainiao_ad_sdk_and_shared_cdn_conditions(self):
+        data = validator.load(ROOT / "cainiao/cainiao-adblock.egern.yaml")
+        domains = {row["domain"]["match"] for row in data["rules"] if "domain" in row}
+        self.assertIn("ssp.iytcdn.com", domains)
+        self.assertNotIn("p3-sign.douyinpic.com", domains)
+        self.assertNotIn("unet.ucweb.com", domains)
+        image = next(row["and"] for row in data["rules"] if "and" in row)
+        pattern = re.compile(image["match"][0]["url_regex"]["match"])
+        self.assertRegex("https://p3-sign.douyinpic.com/tos-cn-p-0051-ce/ok2sNqJ87HJEDO6BEAI5EftfgaHwlFEDB0oBkD~tplv-noop.image?x-signature=fixture", pattern)
+        self.assertNotRegex("https://p3-sign.douyinpic.com/tos-cn-p-0051-ce/ordinary~tplv-noop.image", pattern)
+        self.assertEqual(image["match"][1]["or"]["match"], [
+            {"user_agent": {"match": "Cainiao4iPhone/*"}},
+            {"user_agent": {"match": "*com.cainiao.cnwireless*"}},
+        ])
+        for row in data["rules"]:
+            validator.validate_rule(row)
 
     def test_cainiao_widget_capture_scope_and_shared_script(self):
         data = validator.load(ROOT / "cainiao-widget/cainiao-widget.egern.yaml")

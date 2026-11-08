@@ -1,11 +1,11 @@
 // Engine | Egern 原生脚本 API | JavaScript ES module
 // Build: 无需构建
-// Run: 导入 cainiao/cainiao-adblock.egern.yaml；离线 node --experimental-vm-modules --test cainiao/tests/egern.test.cjs
+// Run: 导入 cainiao/cainiao-adblock.egern.yaml；离线 node --experimental-vm-modules --test cainiao/tests/*.test.cjs
 // Deps: 无；离线测试需要 Node.js 20+、Python 3 与 PyYAML
-// Version: eg-native-20261108-1.0.0
+// Version: eg-native-20261108-1.1.0
 // 来源：固定 Kelee 菜鸟插件活动规则；未加载同目录未被引用的旧脚本。
 
-const VERSION = "eg-native-20261108-1.0.0";
+const VERSION = "eg-native-20261108-1.1.0";
 const STORE = "skernelx_cainiao_native_diag_v1";
 const PAGE_API = "mtop.cainiao.app.e2e.engine.page.fetch";
 const LONGQUAN_API = "mtop.com.cainiao.longquan.place.getpageresourcecontent.cn";
@@ -63,7 +63,8 @@ function diagnostic(ctx) {
         const row = saved.routes[api] || {};
         lines.push(api + "：已改写=" + number(row.changed) + "，无变化=" + number(row.unchanged) + "，格式放行=" + number(row.format) + "，错误放行=" + (number(row["server-error"]) + number(row["http-error"])));
     }
-    lines.push("只处理固定广告请求与三个响应结构；查件、寄件、取件码和订单不在处理范围。");
+    lines.push("以上仅统计三个页面响应结构；广告域名、URL 和 Map Local 拦截请查看请求日志。");
+    lines.push("模块另含广告 SDK 与菜鸟 UA 素材规则；查件、寄件、取件码和订单不在处理范围。");
     console.log(lines.join("\n"));
     return { type: "widget", padding: 12, children: [{ type: "text", text: lines.join("\n") }] };
 }

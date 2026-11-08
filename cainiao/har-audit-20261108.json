@@ -1,0 +1,254 @@
+{
+  "version": "eg-native-20261108-1.1.0",
+  "source": "用户授权的 Surge iOS 抓包；仅保留聚合计数，不含原始 HAR、请求参数、Cookie、设备标识或响应正文。",
+  "app_version": "8.11.1105",
+  "capture_time_range": [
+    "2026-11-08T16:08:34+08:00",
+    "2026-11-08T16:08:37+08:00"
+  ],
+  "method": "本地参考匹配器逐条核对规则、Map Local 和响应脚本 URL；未重放网络请求。按 URL 主机汇总，直连 IP 的 HTTPDNS 使用 Host 头。",
+  "observed_surge": {
+    "rejected": 69,
+    "map_local": 12,
+    "url_rewrite": 2,
+    "http_200": 84,
+    "http_400": 1,
+    "http_403": 1
+  },
+  "rule_counts": {
+    "domain": 11,
+    "domain_suffix": 4,
+    "url_regex": 1,
+    "and": 1
+  },
+  "comparison": {
+    "requests": 169,
+    "before": {
+      "rules": 0,
+      "map_local": 0,
+      "response": 0
+    },
+    "after": {
+      "rules": 123,
+      "map_local": 0,
+      "response": 0
+    },
+    "newly_covered_http_200": 43,
+    "already_intercepted_by_surge_and_covered": 80,
+    "preserved": 46
+  },
+  "newly_covered_detail": {
+    "sdk_config_and_data": 2,
+    "uc_image": 3,
+    "uc_impression": 2,
+    "ad_monitor": 36
+  },
+  "hosts": [
+    {
+      "host": "acs.m.taobao.com",
+      "requests": 1,
+      "rejected_after": 0,
+      "newly_covered_http_200": 0
+    },
+    {
+      "host": "admonitor-feedback.cn-hangzhou.log.aliyuncs.com",
+      "requests": 36,
+      "rejected_after": 36,
+      "newly_covered_http_200": 36
+    },
+    {
+      "host": "adx-cfg-u1.ubixioe.com",
+      "requests": 3,
+      "rejected_after": 3,
+      "newly_covered_http_200": 0
+    },
+    {
+      "host": "amdc.m.taobao.com",
+      "requests": 19,
+      "rejected_after": 0,
+      "newly_covered_http_200": 0
+    },
+    {
+      "host": "api-access.pangolin-sdk-toutiao-b.com",
+      "requests": 1,
+      "rejected_after": 1,
+      "newly_covered_http_200": 0
+    },
+    {
+      "host": "api-access.pangolin-sdk-toutiao.com",
+      "requests": 2,
+      "rejected_after": 2,
+      "newly_covered_http_200": 0
+    },
+    {
+      "host": "api-access.pangolin-sdk-toutiao1.com",
+      "requests": 9,
+      "rejected_after": 9,
+      "newly_covered_http_200": 0
+    },
+    {
+      "host": "atoken.m.taobao.com",
+      "requests": 2,
+      "rejected_after": 0,
+      "newly_covered_http_200": 0
+    },
+    {
+      "host": "bdlog.tanx.com",
+      "requests": 1,
+      "rejected_after": 1,
+      "newly_covered_http_200": 0
+    },
+    {
+      "host": "cainiao-app-logs.cn-zhangjiakou.log.aliyuncs.com",
+      "requests": 3,
+      "rejected_after": 0,
+      "newly_covered_http_200": 0
+    },
+    {
+      "host": "cn.alicdn.com",
+      "requests": 1,
+      "rejected_after": 0,
+      "newly_covered_http_200": 0
+    },
+    {
+      "host": "df.tanx.com",
+      "requests": 1,
+      "rejected_after": 1,
+      "newly_covered_http_200": 0
+    },
+    {
+      "host": "dualstack-logs.amap.com",
+      "requests": 1,
+      "rejected_after": 0,
+      "newly_covered_http_200": 0
+    },
+    {
+      "host": "dypnsapi.aliyuncs.com",
+      "requests": 1,
+      "rejected_after": 0,
+      "newly_covered_http_200": 0
+    },
+    {
+      "host": "ef-dongfeng.tanx.com",
+      "requests": 3,
+      "rejected_after": 3,
+      "newly_covered_http_200": 0
+    },
+    {
+      "host": "entry-su1.ubixioe.com",
+      "requests": 1,
+      "rejected_after": 1,
+      "newly_covered_http_200": 0
+    },
+    {
+      "host": "err.taobao.com",
+      "requests": 1,
+      "rejected_after": 0,
+      "newly_covered_http_200": 0
+    },
+    {
+      "host": "ipm.atm.youku.com",
+      "requests": 3,
+      "rejected_after": 3,
+      "newly_covered_http_200": 0
+    },
+    {
+      "host": "log-api.pangolin-sdk-toutiao-b.com",
+      "requests": 1,
+      "rejected_after": 1,
+      "newly_covered_http_200": 0
+    },
+    {
+      "host": "mi.gdt.qq.com",
+      "requests": 18,
+      "rejected_after": 18,
+      "newly_covered_http_200": 0
+    },
+    {
+      "host": "mpaasapi.mpaas.cn-hangzhou.aliyuncs.com",
+      "requests": 2,
+      "rejected_after": 0,
+      "newly_covered_http_200": 0
+    },
+    {
+      "host": "mssdk.volces.com",
+      "requests": 3,
+      "rejected_after": 0,
+      "newly_covered_http_200": 0
+    },
+    {
+      "host": "nbnetflow-reply-log.cn-wulanchabu.log.aliyuncs.com",
+      "requests": 2,
+      "rejected_after": 0,
+      "newly_covered_http_200": 0
+    },
+    {
+      "host": "p3-sign.douyinpic.com",
+      "requests": 3,
+      "rejected_after": 3,
+      "newly_covered_http_200": 3
+    },
+    {
+      "host": "report-user-online-event.cn-wulanchabu.log.aliyuncs.com",
+      "requests": 2,
+      "rejected_after": 0,
+      "newly_covered_http_200": 0
+    },
+    {
+      "host": "sdk.1rtb.net",
+      "requests": 2,
+      "rejected_after": 2,
+      "newly_covered_http_200": 0
+    },
+    {
+      "host": "sdk.e.qq.com",
+      "requests": 2,
+      "rejected_after": 2,
+      "newly_covered_http_200": 0
+    },
+    {
+      "host": "sf3-fe-tos.pglstatp-toutiao.com",
+      "requests": 15,
+      "rejected_after": 15,
+      "newly_covered_http_200": 0
+    },
+    {
+      "host": "ssp.iytcdn.com",
+      "requests": 2,
+      "rejected_after": 2,
+      "newly_covered_http_200": 2
+    },
+    {
+      "host": "tnc3-alisc1.zijieapi.com",
+      "requests": 3,
+      "rejected_after": 0,
+      "newly_covered_http_200": 0
+    },
+    {
+      "host": "toblog.ctobsnssdk.com",
+      "requests": 4,
+      "rejected_after": 0,
+      "newly_covered_http_200": 0
+    },
+    {
+      "host": "unet.ucweb.com",
+      "requests": 2,
+      "rejected_after": 2,
+      "newly_covered_http_200": 2
+    },
+    {
+      "host": "v26-be-pack.pglstatp-toutiao.com",
+      "requests": 18,
+      "rejected_after": 18,
+      "newly_covered_http_200": 0
+    },
+    {
+      "host": "ynuf.aliapp.org",
+      "requests": 1,
+      "rejected_after": 0,
+      "newly_covered_http_200": 0
+    }
+  ],
+  "runtime_verified": false,
+  "limits": "原生条件按项目已有语义离线核对；不等于手机已更新模块、CA 已信任、规则顺序已生效或缓存广告已清除。"
+}

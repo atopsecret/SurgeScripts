@@ -4,7 +4,7 @@
 
 **1.2.1 保留 App 同次请求里的真实 Cookie，不再用 SID 顶替；缺少 `unb` 时只补同次有效 UID，仍需个人身份和完整列表验证。默认通过手机在线模块安装，不需要 ZIP、电脑、复制源码、HAR 或 Cookie。** 可以与[菜鸟去广告](../cainiao/README.md)一起使用，不依赖去广告模块或另装诊断。采集只读四个精确 MTOP 网关的请求头，不读取短信、App 正文或沙盒，不改写查件响应。
 
-**1.2.0 已发布；1.2.1 正在发布，尚未完成公开资源回读核验。手机实际连接尚未验收。** 用户已确认发布本轮修复，以下是新版目标地址；公开回读完成前不能把链接参数当作上线证明。真实 Cookie＋UID 和原生 SID/UID 都只是待验证候选，不是已经证实可用于 H5 的凭据。
+**1.2.1 已发布；安装模块与它引用的脚本均已按原地址回读核验版本和 SHA-256。手机实际连接尚未验收。** 实现提交 `dec68912246ee3ab728c1bf94d6c327d5a832e56` 已普通推送，十三个公开资源与本地同字节。真实 Cookie＋UID 和原生 SID/UID 都只是待验证候选，不是已经证实可用于 H5 的凭据。
 
 ![浅深色与锁屏布局，合成数据离线预览](preview/overview.png)
 
@@ -30,7 +30,7 @@
 
 官方安装入口与字段见 [Egern 小组件文档](https://egernapp.com/zh-CN/docs/configuration/widgets/)。客户端需支持模块 `widgets`、`generic` 脚本及原生 DSL；旧版本若没有小组件画廊，先更新 Egern。
 
-Egern 官方一次添加模块格式为 `egern:/modules/new?name=NAME&url=URL`，是单斜杠 `egern:/`，且模块必须是手机可访问的 URL。上面的名称和模块 URL 各编码一次；新版模块及其精确脚本 URL 在发布后按原地址回读核验，不使用未文档化的内联 JS、脚本 data URL 或附件自动导入。见 [URL scheme 文档](https://egernapp.com/zh-CN/docs/url-scheme/)。
+Egern 官方一次添加模块格式为 `egern:/modules/new?name=NAME&url=URL`，是单斜杠 `egern:/`，且模块必须是手机可访问的 URL。上面的名称和模块 URL 各编码一次；新版模块及其精确脚本 URL 已按原地址回读核验，不使用未文档化的内联 JS、脚本 data URL 或附件自动导入。见 [URL scheme 文档](https://egernapp.com/zh-CN/docs/url-scheme/)。
 
 ### 分享给别人
 

@@ -16,7 +16,7 @@ Surge 与 Egern 去广告模块、蔚来自动签到脚本、Apple 天气增强�
   [使用说明](jd/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml)
 - **菜鸟 1.2.0（Surge / Egern）**：补 HTTP/3 绕过、广告 API 的 `.cn` 变体、自营开屏视频和备用封面；保留双端页面清理。
   [使用说明](cainiao/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.yaml)
-- **菜鸟取件小组件 1.2.1（Egern 原生，正在发布）**：保留 App 同次真实 Cookie，不用 SID 顶替；首次验证失败不误报 App 登录过期。同一远程模块含采集、独立查询与固定失败阶段，不需要 ZIP、电脑或 HAR。真实个人接入及关闭 App 后更新仍需手机验收。
+- **菜鸟取件小组件 1.2.1（Egern 原生，已发布）**：保留 App 同次真实 Cookie，不用 SID 顶替；首次验证失败不误报 App 登录过期。同一远程模块含采集、独立查询与固定失败阶段，不需要 ZIP、电脑或 HAR。真实个人接入及关闭 App 后更新仍需手机验收。
   [手机安装与升级](cainiao-widget/开始使用-1.2.1.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.2.1)
 - **闲鱼**：新旧开屏接口、缓存广告引用、悬浮策略及指定广告素材。
   [使用说明](xianyu/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-adblock.egern.yaml)
@@ -100,7 +100,7 @@ node --experimental-vm-modules --test --test-reporter=tap \
   cainiao-widget/tests/*.test.cjs
 ```
 
-当前候选发布树脚本测试共 **737 项**：菜鸟取件小组件 193 项、京东 82 项、菜鸟 50 项、高德 87 项、Apple 天气 52 项，其余模块 273 项。相比最新公开基线 **688/688 → 737/737**，本轮新增小组件 49 项，不包含本地保留的旧诊断。测试在各模块目录，不恢复已删除的根 `tests/`。字段、匹配和来源子集另有 **40 项** Python 测试，依赖 PyYAML 6：
+当前发布树脚本测试共 **737 项**：菜鸟取件小组件 193 项、京东 82 项、菜鸟 50 项、高德 87 项、Apple 天气 52 项，其余模块 273 项。相比最新公开基线 **688/688 → 737/737**，本轮新增小组件 49 项，不包含本地保留的旧诊断。测试在各模块目录，不恢复已删除的根 `tests/`。字段、匹配和来源子集另有 **40 项** Python 测试，依赖 PyYAML 6：
 
 ```sh
 python3 egern/validate.py
@@ -127,7 +127,7 @@ Egern 的 `.egern.js` 是 ES module，单文件语法检查使用 `node --input-
 
 2026-11-08 菜鸟取件小组件 1.2.0 已发布：App 会话采集和独立查询已集成同一组件，新增 App 回归 **57/57**、主组件 **83/83 → 144/144**、全仓 **624/624 → 685/685**、静态 **40/40**，58 个同源布局零问题。十三个公开资源 HTTP 200，版本和哈希一致。原生会话兼容与关闭 App 后的新查询尚未手机验收，见[小组件 1.2.0 验证记录](cainiao-widget/验证记录-1.2.0.md)。
 
-2026-11-08 菜鸟取件小组件 1.2.1 正在发布：保留同次实际 Cookie、严格验证 UID 和完整列表，修正首次失败文案及弱流量账号屏障；主组件 **144/144 → 193/193**、最新远程全仓 **688/688 → 737/737**、静态 **40/40**，58 个布局零问题。公开资源回读尚未完成，手机接入未验收，见[小组件 1.2.1 记录](cainiao-widget/验证记录-1.2.1.md)。
+2026-11-08 菜鸟取件小组件 1.2.1 已发布：保留同次实际 Cookie、严格验证 UID 和完整列表，修正首次失败文案及弱流量账号屏障；主组件 **144/144 → 193/193**、最新远程全仓 **688/688 → 737/737**、静态 **40/40**，58 个布局零问题。十三个公开原地址的版本及哈希一致，手机接入未验收，见[小组件 1.2.1 记录](cainiao-widget/验证记录-1.2.1.md)。
 
 ## 反馈与来源
 

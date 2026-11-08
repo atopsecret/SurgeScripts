@@ -8,7 +8,7 @@
 - [高德地图](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.egern.yaml)：2.1.0，RT 开屏 multipart、个人页 v3、十五类页面与内嵌配置净化。
 - [京东 2.0.0](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml)：十二类接口、已知导航、精准开屏素材尺寸与原字节回退。
 - [菜鸟 1.2.1](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.yaml?v=1.2.1)：九个精确主机改为 UDP/QUIC `443` 条件，保留原有页面和素材规则；最新抓包确认仍在展示本地缓存视频，最终开屏效果未真机确认。
-- [菜鸟取件小组件 1.2.1 · 正在发布](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.2.1)：保留同次真实 Cookie 和严格身份门禁，首次拒绝不误报 App 登录过期；默认手机在线升级同一模块，不要求本地文件；[手机升级与连接](../cainiao-widget/开始使用-1.2.1.md)。
+- [菜鸟取件小组件 1.2.1 · 已发布](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.2.1)：保留同次真实 Cookie 和严格身份门禁，首次拒绝不误报 App 登录过期；默认手机在线升级同一模块，不要求本地文件；[手机升级与连接](../cainiao-widget/开始使用-1.2.1.md)。
 - [闲鱼](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-adblock.egern.yaml)：六个网关、新旧开屏和缓存广告引用。
 - [拼多多](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/pinduoduo/pdd-adblock.egern.yaml)：双条件素材规则、单域 QUIC 与已知页面净化。
 - [红果](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/hongguo/hongguo-adblock.egern.yaml)：78 条广告/上报条件，不拒绝主配置公共 DNS。
@@ -69,7 +69,7 @@ NAS 原 Surge 网关条件不能从当前公开 Egern 条件策略字段直接�
 
 2026-11-08 菜鸟去广告 1.2.1：第四份抓包确认缓存视频继续展示、原生 HTTP/3 仍有双向传输；修正九个精确主机的 UDP/QUIC `443` 条件，Surge 另补 SNI 扩展匹配。菜鸟 **47/47 → 50/50**、全仓 **685/685 → 688/688**、静态 **40/40**。没有真机验证最终开屏效果，见[1.2.1 验证记录](../cainiao/验证记录-1.2.1.md)。
 
-2026-11-08 菜鸟取件小组件 1.2.1 正在发布：保留同次实际 Cookie，首次验证失败不误报 App 登录过期，旧终止态不被 SID-only 流量复活；新回归 **49/49**、主组件 **193/193**、全仓 **737/737**、静态 **40/40**、58 个布局零问题。公开资源回读尚未完成，手机接入未验收，见[小组件 1.2.1 记录](../cainiao-widget/验证记录-1.2.1.md)。
+2026-11-08 菜鸟取件小组件 1.2.1 已发布：保留同次实际 Cookie，首次验证失败不误报 App 登录过期，旧终止态不被 SID-only 流量复活；新回归 **49/49**、主组件 **193/193**、全仓 **737/737**、静态 **40/40**、58 个布局零问题。十三个公开原地址的版本及哈希一致，手机接入未验收，见[小组件 1.2.1 记录](../cainiao-widget/验证记录-1.2.1.md)。
 
 ## 参考
 

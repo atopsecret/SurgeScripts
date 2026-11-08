@@ -8,7 +8,7 @@
 // Deps: 无；不访问网络或存储
 // 来源：固定 Kelee 菜鸟活动规则；保留未知物流结构。
 const CAINIAO_POLICY = (() => {
-    const VERSION = "1.1.1";
+    const VERSION = "1.2.0";
     const PAGE_API = "mtop.cainiao.app.e2e.engine.page.fetch";
     const LONGQUAN_API = "mtop.com.cainiao.longquan.place.getpageresourcecontent.cn";
     const HOSTS = new Set([

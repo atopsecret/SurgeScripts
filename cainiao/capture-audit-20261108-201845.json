@@ -1,0 +1,221 @@
+{
+  "version": "1.2.0",
+  "baseline_version": "1.1.1",
+  "baseline_commit": "a975d81b2669166434502a6b56e46e29c4198eee",
+  "source": "用户授权的三份 HAR 与最新 PCAP；只公开聚合计数、广告 API 名称和协议握手主机。",
+  "method": "本地解析 HAR，LZ4 解压日志并读取 Protobuf；按 draft-29 Initial 密钥派生解析 QUIC ClientHello SNI，未解密 QUIC 应用正文，未重放业务请求。读取实际双端模块进行离线匹配。",
+  "finding": {
+    "downloaded_video_requests": 1,
+    "downloaded_video_bytes": 572240,
+    "downloaded_video_duration_seconds": 5,
+    "visual_review": "视频帧为天猫双 11 品类周、李佳琦直播间超级生活节推广。",
+    "splash_source": "100",
+    "splash_log_module": "Page_Screen_Cpm",
+    "confirmed_log_points": [
+      "ScreenCpmDataResponse",
+      "ScreenCpmEntry",
+      "ScreenCpmExp",
+      "RtbAdsCostTime"
+    ],
+    "logged_cache_reuse": 1,
+    "native_http3_records": 60,
+    "native_http2_0rtt_acs_records": 5,
+    "causes": [
+      "自营视频和独立备用封面使用另一组 CDN。",
+      "Mtop 通过 HTTP/3 运行，普通 HAR 未列出相应广告 API 请求。",
+      "旧 Map Local 缺少 ads.index.cn、ads.show.cn、ads.mshow.cn 变体与已确认的 flyad 广告接口。"
+    ]
+  },
+  "har_captures": [
+    {
+      "capture": "2026-11-08-160830",
+      "requests": 169,
+      "before": {
+        "egern": 123,
+        "surge": 123
+      },
+      "after": {
+        "egern": 123,
+        "surge": 123
+      },
+      "different_decisions": 0,
+      "lost_coverage": 0,
+      "newly_covered_http_200": 0,
+      "map_local_matches": 0,
+      "response_script_matches": 0,
+      "observed": {
+        "http_200": 84,
+        "rejected": 69,
+        "map_local": 12,
+        "url_rewrite": 2,
+        "http_403": 1,
+        "http_400": 1
+      }
+    },
+    {
+      "capture": "2026-11-08-200302",
+      "requests": 156,
+      "before": {
+        "egern": 102,
+        "surge": 102
+      },
+      "after": {
+        "egern": 102,
+        "surge": 102
+      },
+      "different_decisions": 0,
+      "lost_coverage": 0,
+      "newly_covered_http_200": 0,
+      "map_local_matches": 0,
+      "response_script_matches": 0,
+      "observed": {
+        "rejected": 86,
+        "http_200": 51,
+        "map_local": 13,
+        "url_rewrite": 2,
+        "http_403": 1,
+        "no_response_other": 1,
+        "http_400": 2
+      }
+    },
+    {
+      "capture": "2026-11-08-201845",
+      "requests": 147,
+      "before": {
+        "egern": 69,
+        "surge": 69
+      },
+      "after": {
+        "egern": 70,
+        "surge": 70
+      },
+      "different_decisions": 0,
+      "lost_coverage": 0,
+      "newly_covered_http_200": 1,
+      "map_local_matches": 0,
+      "response_script_matches": 0,
+      "observed": {
+        "map_local": 15,
+        "http_200": 72,
+        "rejected": 55,
+        "no_response_other": 2,
+        "url_rewrite": 2,
+        "http_403": 1
+      }
+    }
+  ],
+  "pcap": {
+    "packets": 11844,
+    "quic_version": "draft-29 (ff00001d)",
+    "initial_packets_decrypted": 24,
+    "quic_rule_replay": {
+      "identified_connections": 24,
+      "before_matches": 0,
+      "after_matches": 9,
+      "preserved_connections": 15,
+      "different_decisions": 0,
+      "hosts": [
+        {
+          "host": "netflow-mtop.cainiao.com",
+          "connections": 2,
+          "before_rejects_quic": false,
+          "after_rejects_quic": true
+        },
+        {
+          "host": "cn-acs.m.cainiao.com",
+          "connections": 2,
+          "before_rejects_quic": false,
+          "after_rejects_quic": true
+        },
+        {
+          "host": "e2e-mtop.cainiao.com",
+          "connections": 2,
+          "before_rejects_quic": false,
+          "after_rejects_quic": true
+        },
+        {
+          "host": "nbcps-mtop.cainiao.com",
+          "connections": 2,
+          "before_rejects_quic": false,
+          "after_rejects_quic": true
+        },
+        {
+          "host": "gguser-mtop.cainiao.com",
+          "connections": 2,
+          "before_rejects_quic": false,
+          "after_rejects_quic": false
+        },
+        {
+          "host": "caps-mtop.cainiao.com",
+          "connections": 2,
+          "before_rejects_quic": false,
+          "after_rejects_quic": false
+        },
+        {
+          "host": "tenant1-bff-mtop.cainiao.com",
+          "connections": 2,
+          "before_rejects_quic": false,
+          "after_rejects_quic": false
+        },
+        {
+          "host": "community-mtop.cainiao.com",
+          "connections": 2,
+          "before_rejects_quic": false,
+          "after_rejects_quic": false
+        },
+        {
+          "host": "nbfriend-mtop.cainiao.com",
+          "connections": 2,
+          "before_rejects_quic": false,
+          "after_rejects_quic": false
+        },
+        {
+          "host": "home-bff-mtop.cainiao.com",
+          "connections": 2,
+          "before_rejects_quic": false,
+          "after_rejects_quic": false
+        },
+        {
+          "host": "mtop-bff-mtop.cainiao.com",
+          "connections": 2,
+          "before_rejects_quic": false,
+          "after_rejects_quic": false
+        },
+        {
+          "host": "netflow-reply-mtop.cainiao.com",
+          "connections": 1,
+          "before_rejects_quic": false,
+          "after_rejects_quic": false
+        },
+        {
+          "host": "longquan-mtop.cainiao.com",
+          "connections": 1,
+          "before_rejects_quic": false,
+          "after_rejects_quic": true
+        }
+      ]
+    }
+  },
+  "native_log_protocols": {
+    "http3": 60,
+    "http2_0rtt_acs": 5
+  },
+  "native_logged_routes": {
+    "records": 16,
+    "map_local_before": 1,
+    "map_local_after_tcp_fallback": 9,
+    "page_routes_after_tcp_fallback": 7,
+    "different_decisions": 0
+  },
+  "splash_material_replay": {
+    "unique_urls_in_splash_logs": 4,
+    "before": 0,
+    "after": 4,
+    "different_decisions": 0
+  },
+  "private_har_published": false,
+  "private_pcap_published": false,
+  "decoded_private_logs_published": false,
+  "post_fix_device_verified": false,
+  "limits": "HAR、QUIC 连接和应用日志记录属于不同计数口径，不能相加。QUIC 规则仅做 SNI 与协议条件的离线核对；客户端对 draft-29 的识别、TCP 回退、已有缓存及最终开屏效果均待手机验收。"
+}

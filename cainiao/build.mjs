@@ -19,13 +19,13 @@ for (const item of native.scriptings) {
     if (new URL(entry.script_url).searchParams.get("v") !== "eg-native-20261108-" + version) throw Error("Egern 脚本 URL 版本不一致");
 }
 
-const types = { domain: "DOMAIN", domain_suffix: "DOMAIN-SUFFIX", url_regex: "URL-REGEX", user_agent: "USER-AGENT" };
+const types = { domain: "DOMAIN", domain_suffix: "DOMAIN-SUFFIX", url_regex: "URL-REGEX", user_agent: "USER-AGENT", protocol: "PROTOCOL" };
 function condition(item) {
     const [[kind, body]] = Object.entries(item);
     if (body.disabled) throw Error("构建不支持禁用条件");
     if (kind === "and" || kind === "or") return kind.toUpperCase() + ",(" + body.match.map(child => "(" + condition(child) + ")").join(",") + ")";
     if (!types[kind] || /[\r\n"]/.test(body.match)) throw Error("不支持的原生规则条件");
-    const value = ["url_regex", "user_agent"].includes(kind) ? '"' + body.match + '"' : body.match;
+    const value = ["url_regex", "user_agent"].includes(kind) ? '"' + body.match + '"' : kind === "protocol" ? body.match.toUpperCase() : body.match;
     return types[kind] + "," + value;
 }
 
@@ -36,14 +36,14 @@ const rules = native.rules.map(row => {
 });
 const locals = native.map_locals.map(row => {
     const headers = row.headers || {};
-    if (row.body !== "" || row.status_code !== 404 || Object.keys(headers).some(key => !["Content-Type", "X-Cainiao-Cleaner-Version"].includes(key))) throw Error("Map Local 不是预期的四类空体 404");
+    if (row.body !== "" || row.status_code !== 404 || Object.keys(headers).some(key => !["Content-Type", "X-Cainiao-Cleaner-Version"].includes(key))) throw Error("Map Local 不是预期的空体 404");
     if (headers["X-Cainiao-Cleaner-Version"] !== "eg-native-20261108-" + version) throw Error("Map Local 版本不一致");
     return row.match + ' data-type=text data="" status-code=404 header="Content-Type:' + headers["Content-Type"] + '"';
 });
 const response = native.scriptings.find(item => item.http_response)?.http_response;
 if (!response?.binary_body || !response.body_required) throw Error("缺少二进制响应配置");
 const module = `#!name=菜鸟去广告
-#!desc=${version}；补开屏素材 ID 和目录轮换，限定菜鸟 UA；保留广告 SDK 拦截、四类广告 404、三组页面清理，与 Egern 共用纯策略。
+#!desc=${version}；补 HTTP/3 绕过、广告 API 的 cn 变体与自营开屏视频和封面；素材限定菜鸟 UA，五类广告 404、三组页面清理，与 Egern 共用纯策略。
 #!author=skernelx · Kelee / 小白脸 来源
 #!homepage=https://github.com/atopsecret/SurgeScripts/tree/main/cainiao
 #!category=去广告
@@ -56,7 +56,7 @@ const module = `#!name=菜鸟去广告
 ${rules.join("\n")}
 
 [Map Local]
-# 保留四类空体 404；客户端专用版本头不作为业务匹配条件。
+# 五类空体 404；客户端专用版本头不作为业务匹配条件。
 ${locals.join("\n")}
 
 [Script]

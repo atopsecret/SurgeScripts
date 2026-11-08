@@ -1,5 +1,5 @@
 #!name=菜鸟去广告
-#!desc=1.1.1；补开屏素材 ID 和目录轮换，限定菜鸟 UA；保留广告 SDK 拦截、四类广告 404、三组页面清理，与 Egern 共用纯策略。
+#!desc=1.2.0；补 HTTP/3 绕过、广告 API 的 cn 变体与自营开屏视频和封面；素材限定菜鸟 UA，五类广告 404、三组页面清理，与 Egern 共用纯策略。
 #!author=skernelx · Kelee / 小白脸 来源
 #!homepage=https://github.com/atopsecret/SurgeScripts/tree/main/cainiao
 #!category=去广告
@@ -24,18 +24,22 @@ DOMAIN,entry-su1.ubixioe.com,REJECT
 DOMAIN,adx-cfg-u1.ubixioe.com,REJECT
 DOMAIN,sdk.1rtb.net,REJECT
 DOMAIN,admonitor-feedback.cn-hangzhou.log.aliyuncs.com,REJECT
+AND,((PROTOCOL,QUIC),(OR,((DOMAIN,netflow-mtop.cainiao.com),(DOMAIN,nbcps-mtop.cainiao.com),(DOMAIN,cn-acs.m.cainiao.com),(DOMAIN,e2e-mtop.cainiao.com),(DOMAIN,longquan-mtop.cainiao.com),(DOMAIN,unet.ucweb.com),(DOMAIN,p3-sign.douyinpic.com),(DOMAIN,a1.alibabausercontent.com),(DOMAIN,ossgw.alicdn.com)))),REJECT
 URL-REGEX,"^https?://unet\.ucweb\.com(?::[0-9]+)?/v3/ad/show/toutiao/?(?:\?|$)",REJECT
 AND,((URL-REGEX,"^https://p3-sign\.douyinpic\.com(?::[0-9]+)?/tos-cn-p-0051(?:-ce)?/[A-Za-z0-9_-]+~tplv-noop\.image(?:\?|$)"),(OR,((USER-AGENT,"Cainiao4iPhone/*"),(USER-AGENT,"*com.cainiao.cnwireless*")))),REJECT
+AND,((URL-REGEX,"^https://a1\.alibabausercontent\.com(?::[0-9]+)?/prod/feupload/user/7clgu/[A-Za-z0-9_-]+\.mp4_\.mp4(?:\?|$)"),(OR,((USER-AGENT,"Cainiao4iPhone/*"),(USER-AGENT,"*com.cainiao.cnwireless*")))),REJECT
+AND,((URL-REGEX,"^https://ossgw\.alicdn\.com(?::[0-9]+)?/creatives-assets/prod/feupload/user/7clgu/[A-Za-z0-9_-]+\.jpg(?:\?|$)"),(OR,((USER-AGENT,"Cainiao4iPhone/*"),(USER-AGENT,"*com.cainiao.cnwireless*")))),REJECT
 
 [Map Local]
-# 保留四类空体 404；客户端专用版本头不作为业务匹配条件。
+# 五类空体 404；客户端专用版本头不作为业务匹配条件。
 ^https://nbcps-mtop\.cainiao\.com(?::[0-9]+)?/gw/mtop\.cainiao\.nbcps\.presentation\.fetch\.cn(?:/[0-9]+(?:\.[0-9]+)*)?/?(?:\?|$) data-type=text data="" status-code=404 header="Content-Type:text/plain; charset=utf-8"
-^https://netflow-mtop\.cainiao\.com(?::[0-9]+)?/gw/mtop\.cainiao\.guoguo\.nbnetflow\.ads\.index(?:/[0-9]+(?:\.[0-9]+)*)?/?(?:\?|$) data-type=text data="" status-code=404 header="Content-Type:text/plain; charset=utf-8"
+^https://netflow-mtop\.cainiao\.com(?::[0-9]+)?/gw/mtop\.cainiao\.guoguo\.nbnetflow\.ads\.index(?:\.cn)?(?:/[0-9]+(?:\.[0-9]+)*)?/?(?:\?|$) data-type=text data="" status-code=404 header="Content-Type:text/plain; charset=utf-8"
 ^https://cn-acs\.m\.cainiao\.com(?::[0-9]+)?/gw/mtop\.cainiao\.adkeyword\.get\.cn(?:/[0-9]+(?:\.[0-9]+)*)?/?(?:\?|$) data-type=text data="" status-code=404 header="Content-Type:text/plain; charset=utf-8"
-^https://cn-acs\.m\.cainiao\.com(?::[0-9]+)?/gw/mtop\.cainiao\.guoguo\.nbnetflow\.ads\.m?show(?:/[0-9]+(?:\.[0-9]+)*)?/?(?:\?|$) data-type=text data="" status-code=404 header="Content-Type:text/plain; charset=utf-8"
+^https://(?:cn-acs\.m|netflow-mtop)\.cainiao\.com(?::[0-9]+)?/gw/mtop\.cainiao\.guoguo\.nbnetflow\.ads\.m?show(?:\.cn)?(?:/[0-9]+(?:\.[0-9]+)*)?/?(?:\?|$) data-type=text data="" status-code=404 header="Content-Type:text/plain; charset=utf-8"
+^https://cn-acs\.m\.cainiao\.com(?::[0-9]+)?/gw/mtop\.cainiao\.adx\.flyad\.getad\.cn(?:/[0-9]+(?:\.[0-9]+)*)?/?(?:\?|$) data-type=text data="" status-code=404 header="Content-Type:text/plain; charset=utf-8"
 
 [Script]
-菜鸟去广告 = type=http-response,pattern=^https://(?:(?:cn-acs\.m|e2e-mtop)\.cainiao\.com(?::[0-9]+)?/gw/mtop\.cainiao\.app\.e2e\.engine\.page\.fetch(?:\.cn)?(?:/[0-9]+(?:\.[0-9]+)*)?/?(?:\?|$)|longquan-mtop\.cainiao\.com(?::[0-9]+)?/gw/mtop\.com\.cainiao\.longquan\.place\.getpageresourcecontent\.cn(?:/[0-9]+(?:\.[0-9]+)*)?/?(?:\?|$)),requires-body=true,max-size=2097152,binary-body-mode=true,full-header-mode=true,engine=webview,script-update-interval=3600,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.js?v=1.1.1,timeout=30
+菜鸟去广告 = type=http-response,pattern=^https://(?:(?:cn-acs\.m|e2e-mtop)\.cainiao\.com(?::[0-9]+)?/gw/mtop\.cainiao\.app\.e2e\.engine\.page\.fetch(?:\.cn)?(?:/[0-9]+(?:\.[0-9]+)*)?/?(?:\?|$)|longquan-mtop\.cainiao\.com(?::[0-9]+)?/gw/mtop\.com\.cainiao\.longquan\.place\.getpageresourcecontent\.cn(?:/[0-9]+(?:\.[0-9]+)*)?/?(?:\?|$)),requires-body=true,max-size=2097152,binary-body-mode=true,full-header-mode=true,engine=webview,script-update-interval=3600,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.js?v=1.2.0,timeout=30
 
 [MITM]
-hostname = %APPEND% netflow-mtop.cainiao.com, nbcps-mtop.cainiao.com, cn-acs.m.cainiao.com, e2e-mtop.cainiao.com, longquan-mtop.cainiao.com, unet.ucweb.com, p3-sign.douyinpic.com
+hostname = %APPEND% netflow-mtop.cainiao.com, nbcps-mtop.cainiao.com, cn-acs.m.cainiao.com, e2e-mtop.cainiao.com, longquan-mtop.cainiao.com, unet.ucweb.com, p3-sign.douyinpic.com, a1.alibabausercontent.com, ossgw.alicdn.com

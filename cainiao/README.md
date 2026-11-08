@@ -1,6 +1,6 @@
 # 菜鸟去广告（Surge / Egern）
 
-当前版本 `1.1.1`（Egern：`eg-native-20261108-1.1.1`）。修复开屏图片更换素材 ID 和目录后漏拦的问题，保留广告 SDK、UC 曝光和原有页面清理。规则来自菜鸟 `8.11.1105` 的两次授权抓包核对；原有页面规则保留固定 Kelee 来源。
+当前版本 `1.2.0`（Egern：`eg-native-20261108-1.2.0`）。修复原生 HTTP/3 绕过普通改写、广告 API 的 `.cn` 变体和自营开屏视频及备用封面漏拦。规则来自菜鸟 `8.11.1105` 的三次授权 HAR 与一次 PCAP 核对；原有页面规则保留固定 Kelee 来源。
 
 Surge 与 Egern 各自使用原生模块和脚本。页面处理共用 `cainiao-policy.js`，构建时内联为独立文件；客户端不需要下载公共运行时。Surge 模块的规则、Map Local、页面匹配和解密主机从 Egern YAML 生成。
 
@@ -18,7 +18,7 @@ Egern：将下面的地址添加到模块：
 https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.yaml
 ```
 
-在所用客户端中安装并信任自己的 CA，开启下面七个主机的 HTTPS 解密。不要同时启用会处理相同菜鸟页面接口的旧模块。
+在所用客户端中安装并信任自己的 CA，开启下面九个主机的 HTTPS 解密。不要同时启用会处理相同菜鸟页面接口的旧模块。
 
 ```text
 netflow-mtop.cainiao.com
@@ -28,15 +28,33 @@ e2e-mtop.cainiao.com
 longquan-mtop.cainiao.com
 unet.ucweb.com
 p3-sign.douyinpic.com
+a1.alibabausercontent.com
+ossgw.alicdn.com
 ```
 
-从 `1.0.0` 或 `1.1.0` 更新时，在所用客户端的模块管理中手动更新整个模块。确认 Surge 描述显示 `1.1.1`，Egern 描述显示 `eg-native-20261108-1.1.1`。只刷新远程脚本不会更新素材拦截条件。检查上述主机已加入解密范围，然后完全退出并重新打开菜鸟。
+从旧版本更新时，在所用客户端的模块管理中手动更新整个模块。确认 Surge 描述显示 `1.2.0`，Egern 描述显示 `eg-native-20261108-1.2.0`。只刷新远程脚本不会更新 QUIC、Map Local 和素材规则。检查上述主机已加入解密范围，然后完全退出并重新打开菜鸟。
 
-广告 SDK 的域名拒绝不需要 HTTPS 解密；UC 曝光路径和图片的 UA 条件需要解密。已下载到 App 缓存的广告仍可能显示，新规则只能控制后续网络请求。
+广告 SDK 的域名拒绝不需要 HTTPS 解密；UC 曝光路径、素材 UA 条件和 Map Local 需要解密。上述九个精确主机上的 QUIC 被拒绝，用于促使请求重试 TCP；没有修改全局 QUIC、DNS 或其它菜鸟业务主机。客户端是否识别该连接、是否回退成功仍需手机验收。已下载到 App 缓存的广告仍可能显示，新规则只能控制后续网络请求。
 
 Surge 响应脚本启用二进制正文、完整响应头与 `webview` 引擎；本地诊断小组件为 Egern 专有入口，Surge 使用请求日志检查命中。
 
 ## 覆盖范围
+
+### 1.2.0 HTTP/3 与自营开屏
+
+第三次 HAR 里，一段 5 秒天猫双 11 竖屏视频从 `a1.alibabausercontent.com` 成功下载。对菜鸟上传日志做本地 LZ4 解压、Protobuf 解析后，`Page_Screen_Cpm` 的数据、展示与缓存事件同时指向该视频和 `ossgw.alicdn.com` 的独立备用封面。日志确认四个不同的自营素材地址，包括另一个预取素材。
+
+日志中的 65 条 Mtop 记录有 60 条标记为 `http3`。PCAP 的 draft-29 QUIC Initial 握手也能识别 `netflow-mtop`、`cn-acs`、`e2e-mtop`、`nbcps-mtop` 和 `longquan-mtop`；这些接口没有出现在普通 HAR 请求列表里。只核对 HAR 的图片下载不足以验证原生广告请求已被处理。
+
+本版新增三条原生条件，合计 20 条：
+
+- 对上面九个需解密的精确主机拒绝 QUIC，促使重试 TCP。规则同样影响其它 App 对这些主机的 QUIC；其它主机和这些主机的 TCP 保留。
+- `a1.alibabausercontent.com`：限定 `/prod/feupload/user/7clgu/` 目录、`*.mp4_.mp4` 格式和菜鸟 UA。
+- `ossgw.alicdn.com`：限定 `/creatives-assets/prod/feupload/user/7clgu/` 目录、`*.jpg` 格式和菜鸟 UA，覆盖视频的备用封面。
+
+两条素材规则支持目录内 ID 轮换，没有扩大到其它上传目录或整个阿里 CDN。规则不读取图片或视频内容；同一目录、格式和菜鸟 UA 下的其它文件也会被拒绝。
+
+Map Local 同时补齐 `.ads.index.cn`、`.ads.show.cn`、`.ads.mshow.cn`，并新增已确认的 `mtop.cainiao.adx.flyad.getad.cn` 广告接口。详情与验证边界见 [1.2.0 验证记录](验证记录-1.2.0.md)。
 
 ### 1.1.1 开屏素材轮换
 
@@ -53,7 +71,7 @@ Surge 响应脚本启用二进制正文、完整响应头与 `webview` 引擎；
 
 ### 广告 SDK 与 UC 曝光
 
-保留 `1.1.0` 起的 17 条原生拒绝条件，其中图片条件已按上述方式修复：
+保留 `1.1.0` 起的 17 条原生拒绝条件，其中图片条件已按 `1.1.1` 的方式修复；`1.2.0` 新增上述三条条件：
 
 - `ssp.iytcdn.com`：广告配置、请求及 SDK 数据，包括本次成功返回广告启用标志的 `/union/sdk/config`。
 - 穿山甲的 `pangolin-sdk-toutiao.com`、`pangolin-sdk-toutiao-b.com`、`pangolin-sdk-toutiao1.com` 广告域后缀，以及 `pglstatp-toutiao.com` 广告素材域后缀。
@@ -67,16 +85,17 @@ Surge 响应脚本启用二进制正文、完整响应头与 `webview` 引擎；
 
 ### 原有页面处理
 
-- 四个明确广告请求使用 Map Local 返回空体 `404`，保留原规则的拒绝语义：
+- 五类明确广告请求使用 Map Local 返回空体 `404`，保留拒绝语义：
   - `mtop.cainiao.nbcps.presentation.fetch.cn`
-  - `mtop.cainiao.guoguo.nbnetflow.ads.index`
+  - `mtop.cainiao.guoguo.nbnetflow.ads.index` / `ads.index.cn`
   - `mtop.cainiao.adkeyword.get.cn`
-  - `mtop.cainiao.guoguo.nbnetflow.ads.show` / `ads.mshow`
+  - `mtop.cainiao.guoguo.nbnetflow.ads.show` / `ads.mshow`，以及对应 `.cn` 变体；限定 `cn-acs.m.cainiao.com` 或 `netflow-mtop.cainiao.com`。
+  - `mtop.cainiao.adx.flyad.getad.cn`，限定 `cn-acs.m.cainiao.com`。
 - `mtop.cainiao.app.e2e.engine.page.fetch`：删除已知的 `mainSearch.bizData.searchContents` 与 `operationList`。
 - `mtop.cainiao.app.e2e.engine.page.fetch.cn`：在上述字段之外，仅对 `e2e-mtop.cainiao.com` 删除已知的 `banner`、`activity`、`vip`。`cn-acs.m.cainiao.com` 的 `.fetch.cn` 只执行共同字段清理，这是固定活动规则中可确认的主机差异。
 - `mtop.com.cainiao.longquan.place.getpageresourcecontent.cn`：只删除 `data.result.placeContentMap["780001"].contentList`。
 
-其它查件、寄件、取件码、订单、包裹导入、钱包、权益、工具和未知字段保持原样。不会泛封阿里/淘宝共用域名，不修改 HTTPDNS、登录状态或服务端业务成功码。
+页面清理保留其它查件、寄件、取件码、订单、包裹导入、钱包、权益、工具和未知字段。不修改 HTTPDNS、登录状态或服务端业务成功码。QUIC 回退是否影响实际业务连接，仍需更新后检查。
 
 ## 没有照搬的规则
 
@@ -90,7 +109,7 @@ Surge 响应脚本启用二进制正文、完整响应头与 `webview` 引擎；
 - 仅处理完整 HTTP `200`；非 JSON 媒体类型、非 UTF-8 声明、失败 `ret`、陌生 `code` 和显式业务失败不改写。
 - 列表字段仅接受数组，运营卡片仅接受对象或数组。未知标量类型保留，不创建缺少的路径。接口路径支持数值版本（如 `/1.0/`），不匹配相似 API 后缀。
 - 只有正文发生变化时才清理旧的长度、压缩、缓存和校验头，并设置 JSON UTF-8、`no-store` 与版本头；未触及的多值 Cookie 和业务头保留。
-- Surge 在不修改正文时调用 `$done({})` 保留原响应；改写时以 UTF-8 字节返回，并保留完整响应头中的重复 Cookie 顺序。四类 Map Local 的空体与 `404` 和 Egern 一致；Egern 专用 Map Local 版本头不参与业务匹配，Surge 页面响应版本头为 `1.1.1`。
+- Surge 在不修改正文时调用 `$done({})` 保留原响应；改写时以 UTF-8 字节返回，并保留完整响应头中的重复 Cookie 顺序。五类 Map Local 的空体与 `404` 和 Egern 一致；Egern 专用 Map Local 版本头不参与业务匹配，Surge 页面响应版本头为 `1.2.0`。
 - Egern Generic 入口“菜鸟去广告诊断”显示版本、固定路由计数与最近状态，不发通知、不请求网络、不保存 URL、Cookie、账号或正文。每项计数封顶 `999999`。计数仅包含三组页面响应处理，域名、URL 和 Map Local 拦截请查看请求日志。
 
 ## 来源
@@ -107,6 +126,8 @@ Surge 响应脚本启用二进制正文、完整响应头与 `webview` 引擎；
 新增 Surge 版的规则与页面处理来源相同，双端核对数据见[Surge HAR 记录](har-audit-surge-20261108.json)，构建和验证见[Surge 发布说明](验证记录-Surge-1.1.0.md)。
 
 `1.1.1` 使用第二份 156 条请求的 HAR，并复核第一份 169 条请求。聚合结果见[开屏补漏核对记录](har-audit-splash-20261108.json)。原始 HAR、图片正文、Cookie、设备标识和签名参数未上传。
+
+`1.2.0` 增加第三份 147 条请求的 HAR、11,844 个包的 PCAP，以及其中可解压的应用日志。仅解析 QUIC Initial 的 ClientHello，没有解密 QUIC 应用正文。公开记录只保留[聚合结论](capture-audit-20261108-201845.json)，不包含原始捕获、完整日志、IP、账号或定位信息。
 
 ## 离线验证
 
@@ -128,3 +149,5 @@ python3 -m unittest discover -s egern -p test_validate.py -v
 新增 Surge 版后，菜鸟测试 **24/24 → 41/41**，包含 10 项 Surge、7 项双端一致性与构建测试；全仓脚本 **601/601 → 618/618**，静态测试保持 **39/39**。同一份 HAR 两端均匹配 **123/169**，逐条判断差异为零。手机端仍待验收。
 
 `1.1.1` 菜鸟测试 **41/41 → 43/43**，全仓脚本 **618/618 → 620/620**，静态测试 **39/39**。第二份 HAR 双端匹配 **98/156 → 102/156**，新增覆盖四次成功下载的广告图片；第一份保持 **123/169**，两份逐条双端差异与覆盖回退均为零。更新后的手机开屏效果仍待验收。
+
+`1.2.0` 菜鸟测试 **43/43 → 47/47**，全仓脚本 **620/620 → 624/624**，静态测试 **39/39 → 40/40**。第三份 HAR 的双端匹配 **69/147 → 70/147**，新增覆盖成功下载的视频；日志确认的四个自营素材地址 **0/4 → 4/4**。按 PCAP SNI 与协议离线判断，24 条可识别 QUIC 连接中有 9 条进入拒绝范围，其余 15 条保留。前两份 HAR 仍为 **123/169** 和 **102/156**。这些统计不能代替客户端对 draft-29 的识别、TCP 回退和开屏验收。

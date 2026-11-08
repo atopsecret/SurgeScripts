@@ -104,12 +104,67 @@ test('素材规则保留普通路径、其它格式、相似主机和目录边�
     ]) assert.equal(rejects(config, url, cainiaoUA), false, url);
 });
 
-test('HTTPS URL 和 UA 条件具备精确 MITM 主机，原四类 Map Local 保留', () => {
+test('自营开屏视频和备用封面覆盖已记录与轮换素材，仅限菜鸟 UA', () => {
+    const materials = [
+        'https://a1.alibabausercontent.com/prod/feupload/user/7clgu/9db56680-d68d-11f1-9fe8-734d7853e286.mp4_.mp4',
+        'https://a1.alibabausercontent.com/prod/feupload/user/7clgu/6ebaf1c0-cd27-11f1-9539-772309079f75.mp4_.mp4',
+        'https://ossgw.alicdn.com/creatives-assets/prod/feupload/user/7clgu/942e6f80-d68d-11f1-8096-25c6e7cbbb7a.jpg',
+        'https://ossgw.alicdn.com/creatives-assets/prod/feupload/user/7clgu/5f4d0de0-cd27-11f1-bf7d-0fb6df1fff59.jpg',
+        'https://a1.alibabausercontent.com:443/prod/feupload/user/7clgu/rotated_creative-1.mp4_.mp4?fixture=1',
+        'https://ossgw.alicdn.com:443/creatives-assets/prod/feupload/user/7clgu/rotated_creative-1.jpg?fixture=1',
+    ];
+    for (const url of materials) {
+        for (const ua of [cainiaoUA, 'Cainiao4iPhone/59673635 CFNetwork/3896.200.61 Darwin/27.2.0', 'TBIOS/Native com.cainiao.cnwireless 8.11.1105 iOS27.2']) {
+            assert.equal(rejects(config, url, ua), true, url);
+        }
+        for (const ua of ['', 'Mozilla/5.0', 'Taobao/fixture', 'NotCainiao4iPhone/fixture']) {
+            assert.equal(rejects(config, url, ua), false, url);
+        }
+    }
+});
+
+test('自营素材不扩大到其它上传目录、格式、共享主机或伪造 URL', () => {
+    for (const url of [
+        'https://a1.alibabausercontent.com/prod/feupload/user/other-user/fixture.mp4_.mp4',
+        'https://a1.alibabausercontent.com/prod/feupload/user/7clgu/fixture.mp4',
+        'https://a1.alibabausercontent.com/prod/feupload/user/7clgu/nested/fixture.mp4_.mp4',
+        'https://a1.alibabausercontent.com/ordinary/fixture.mp4_.mp4',
+        'https://a1.alibabausercontent.com.evil.test/prod/feupload/user/7clgu/fixture.mp4_.mp4',
+        'https://user@a1.alibabausercontent.com/prod/feupload/user/7clgu/fixture.mp4_.mp4',
+        'https://a2.alibabausercontent.com/prod/feupload/user/7clgu/fixture.mp4_.mp4',
+        'https://ossgw.alicdn.com/creatives-assets/prod/feupload/user/other-user/fixture.jpg',
+        'https://ossgw.alicdn.com/creatives-assets/prod/feupload/user/7clgu/fixture.jpg.other',
+        'https://ossgw.alicdn.com/creatives-assets/prod/feupload/user/7clgu/fixture.jpg/details',
+        'https://ossgw.alicdn.com/ordinary/fixture.jpg',
+        'https://cn.alicdn.com/creatives-assets/prod/feupload/user/7clgu/fixture.jpg',
+    ]) assert.equal(rejects(config, url, cainiaoUA), false, url);
+});
+
+test('QUIC 只拒绝九个需解密的精确主机，TCP 及其它业务主机保留', () => {
+    const targetHosts = [
+        'netflow-mtop.cainiao.com', 'nbcps-mtop.cainiao.com', 'cn-acs.m.cainiao.com',
+        'e2e-mtop.cainiao.com', 'longquan-mtop.cainiao.com', 'unet.ucweb.com',
+        'p3-sign.douyinpic.com', 'a1.alibabausercontent.com', 'ossgw.alicdn.com',
+    ];
+    for (const host of targetHosts) {
+        const url = 'https://' + host + '/ordinary-business';
+        assert.equal(rejects(config, url, '', 'quic'), true, host);
+        for (const protocol of ['tcp', 'https', 'http', 'udp']) {
+            assert.equal(rejects(config, url, '', protocol), false, host + ' ' + protocol);
+        }
+    }
+    for (const host of ['guoguouser.cainiao.com', 'gguser-mtop.cainiao.com', 'caps-mtop.cainiao.com', 'home-bff-mtop.cainiao.com', 'acs.m.taobao.com', 'cn.alicdn.com', 'netflow-mtop.cainiao.com.evil.test', 'other.netflow-mtop.cainiao.com']) {
+        assert.equal(rejects(config, 'https://' + host + '/', '', 'quic'), false, host);
+    }
+});
+
+test('HTTPS URL 和 UA 条件具备精确 MITM 主机，五类 Map Local 为空体 404', () => {
     assert.deepEqual(new Set(config.mitm.hostnames.includes), new Set([
         'netflow-mtop.cainiao.com', 'nbcps-mtop.cainiao.com', 'cn-acs.m.cainiao.com',
         'e2e-mtop.cainiao.com', 'longquan-mtop.cainiao.com', 'unet.ucweb.com', 'p3-sign.douyinpic.com',
+        'a1.alibabausercontent.com', 'ossgw.alicdn.com',
     ]));
-    assert.equal(config.map_locals.length, 4);
+    assert.equal(config.map_locals.length, 5);
     assert.ok(config.map_locals.every(row => row.status_code === 404 && row.body === ''));
     assert.ok(config.rules.every(row => row[Object.keys(row)[0]].policy === 'REJECT'));
 });

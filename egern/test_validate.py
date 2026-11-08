@@ -199,12 +199,12 @@ class ValidationTests(unittest.TestCase):
 
     def test_cainiao_known_local_responses_and_scope(self):
         data = validator.load(ROOT / "cainiao/cainiao-adblock.egern.yaml")
-        self.assertEqual(set(data["mitm"]["hostnames"]["includes"]), {"netflow-mtop.cainiao.com", "nbcps-mtop.cainiao.com", "cn-acs.m.cainiao.com", "e2e-mtop.cainiao.com", "longquan-mtop.cainiao.com", "unet.ucweb.com", "p3-sign.douyinpic.com"})
-        self.assertEqual(len(data["map_locals"]), 4)
+        self.assertEqual(set(data["mitm"]["hostnames"]["includes"]), {"netflow-mtop.cainiao.com", "nbcps-mtop.cainiao.com", "cn-acs.m.cainiao.com", "e2e-mtop.cainiao.com", "longquan-mtop.cainiao.com", "unet.ucweb.com", "p3-sign.douyinpic.com", "a1.alibabausercontent.com", "ossgw.alicdn.com"})
+        self.assertEqual(len(data["map_locals"]), 5)
         for row in data["map_locals"]:
             self.assertEqual(row["status_code"], 404)
             self.assertEqual(row["body"], "")
-            self.assertEqual(row["headers"]["X-Cainiao-Cleaner-Version"], "eg-native-20261108-1.1.1")
+            self.assertEqual(row["headers"]["X-Cainiao-Cleaner-Version"], "eg-native-20261108-1.2.0")
         patterns = [re.compile(row["match"]) for row in data["map_locals"]]
         self.assertTrue(any(p.search("https://nbcps-mtop.cainiao.com/gw/mtop.cainiao.nbcps.presentation.fetch.cn/1.0/?x=1") for p in patterns))
         for url in ["https://nbcps-mtop.cainiao.com.evil.test/gw/mtop.cainiao.nbcps.presentation.fetch.cn", "https://cn-acs.m.cainiao.com/gw/mtop.cainiao.adkeyword.get.cnx", "https://netflow-mtop.cainiao.com/gw/mtop.cainiao.guoguo.nbnetflow.ads.future/1.0/"]:
@@ -232,7 +232,7 @@ class ValidationTests(unittest.TestCase):
         self.assertIn("ssp.iytcdn.com", domains)
         self.assertNotIn("p3-sign.douyinpic.com", domains)
         self.assertNotIn("unet.ucweb.com", domains)
-        image = next(row["and"] for row in data["rules"] if "and" in row)
+        image = next(row["and"] for row in data["rules"] if "and" in row and "p3-sign" in row["and"]["match"][0].get("url_regex", {}).get("match", ""))
         pattern = re.compile(image["match"][0]["url_regex"]["match"])
         self.assertRegex("https://p3-sign.douyinpic.com/tos-cn-p-0051-ce/ok2sNqJ87HJEDO6BEAI5EftfgaHwlFEDB0oBkD~tplv-noop.image?x-signature=fixture", pattern)
         self.assertRegex("https://p3-sign.douyinpic.com/tos-cn-p-0051/ooEkIBANmMqcAhB1Oizkf23JLm4B4iMQhuh3AA~tplv-noop.image?x-signature=fixture", pattern)
@@ -245,6 +245,18 @@ class ValidationTests(unittest.TestCase):
         ])
         for row in data["rules"]:
             validator.validate_rule(row)
+
+    def test_cainiao_quic_scope_and_house_splash_assets(self):
+        data = validator.load(ROOT / "cainiao/cainiao-adblock.egern.yaml")
+        quic = next(row["and"] for row in data["rules"] if "and" in row and "protocol" in row["and"]["match"][0])
+        self.assertEqual(quic["match"][0], {"protocol": {"match": "quic"}})
+        self.assertEqual({row["domain"]["match"] for row in quic["match"][1]["or"]["match"]}, set(data["mitm"]["hostnames"]["includes"]))
+        patterns = [re.compile(row["and"]["match"][0]["url_regex"]["match"]) for row in data["rules"] if "and" in row and "7clgu" in row["and"]["match"][0].get("url_regex", {}).get("match", "")]
+        self.assertEqual(len(patterns), 2)
+        for url in ["https://a1.alibabausercontent.com/prod/feupload/user/7clgu/fixture.mp4_.mp4", "https://ossgw.alicdn.com/creatives-assets/prod/feupload/user/7clgu/fixture.jpg"]:
+            self.assertTrue(any(pattern.search(url) for pattern in patterns), url)
+        for url in ["https://a1.alibabausercontent.com/prod/feupload/user/ordinary/fixture.mp4_.mp4", "https://ossgw.alicdn.com/ordinary/fixture.jpg"]:
+            self.assertFalse(any(pattern.search(url) for pattern in patterns), url)
 
     def test_cainiao_widget_capture_scope_and_shared_script(self):
         data = validator.load(ROOT / "cainiao-widget/cainiao-widget.egern.yaml")

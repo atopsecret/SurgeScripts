@@ -24,12 +24,13 @@ function matches(item, request) {
         case 'domain_suffix': return request.hostname === body.match || request.hostname.endsWith('.' + body.match);
         case 'url_regex': return new RegExp(body.match).test(request.url);
         case 'user_agent': return wildcard(body.match, request.userAgent);
+        case 'protocol': return body.match === request.protocol;
         default: throw Error('离线匹配器未支持条件：' + kind);
     }
 }
 
-function rejects(module, url, userAgent = '') {
-    const request = { url, hostname: new URL(url).hostname, userAgent };
+function rejects(module, url, userAgent = '', protocol = new URL(url).protocol.slice(0, -1)) {
+    const request = { url, hostname: new URL(url).hostname, userAgent, protocol };
     return (module.rules || []).some(item => {
         const body = item[Object.keys(item)[0]];
         return body.policy === 'REJECT' && !body.disabled && matches(item, request);

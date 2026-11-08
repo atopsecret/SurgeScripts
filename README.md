@@ -14,7 +14,7 @@ Surge 与 Egern 去广告模块、蔚来自动签到脚本、Apple 天气增强�
   [使用说明](amap/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.egern.yaml)
 - **京东 2.0.0**：十二类接口，补全个人页、订单、新品和物流变体；同步双端匹配与正文保护。
   [使用说明](jd/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml)
-- **菜鸟 1.1.1（Surge / Egern）**：修复开屏素材 ID 和目录轮换漏拦；保留广告 SDK、UC 曝光及双端页面清理。
+- **菜鸟 1.2.0（Surge / Egern）**：补 HTTP/3 绕过、广告 API 的 `.cn` 变体、自营开屏视频和备用封面；保留双端页面清理。
   [使用说明](cainiao/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.yaml)
 - **菜鸟取件小组件 1.1.0（Egern 原生）**：手机查件页登录态自动保存，大号取件码、驿站及待取数量；支持浅深色和锁屏，失败保留旧结果。自动连接需信任本人 Egern CA，无需电脑扫码。
   [手机安装与连接](cainiao-widget/README.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml)
@@ -50,7 +50,7 @@ Egern 使用 `.egern.yaml` 和对应原生脚本，不直接运行 Surge 全局�
 
 ### 从旧地址迁移
 
-旧账号地址不会因为复制源码自动重定向。已经安装的模块需要换成上面的新链接，并刷新远程脚本缓存。高德模块描述应显示 `2.1.0`，京东应显示 `2.0.0`，菜鸟 Surge 应显示 `1.1.1`、Egern 应显示 `eg-native-20261108-1.1.1`；Surge 蔚来任务日志应显示 `脚本版本 2.1.6`，Egern 原生蔚来模块描述应显示 `3.2.0`。
+旧账号地址不会因为复制源码自动重定向。已经安装的模块需要换成上面的新链接，并刷新远程脚本缓存。高德模块描述应显示 `2.1.0`，京东应显示 `2.0.0`，菜鸟 Surge 应显示 `1.2.0`、Egern 应显示 `eg-native-20261108-1.2.0`；Surge 蔚来任务日志应显示 `脚本版本 2.1.6`，Egern 原生蔚来模块描述应显示 `3.2.0`。
 
 旧账号迁移不导出或迁移客户端登录凭据。原作者署名和原有本地诊断存储键保留，详见[迁移范围](MIGRATION.md)。Egern 原生重写使用独立存储，行为差异见 [Egern 说明](egern/README.md)。
 
@@ -74,7 +74,7 @@ RULE-SET,https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/Telegram
 
 - 高德、京东、闲鱼、拼多多的 HTTPS 改写依赖客户端解密；具体主机和脚本入口由模块定义。
 - 红果的域名拒绝不依赖解密，广告接口空响应需要 MITM；Surge 版附带的 DoH 拒绝可能与主配置 DNS 冲突，Egern 原生版已省去这两条。
-- 菜鸟解密五个固定业务主机和两个共享广告路径主机；共享图片 CDN 同时限定目录、素材格式与菜鸟 UA，保留登录、HTTPDNS 和物流业务请求。
+- 菜鸟解密九个精确主机，并在这些主机上拒绝 QUIC 以促使重试 TCP；素材同时限定主机、目录、格式与菜鸟 UA。HTTPDNS 和登录接口保留，协议回退及实际业务连接仍需手机验证。
 - 戒烟军团的已知业务接口使用明文 HTTP。客户端显示被改写，不代表服务器授予了会员权限。
 - 蔚来从已知 HTTPS 请求头提取凭据，结果以接口实际返回为准。手动验证请在客户端运行定时任务；旧网页触发入口已移除。
 
@@ -100,7 +100,7 @@ node --experimental-vm-modules --test --test-reporter=tap \
   cainiao-widget/tests/*.test.cjs
 ```
 
-当前脚本测试共 **620 项**：菜鸟取件小组件 83 项、京东 82 项、菜鸟 43 项、高德 87 项、Apple 天气 52 项，其余模块 273 项。测试在各模块目录，不恢复已删除的根 `tests/`。字段、匹配和来源子集另有 **39 项** Python 测试，依赖 PyYAML 6：
+当前脚本测试共 **624 项**：菜鸟取件小组件 83 项、京东 82 项、菜鸟 47 项、高德 87 项、Apple 天气 52 项，其余模块 273 项。测试在各模块目录，不恢复已删除的根 `tests/`。字段、匹配和来源子集另有 **40 项** Python 测试，依赖 PyYAML 6：
 
 ```sh
 python3 egern/validate.py
@@ -122,6 +122,8 @@ Egern 的 `.egern.js` 是 ES module，单文件语法检查使用 `node --input-
 2026-11-08 菜鸟取件小组件 1.1.0：手机登录态捕获、账号隔离及并发回写检查通过；小组件 **44/44 → 83/83**、全仓 **555/555 → 594/594**、静态 **35/35 → 38/38**，49 个同源布局样例无问题。默认无需扫码助手；未做手机验收，见[1.1.0 验证记录](cainiao-widget/验证记录-1.1.0.md)。
 
 2026-11-08 菜鸟去广告 1.1.1：开屏素材改用目录、格式与菜鸟 UA 条件，支持素材 ID 轮换；第二份 HAR 双端规则匹配 **98/156 → 102/156**，原样本保持 **123/169**。菜鸟 **43/43**、全仓 **620/620**、静态 **39/39**，未做更新后的手机验收，见[开屏补漏验证记录](cainiao/验证记录-1.1.1.md)。
+
+2026-11-08 菜鸟去广告 1.2.0：HAR、PCAP 与压缩应用日志确认 HTTP/3 和自营视频路径；补 QUIC 条件、广告 `.cn` API 与视频备用封面。菜鸟 **47/47**、全仓 **624/624**、静态 **40/40**。客户端协议识别、TCP 回退和缓存仍待手机验收，见[1.2.0 验证记录](cainiao/验证记录-1.2.0.md)。
 
 ## 反馈与来源
 

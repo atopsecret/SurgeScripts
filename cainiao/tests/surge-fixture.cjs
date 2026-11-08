@@ -35,7 +35,7 @@ function fields(text) {
 function parseCondition(text) {
     const [type, value, policy, ...extra] = fields(text);
     assert.equal(extra.length, 0);
-    const types = { DOMAIN: 'domain', 'DOMAIN-SUFFIX': 'domain_suffix', 'URL-REGEX': 'url_regex', 'USER-AGENT': 'user_agent', AND: 'and', OR: 'or' };
+    const types = { DOMAIN: 'domain', 'DOMAIN-SUFFIX': 'domain_suffix', 'URL-REGEX': 'url_regex', 'USER-AGENT': 'user_agent', PROTOCOL: 'protocol', AND: 'and', OR: 'or' };
     const kind = types[type];
     assert.ok(kind, type);
     const body = {};
@@ -45,7 +45,7 @@ function parseCondition(text) {
             assert.ok(child.startsWith('(') && child.endsWith(')'));
             return parseCondition(child.slice(1, -1));
         });
-    } else body.match = value.startsWith('"') ? value.slice(1, -1) : value;
+    } else body.match = kind === 'protocol' ? value.toLowerCase() : value.startsWith('"') ? value.slice(1, -1) : value;
     if (policy !== undefined) body.policy = policy;
     return { [kind]: body };
 }

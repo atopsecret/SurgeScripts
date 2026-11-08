@@ -27,7 +27,7 @@ test('Surge 二进制改写保留多值响应头和顺序，清除旧正文头',
     for (const field of ['content-length', 'content-encoding', 'etag', 'digest', 'content-digest']) {
         assert.equal(output.headers.some(row => row.field.toLowerCase() === field), false, field);
     }
-    assert.equal(output.headers.find(row => row.field === 'X-Cainiao-Cleaner-Version').value, '1.1.1');
+    assert.equal(output.headers.find(row => row.field === 'X-Cainiao-Cleaner-Version').value, '1.2.0');
     assert.equal(JSON.stringify(headers), before);
 });
 
@@ -92,28 +92,33 @@ test('Surge 上下文、正文或响应头异常也只完成一次且不伪造�
     bare(runSurge({ body, headers }));
 });
 
-test('Surge 模块四类 404 的正负边界及空正文与 Egern 一致', () => {
+test('Surge 模块五类 404 的正负边界及空正文与 Egern 一致', () => {
     const native = readModule();
     const lines = section('Map Local');
-    assert.equal(lines.length, 4);
+    assert.equal(lines.length, 5);
     assert.deepEqual(lines.map(line => line.split(' data-type=')[0]), native.map_locals.map(row => row.match));
     assert.ok(lines.every(line => line.includes('data="" status-code=404')));
     const match = url => lines.some(line => new RegExp(line.split(' data-type=')[0]).test(url));
     assert.equal(match('https://netflow-mtop.cainiao.com/gw/mtop.cainiao.guoguo.nbnetflow.ads.index/1.0/?x=1'), true);
     assert.equal(match('https://cn-acs.m.cainiao.com/gw/mtop.cainiao.guoguo.nbnetflow.ads.show/2'), true);
+    assert.equal(match('https://netflow-mtop.cainiao.com/gw/mtop.cainiao.guoguo.nbnetflow.ads.index.cn/1.0'), true);
+    assert.equal(match('https://netflow-mtop.cainiao.com/gw/mtop.cainiao.guoguo.nbnetflow.ads.mshow.cn/1.0'), true);
+    assert.equal(match('https://cn-acs.m.cainiao.com/gw/mtop.cainiao.adx.flyad.getad.cn/1.0'), true);
     assert.equal(match('https://netflow-mtop.cainiao.com/gw/mtop.cainiao.guoguo.nbnetflow.ads.future/1.0/'), false);
     assert.equal(match('https://nbcps-mtop.cainiao.com.evil.test/gw/mtop.cainiao.nbcps.presentation.fetch.cn'), false);
 });
 
-test('Surge 17 条原生规则解析后与 Egern 完全一致，含嵌套 UA 条件', () => {
+test('Surge 20 条原生规则解析后与 Egern 完全一致，含 QUIC 与嵌套 UA 条件', () => {
     const native = readModule();
     const surge = readSurgeModule();
-    assert.equal(surge.rules.length, 17);
+    assert.equal(surge.rules.length, 20);
     assert.deepEqual(surge.rules, native.rules);
     const images = [
         'https://p3-sign.douyinpic.com/tos-cn-p-0051-ce/ok2sNqJ87HJEDO6BEAI5EftfgaHwlFEDB0oBkD~tplv-noop.image',
         'https://p3-sign.douyinpic.com/tos-cn-p-0051/ooEkIBANmMqcAhB1Oizkf23JLm4B4iMQhuh3AA~tplv-noop.image',
         'https://p3-sign.douyinpic.com/tos-cn-p-0051/fixtureRotatedCreative_A-1~tplv-noop.image?x-signature=fixture',
+        'https://a1.alibabausercontent.com/prod/feupload/user/7clgu/fixture-rotated.mp4_.mp4',
+        'https://ossgw.alicdn.com/creatives-assets/prod/feupload/user/7clgu/fixture-rotated.jpg',
     ];
     for (const image of images) {
         for (const ua of ['Cainiao4iPhone/fixture', 'TBIOS/Native com.cainiao.cnwireless fixture']) {
@@ -122,16 +127,21 @@ test('Surge 17 条原生规则解析后与 Egern 完全一致，含嵌套 UA 条
         assert.equal(rejects(surge, image, 'Douyin/fixture'), false, image);
     }
     assert.equal(rejects(surge, 'https://p3-sign.douyinpic.com/tos-cn-p-0051/photo.jpg', 'Cainiao4iPhone/fixture'), false);
+    for (const host of native.mitm.hostnames.includes) {
+        assert.equal(rejects(surge, 'https://' + host + '/', '', 'quic'), true);
+        assert.equal(rejects(surge, 'https://' + host + '/', '', 'tcp'), false);
+    }
+    assert.equal(rejects(surge, 'https://guoguouser.cainiao.com/', '', 'quic'), false);
 });
 
-test('Surge 模块启用二进制正文与多值头，七个精确 MITM 主机齐全', () => {
+test('Surge 模块启用二进制正文与多值头，九个精确 MITM 主机齐全', () => {
     const native = readModule();
     const scripts = section('Script');
     assert.equal(scripts.length, 1);
     for (const option of ['requires-body=true', 'binary-body-mode=true', 'full-header-mode=true', 'engine=webview', 'max-size=2097152', 'script-update-interval=3600']) {
         assert.ok(scripts[0].includes(option), option);
     }
-    assert.ok(scripts[0].includes('cainiao-adblock.js?v=1.1.1'));
+    assert.ok(scripts[0].includes('cainiao-adblock.js?v=1.2.0'));
     const pattern = scripts[0].split(',pattern=')[1].split(',requires-body=')[0];
     assert.equal(pattern, native.scriptings[0].http_response.match);
     const hosts = section('MITM')[0].replace('hostname = %APPEND% ', '').split(', ');

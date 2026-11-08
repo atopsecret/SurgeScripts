@@ -1,17 +1,25 @@
 # 引擎：Egern 原生小组件 | 语言：YAML
 # 构建：node cainiao-widget/build.mjs
-# 运行：Egern 工具 → 模块，导入本文件；扫码登录后填写本地 Env
-# 依赖：同目录自包含 JS；无需 MITM、CA 或去广告模块
+# 运行：导入模块并信任本人 Egern CA；在手机官方查件页登录，再刷新组件
+# 依赖：同目录自包含 JS；自动捕获仅解密两个淘宝 H5 主机，不依赖去广告模块
 name: 菜鸟取件 · 原生小组件
-description: 1.0.0；突出取件码、驿站与待取数量。支持浅深色和锁屏；失败保留上次结果，首次使用需本地扫码登录。
+description: 1.1.0；手机查件页登录态自动保存，个人查询成功才确认连接。大号取件码、浅深色及锁屏；失败保留上次结果，无需电脑扫码。
 author: atopsecret
 homepage: https://github.com/atopsecret/SurgeScripts/tree/main/cainiao-widget
 manual: https://github.com/atopsecret/SurgeScripts/blob/main/cainiao-widget/README.md
 icon: shippingbox.fill
 env_schema:
+  CONNECTION_MODE:
+    name: 登录连接方式
+    description: auto 优先自动捕获；manual 仅使用下方手动参数；off 禁用捕获，组件下次执行清除本机登录态与快照。
+    default_value: 'auto'
+    options:
+      - 'auto'
+      - 'manual'
+      - 'off'
   CAINIAO_COOKIE:
-    name: 菜鸟登录凭据
-    description: 运行本目录本地扫码助手后，粘贴生成的 Cookie 整行。只填在设备本地，不分享含该参数的配置。
+    name: 手动登录凭据（可选）
+    description: 默认无需填写。未捕获自动登录态时可备用；只保存在自己设备，不分享含此值的配置。
     default_value: ''
   REFRESH_MINUTES:
     name: 建议刷新间隔（分钟）
@@ -25,11 +33,30 @@ env_schema:
       - 'false'
       - 'true'
 scriptings:
+  - http_request:
+      name: 菜鸟登录态捕获
+      match: '^https://(?:h5api\.m|acs\.m)\.taobao\.com(?::443)?/h5/mtop(?:\.[A-Za-z0-9_-]+)+/[0-9]+(?:\.[0-9]+)*/?(?:\?[^#\s]*)?$'
+      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.js?v=1.1.0
+      body_required: false
+      update_interval: 3600
+      timeout: 5
   - generic:
       name: 菜鸟取件 · 原生脚本
-      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.js?v=1.0.0
+      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.js?v=1.1.0
       update_interval: 3600
       timeout: 25
+  - generic:
+      name: 菜鸟连接诊断
+      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.js?v=1.1.0
+      env:
+        CAINIAO_DIAGNOSTIC: 'true'
+      update_interval: 3600
+      timeout: 5
 widgets:
   - name: 菜鸟取件
     script_name: 菜鸟取件 · 原生脚本
+mitm:
+  hostnames:
+    includes:
+      - h5api.m.taobao.com
+      - acs.m.taobao.com

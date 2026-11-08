@@ -8,11 +8,13 @@ import {fileURLToPath} from "node:url";
 import vm from "node:vm";
 
 const cwBuildRoot = path.dirname(fileURLToPath(import.meta.url));
-const cwBuildParts = ["core.mjs", "render.mjs", "runtime.mjs"].map(name => {
+const cwBuildParts = ["core.mjs", "auth.mjs", "render.mjs", "runtime.mjs"].map(name => {
     const source = fs.readFileSync(path.join(cwBuildRoot, name), "utf8");
-    return "// 来源：" + name + "\n" + source.replace(/^import .* from ["']\.\/(?:core|render)\.mjs["'];\r?\n/gm, "").replace(/^export (?=(?:const|function|async function|class)\b)/gm, "").trim();
+    return "// 来源：" + name + "\n" + source.replace(/^import .* from ["']\.\/(?:core|auth|render)\.mjs["'];\r?\n/gm, "").replace(/^export (?=(?:const|function|async function|class)\b)/gm, "").trim();
 });
-const cwBuildOutput = "// Egern 原生菜鸟取件小组件 1.0.0 · 自动构建，请编辑本目录源文件。\n// 构建：node cainiao-widget/build.mjs；来源与许可见 THIRD_PARTY_NOTICES.md。\n" + cwBuildParts.join("\n\n") + "\n";
+const cwBuildVersion = /export const CW_VERSION = "([0-9.]+)";/.exec(fs.readFileSync(path.join(cwBuildRoot, "core.mjs"), "utf8"))?.[1];
+if (!cwBuildVersion) throw new Error("源码缺少版本号");
+const cwBuildOutput = "// Egern 原生菜鸟取件小组件 " + cwBuildVersion + " · 自动构建，请编辑本目录源文件。\n// 构建：node cainiao-widget/build.mjs；来源与许可见 THIRD_PARTY_NOTICES.md。\n" + cwBuildParts.join("\n\n") + "\n";
 if (/^import\s/m.test(cwBuildOutput)) throw new Error("产物仍含外部依赖");
 // 与 Egern 相同的 ES module 语法由 node --input-type=module --check 在验证时检查。
 new vm.Script(cwBuildOutput.replace(/export default /, "const cwBuildEntry = "), {filename: "cainiao-widget.egern.js"});

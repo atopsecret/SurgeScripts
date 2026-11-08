@@ -3,12 +3,16 @@
 // 运行：由 runtime.mjs 调用；离线验证 node --test cainiao-widget/tests/core.test.cjs
 // 依赖：无；协议来源见 THIRD_PARTY_NOTICES.md
 
-export const CW_VERSION = "1.0.0";
+export const CW_VERSION = "1.1.0";
 export const CW_API = "mtop.cainiao.lpc.packageservice.queryPdsPackageDataList";
 export const CW_HOST = "https://h5api.m.taobao.com";
 export const CW_PATH = "/h5/" + CW_API.toLowerCase() + "/1.0/";
 export const CW_UA = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36";
 export const CW_STORE = "cainiao-widget.local.v1";
+export const CW_AUTH_STORE = "cainiao-widget.auth.v1";
+export const CW_CAPTURE_STORE = "cainiao-widget.capture.v1";
+export const CW_LOGIN_URL = "https://page.cainiao.com/guoguo/app-myexpress-taobao/";
+export const CW_SELF_HEADER = "X-Cainiao-Widget-Request";
 
 // MD5 只用于 MTOP 协议签名与本地身份摘要，不用于加密存储。
 export function md5(value) {

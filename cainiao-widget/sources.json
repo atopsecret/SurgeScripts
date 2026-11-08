@@ -3,7 +3,11 @@
   "assessment": "公开源码静态核对；未执行上游源码、未登录、未调用个人包裹服务。哈希校验对象是固定提交的原文件。",
   "documentation": [
     "https://egernapp.com/zh-CN/docs/configuration/widgets/",
-    "https://egernapp.com/zh-CN/docs/javascript-api/"
+    "https://egernapp.com/zh-CN/docs/javascript-api/",
+    "https://egernapp.com/zh-CN/docs/configuration/scriptings/",
+    "https://egernapp.com/zh-CN/docs/configuration/modules/",
+    "https://page.cainiao.com/guoguo/app-myexpress-taobao/",
+    "https://cn.alicdn.com/guoguo/app-myexpress-taobao/0.0.8/index.js"
   ],
   "files": [
     {

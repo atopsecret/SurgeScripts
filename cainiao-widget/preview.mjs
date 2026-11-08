@@ -134,8 +134,10 @@ export function previewSamples() {
   }
   const variants = [
     ['empty', '没有待取件', { status: 'ready', items: [], total: 0 }],
-    ['setup', '首次连接', { status: 'setup', items: [], total: 0, updatedAt: null, message: '先运行扫码助手，再填写登录参数' }],
-    ['expired', '登录过期 · 保留缓存', { status: 'expired', message: '登录已过期，请重新扫码 · 上次结果', updatedAt: updatedAt - 86400000 }],
+    ['setup', '手机首次连接', { status: 'setup', items: [], total: 0, updatedAt: null, message: '点击组件，打开手机查件页连接' }],
+    ['disabled', '连接已关闭', { status: 'setup', setupTitle: '连接已关闭', items: [], total: 0, updatedAt: null, message: '本机登录态已清除，切回 auto 可重新连接' }],
+    ['local-storage', '本机存储异常', { status: 'setup', setupTitle: '检查 Egern 存储', items: [], total: 0, updatedAt: null, message: '本机登录态无法读取，请重开手机查件页' }],
+    ['expired', '登录过期 · 保留缓存', { status: 'expired', message: '登录已过期，请重开手机查件页 · 上次结果', updatedAt: updatedAt - 86400000 }],
     ['offline', '网络失败 · 保留缓存', { status: 'offline', message: '暂时连不上，稍后再试 · 上次结果' }],
     ['cache-write', '缓存未保存 · 当前查询成功', { status: 'ready', message: '本机缓存写入失败，刷新时将重新查询' }],
     ['verify', '需要安全验证', { status: 'verify', message: '请在淘宝或菜鸟完成验证 · 上次结果' }],
@@ -162,7 +164,7 @@ export function previewSamples() {
     ...model, status: 'expired', total: 1, items: [{ ...model.items[0], code: 'PICKUP-20261108-00881234567890', station: '合成城市合成大学研究生公寓西门商业街菜鸟驿站二号服务点' }],
   }, now });
   samples.push({ id: 'expired-systemLarge', title: '登录过期 · 实际运行时提示', family: 'systemLarge', theme: 'dark', model: {
-    ...model, status: 'expired', message: '登录已过期，请重新扫码 · 上次结果', updatedAt: updatedAt - 86400000,
+    ...model, status: 'expired', message: '登录已过期，请重开手机查件页 · 上次结果', updatedAt: updatedAt - 86400000,
   }, now });
   return samples;
 }

@@ -1,6 +1,6 @@
 # SurgeScripts
 
-Surge 与 Egern 去广告模块、蔚来自动签到脚本及 Apple 天气增强。九个模块提供独立 Egern 原生版本；各模块可以单独安装，不需要替换整份客户端配置。
+Surge 与 Egern 去广告模块、蔚来自动签到脚本、Apple 天气增强及菜鸟取件小组件。十个模块提供独立 Egern 原生版本；各模块可以单独安装，不需要替换整份客户端配置。
 
 当前仓库：[atopsecret/SurgeScripts](https://github.com/atopsecret/SurgeScripts)。安装入口使用 `main`；蔚来 Egern 脚本固定到完整提交地址。
 
@@ -16,8 +16,8 @@ Surge 与 Egern 去广告模块、蔚来自动签到脚本及 Apple 天气增强
   [使用说明](jd/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml)
 - **菜鸟 1.0.0（Egern）**：四个明确广告请求拒绝、查件页运营字段和龙泉广告位清理；保留未知物流业务。
   [使用说明](cainiao/README.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.yaml)
-- **菜鸟取件小组件 1.0.0（Egern 原生）**：大号取件码、驿站、待取数量，支持浅深色和锁屏；首次使用配套本地扫码登录，失败保留上次结果。
-  [安装与扫码说明](cainiao-widget/README.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml)
+- **菜鸟取件小组件 1.1.0（Egern 原生）**：手机查件页登录态自动保存，大号取件码、驿站及待取数量；支持浅深色和锁屏，失败保留旧结果。自动连接需信任本人 Egern CA，无需电脑扫码。
+  [手机安装与连接](cainiao-widget/README.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml)
 - **闲鱼**：新旧开屏接口、缓存广告引用、悬浮策略及指定广告素材。
   [使用说明](xianyu/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-adblock.egern.yaml)
 - **拼多多**：开屏、多多视频入口、首页及订单页已知推广字段。
@@ -96,10 +96,11 @@ node --experimental-vm-modules --test --test-reporter=tap \
   amap/tests/egern.test.cjs amap/tests/policy.test.cjs jd/tests/*.test.cjs \
   xianyu/tests/egern.test.cjs pinduoduo/tests/egern.test.cjs \
   jyjt/tests/egern.test.cjs weilai/tests/egern.test.cjs \
-  apple-weather/tests/egern.test.cjs cainiao/tests/egern.test.cjs
+  apple-weather/tests/egern.test.cjs cainiao/tests/egern.test.cjs \
+  cainiao-widget/tests/*.test.cjs
 ```
 
-当前脚本测试共 **511 项**：京东 82 项、菜鸟 17 项，高德 87 项、Apple 天气 52 项，其余模块 273 项。测试在各模块目录，不恢复已删除的根 `tests/`。字段、匹配和来源子集另有 **27 项** Python 测试，依赖 PyYAML 6：
+当前脚本测试共 **594 项**：菜鸟取件小组件 83 项、京东 82 项、菜鸟 17 项、高德 87 项、Apple 天气 52 项，其余模块 273 项。测试在各模块目录，不恢复已删除的根 `tests/`。字段、匹配和来源子集另有 **38 项** Python 测试，依赖 PyYAML 6：
 
 ```sh
 python3 egern/validate.py
@@ -117,6 +118,8 @@ Egern 的 `.egern.js` 是 ES module，单文件语法检查使用 `node --input-
 2026-11-08 高德 2.1.0：高德回归 54/54 → 87/87，全仓脚本 423/423 → 456/456，静态 22/22；补全十五类页面与内嵌配置处理，保留 RT 开屏契约。详情见[高德验证报告](amap/验证报告-2.1.0.md)。未做手机真机验证。
 
 2026-11-08 京东 2.0.0 与菜鸟 1.0.0：京东 **44/44 → 82/82**，菜鸟新增 **17/17**，全仓 **456/456 → 511/511**，静态 **22/22 → 27/27**；九个原生 YAML、八个原生脚本检查通过。京东补四接口并统一双端正文保护，菜鸟迁移固定 LPX 的明确广告规则，省去整包清空未知业务的规则。来源、取舍与验证边界见[本次验证记录](egern/验证记录-京东菜鸟-20261108.md)；未做手机验收。
+
+2026-11-08 菜鸟取件小组件 1.1.0：手机登录态捕获、账号隔离及并发回写检查通过；小组件 **44/44 → 83/83**、全仓 **555/555 → 594/594**、静态 **35/35 → 38/38**，49 个同源布局样例无问题。默认无需扫码助手；未做手机验收，见[1.1.0 验证记录](cainiao-widget/验证记录-1.1.0.md)。
 
 ## 反馈与来源
 

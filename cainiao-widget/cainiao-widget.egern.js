@@ -1,4 +1,4 @@
-// Egern 原生菜鸟取件小组件 1.0.0 · 自动构建，请编辑本目录源文件。
+// Egern 原生菜鸟取件小组件 1.1.0 · 自动构建，请编辑本目录源文件。
 // 构建：node cainiao-widget/build.mjs；来源与许可见 THIRD_PARTY_NOTICES.md。
 // 来源：core.mjs
 // 引擎：Egern JavaScript | 语言：JavaScript ES module
@@ -6,12 +6,16 @@
 // 运行：由 runtime.mjs 调用；离线验证 node --test cainiao-widget/tests/core.test.cjs
 // 依赖：无；协议来源见 THIRD_PARTY_NOTICES.md
 
-const CW_VERSION = "1.0.0";
+const CW_VERSION = "1.1.0";
 const CW_API = "mtop.cainiao.lpc.packageservice.queryPdsPackageDataList";
 const CW_HOST = "https://h5api.m.taobao.com";
 const CW_PATH = "/h5/" + CW_API.toLowerCase() + "/1.0/";
 const CW_UA = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36";
 const CW_STORE = "cainiao-widget.local.v1";
+const CW_AUTH_STORE = "cainiao-widget.auth.v1";
+const CW_CAPTURE_STORE = "cainiao-widget.capture.v1";
+const CW_LOGIN_URL = "https://page.cainiao.com/guoguo/app-myexpress-taobao/";
+const CW_SELF_HEADER = "X-Cainiao-Widget-Request";
 
 // MD5 只用于 MTOP 协议签名与本地身份摘要，不用于加密存储。
 function md5(value) {
@@ -211,13 +215,193 @@ function cwItems(packages) {
     return [...result.values()].sort((a, b) => Number(!a.code) - Number(!b.code) || a.station.localeCompare(b.station) || a.id.localeCompare(b.id));
 }
 
+// 来源：auth.mjs
+// 引擎：Egern 原生请求捕获 | 语言：JavaScript ES module
+// 构建：node cainiao-widget/build.mjs
+// 运行：模块自动捕获；离线 node --test cainiao-widget/tests/auth.test.cjs
+// 依赖：core.mjs；只读请求头，原样放行，不发送网络请求
+
+const CW_CAPTURE_PATTERN = /^https:\/\/(h5api\.m\.taobao\.com|acs\.m\.taobao\.com)(?::443)?\/h5\/mtop(?:\.[A-Za-z0-9_-]+)+\/[0-9]+(?:\.[0-9]+)*\/?(?:\?[^#\r\n]*)?$/i;
+const CW_AUTH_NAMES = new Set(["unb", "cookie2", "sgcookie", "munb", "_m_h5_tk", "_m_h5_tk_enc", "_tb_token_"]);
+const CW_AUTH_STATUSES = new Set(["pending", "connected", "expired", "verify", "invalid"]);
+const CW_CAPTURE_RESULTS = {
+    saved: "已保存登录态，等待个人列表查询确认",
+    unchanged: "登录态未变化，保留当前状态",
+    anonymous: "本次请求没有账号登录态，未覆盖已有凭据",
+    invalid: "本次请求头无效，未保存凭据",
+    storage: "本机存储未确认保存，请检查 Egern 后重开查件页",
+    superseded: "已有更新的捕获结果，未回写旧凭据",
+};
+
+function cwConnectionMode(env = {}) {
+    const mode = env.CONNECTION_MODE || "auto";
+    return ["auto", "manual", "off"].includes(mode) ? mode : "invalid";
+}
+
+function cwCaptureURL(value) {
+    if (typeof value !== "string" || value.length > 65536 || /[\x00-\x20\x7f]/.test(value)) return "";
+    return CW_CAPTURE_PATTERN.exec(value)?.[1].toLowerCase() || "";
+}
+
+function cwHeaderValues(headers, name) {
+    if (!headers) return [];
+    const values = typeof headers.getAll === "function" ? headers.getAll(name)
+        : typeof headers.get === "function" ? [headers.get(name)].filter(value => value !== null) : [];
+    if (!Array.isArray(values) || values.some(value => typeof value !== "string")) throw new Error("header-format");
+    return values;
+}
+
+function cwCapturedCookies(headers) {
+    const values = cwHeaderValues(headers, "cookie");
+    if (values.length > 8 || values.reduce((size, value) => size + value.length + 2, 0) > 32768) throw new Error("cookie-format");
+    // 分开解析和检测多头重名，不能使用 Headers.get() 的逗号合并结果。
+    const cookies = new Map();
+    for (const value of values) {
+        for (const [name, item] of cwCookieMap(value)) {
+            if (cookies.has(name) && cookies.get(name) !== item) throw new Error("cookie-duplicate");
+            cookies.set(name, item);
+        }
+    }
+    return cwAuthCookies(cookies);
+}
+
+function cwAuthCookies(cookies) {
+    return new Map([...cookies].filter(([name]) => CW_AUTH_NAMES.has(name)));
+}
+
+function cwLoginCandidate(cookies) {
+    return /^[A-Za-z0-9_-]{1,128}$/.test(cookies.get("unb") || "") && (cookies.has("cookie2") || cookies.has("sgcookie"));
+}
+
+function cwSessionHash(cookies) {
+    return md5("capture-session:" + ["unb", "cookie2", "sgcookie", "munb"].map(name => name + "=" + (cookies.get(name) || "")).join(";"));
+}
+
+function cwAuthState(value, now = Date.now()) {
+    if (!cwObject(value) || value.version !== CW_VERSION || !CW_AUTH_STATUSES.has(value.status)
+        || !/^[0-9a-f]{32}$/.test(value.generation || "")
+        || !Number.isFinite(value.capturedAt) || value.capturedAt <= 0 || value.capturedAt > now + 60000
+        || !(value.confirmedAt === null || Number.isFinite(value.confirmedAt) && value.confirmedAt > 0 && value.confirmedAt <= now + 60000)
+        || value.status === "connected" && value.confirmedAt === null
+        || !["h5api.m.taobao.com", "acs.m.taobao.com"].includes(value.sourceHost)) return null;
+    let cookies;
+    try { cookies = cwCookieMap(value.cookie); } catch { return null; }
+    if (!cwLoginCandidate(cookies) || [...cookies.keys()].some(name => !CW_AUTH_NAMES.has(name))
+        || value.cookie !== cwCookieHeader(cookies) || value.owner !== cwOwner(cookies)
+        || value.sessionHash !== cwSessionHash(cookies) || value.inputHash !== md5(value.cookie)) return null;
+    return {version: value.version, owner: value.owner, sessionHash: value.sessionHash, generation: value.generation,
+        inputHash: value.inputHash, cookie: value.cookie, status: value.status,
+        capturedAt: value.capturedAt, confirmedAt: value.confirmedAt, sourceHost: value.sourceHost};
+}
+
+function cwReadAuth(ctx, now = Date.now()) {
+    const value = ctx.storage.getJSON(CW_AUTH_STORE);
+    if (value === null || value === undefined) return null;
+    const state = cwAuthState(value, now);
+    if (!state) throw new Error("auth-format");
+    return state;
+}
+
+function cwSameAuth(a, b) {
+    return !!a && !!b && a.owner === b.owner && a.generation === b.generation && a.inputHash === b.inputHash;
+}
+
+function cwWriteAuth(ctx, state, now = Date.now()) {
+    ctx.storage.setJSON(CW_AUTH_STORE, state);
+    const saved = cwReadAuth(ctx, now);
+    return cwSameAuth(saved, state) && saved.cookie === state.cookie && saved.status === state.status
+        && saved.capturedAt === state.capturedAt && saved.confirmedAt === state.confirmedAt;
+}
+
+function cwClearLocal(ctx) {
+    // off 模式只清本组件键，不改系统代理、CA 或其他模块。
+    ctx.storage.setJSON(CW_AUTH_STORE, null);
+    ctx.storage.setJSON(CW_STORE, null);
+    ctx.storage.setJSON(CW_CAPTURE_STORE, null);
+    if (ctx.storage.getJSON(CW_AUTH_STORE) !== null || ctx.storage.getJSON(CW_STORE) !== null
+        || ctx.storage.getJSON(CW_CAPTURE_STORE) !== null) throw new Error("storage-not-confirmed");
+}
+
+function cwCaptureResult(ctx, code, now) {
+    if (!Object.hasOwn(CW_CAPTURE_RESULTS, code)) return;
+    try {
+        const previous = ctx.storage.getJSON(CW_CAPTURE_STORE);
+        if (cwObject(previous) && previous.code === code && Number.isFinite(previous.at)
+            && now >= previous.at && now - previous.at < 30000) return;
+        ctx.storage.setJSON(CW_CAPTURE_STORE, {version: CW_VERSION, code, at: now});
+    } catch {
+        // 完全无法写入时仍有不含 Cookie、账号、URL 或异常原文的固定提示。
+        console.log("[菜鸟连接] 本机捕获状态无法保存，请检查 Egern 存储。");
+    }
+}
+
+function captureCainiaoCredentials(ctx, clock = () => Date.now()) {
+    if (cwConnectionMode(ctx.env) !== "auto" || !ctx.request) return;
+    const sourceHost = cwCaptureURL(ctx.request.url);
+    if (!sourceHost) return;
+    const now = clock();
+    let cookies;
+    try {
+        if (cwHeaderValues(ctx.request.headers, CW_SELF_HEADER).length) return;
+        cookies = cwCapturedCookies(ctx.request.headers);
+    } catch { cwCaptureResult(ctx, "invalid", now); return; }
+    if (!cwLoginCandidate(cookies)) { cwCaptureResult(ctx, "anonymous", now); return; }
+    let previous;
+    try {
+        const raw = ctx.storage.getJSON(CW_AUTH_STORE);
+        // 有效新请求可修复损坏的 JSON；读取 API 抛错则停止，不猜旧状态。
+        previous = cwAuthState(raw, now);
+        const cached = ctx.storage.getJSON(CW_STORE), owner = cwOwner(cookies);
+        if (previous && previous.owner !== owner || cwObject(cached) && cached.owner !== owner) {
+            // 新候选可能写入失败；屏障保留目标账号，防止之后重新查询已知旧账号。
+            const barrier = {version: CW_VERSION, owner, source: "capture", blocked: true, cookie: "", snapshot: null};
+            ctx.storage.setJSON(CW_STORE, barrier);
+            const saved = ctx.storage.getJSON(CW_STORE);
+            if (!cwObject(saved) || saved.owner !== owner || saved.blocked !== true
+                || saved.source !== "capture" || saved.snapshot !== null || saved.cookie !== "") throw new Error("cache-not-isolated");
+        }
+    } catch { cwCaptureResult(ctx, "storage", now); return; }
+    const cookie = cwCookieHeader(cookies), inputHash = md5(cookie), sessionHash = cwSessionHash(cookies);
+    const active = previous && ["pending", "connected"].includes(previous.status);
+    const sameSession = active && previous.sessionHash === sessionHash;
+    if (sameSession && previous.inputHash === inputHash) { cwCaptureResult(ctx, "unchanged", now); return; }
+    const state = {version: CW_VERSION, owner: cwOwner(cookies), sessionHash, inputHash, cookie,
+        generation: sameSession ? previous.generation : md5(now + ":" + Math.random() + ":" + Math.random()),
+        status: sameSession ? previous.status : "pending", capturedAt: now,
+        confirmedAt: sameSession ? previous.confirmedAt : null, sourceHost};
+    try {
+        if (!cwWriteAuth(ctx, state, now)) {
+            const latest = cwReadAuth(ctx, now);
+            cwCaptureResult(ctx, latest && latest.capturedAt >= now && !cwSameAuth(latest, previous) ? "superseded" : "storage", now);
+            return;
+        }
+    } catch { cwCaptureResult(ctx, "storage", now); return; }
+    cwCaptureResult(ctx, "saved", now);
+}
+
+function diagnoseCainiaoConnection(ctx, clock = () => Date.now()) {
+    const now = clock(), lines = ["菜鸟连接诊断 " + CW_VERSION, "连接模式：" + cwConnectionMode(ctx.env)];
+    const labels = {pending: "已捕获，尚未通过个人列表验证", connected: "个人列表查询已确认", expired: "登录过期，请重开手机查件页", verify: "需在官方页面完成验证", invalid: "身份失效，请重开手机查件页"};
+    try {
+        const auth = cwReadAuth(ctx, now);
+        const cached = ctx.storage.getJSON(CW_STORE);
+        const blocked = cwObject(cached) && cached.blocked === true && (!auth || cached.owner !== auth.owner);
+        lines.push("自动登录态：" + (blocked ? "新账号尚未保存，旧登录态已阻断" : (auth ? labels[auth.status] : "尚未捕获")));
+        if (auth) lines.push("捕获时间：" + new Date(auth.capturedAt).toISOString());
+        const result = ctx.storage.getJSON(CW_CAPTURE_STORE);
+        if (cwObject(result) && Object.hasOwn(CW_CAPTURE_RESULTS, result.code)) lines.push("最近捕获：" + CW_CAPTURE_RESULTS[result.code]);
+    } catch { lines.push("本机存储无法读取，请检查 Egern 后重新打开查件页。"); }
+    lines.push("此诊断只读本机状态，不发送个人查询，不显示凭据。");
+    return {type: "widget", padding: 12, children: [{type: "text", text: lines.join("\n")}]};
+}
+
 // 来源：render.mjs
 // 引擎：Egern 原生小组件 DSL | 语言：JavaScript ES module
 // 构建：node cainiao-widget/build.mjs
 // 运行：由 runtime.mjs 调用 renderWidget；离线 node --test cainiao-widget/tests/render.test.cjs
-// 依赖：无；不依赖浏览器或第三方运行库
+// 依赖：core.mjs 的官方页面常量；不依赖浏览器或第三方运行库
 
-const CNW_URL = 'https://www.cainiao.com/';
+const CNW_URL = CW_LOGIN_URL;
 const CNW_COLORS = {
   background: { light: '#F4F7FE', dark: '#0C1527' },
   backgroundEnd: { light: '#EAF1FF', dark: '#13233C' },
@@ -238,8 +422,8 @@ const CNW_FAMILIES = {
 };
 const CNW_STATES = {
   ready: { label: '待取包裹', title: '没有待取包裹', detail: '包裹到站后会显示在这里' },
-  setup: { label: '尚未登录', title: '先连接菜鸟账号', detail: '完成登录后，待取包裹会显示在这里' },
-  expired: { label: '登录过期', title: '需要重新登录', detail: '更新登录凭据后重试' },
+  setup: { label: '尚未连接', title: '先打开手机查件页', detail: '登录后回到 Egern 刷新组件' },
+  expired: { label: '登录过期', title: '重开手机查件页', detail: '登录后回到 Egern 重新连接' },
   offline: { label: '连接失败', title: '暂时无法连接', detail: '稍后会自动重试' },
   verify: { label: '需安全验证', title: '请先完成验证', detail: '在淘宝或菜鸟完成验证后重试' },
   partial: { label: '数据未取全', title: '暂未取得完整列表', detail: '仅显示已确认的待取件' },
@@ -299,7 +483,7 @@ function cnwContext(model, family, now) {
   const hideCode = input.privacy === true || (lock && input.privacy !== false);
   return {
     status, items, total, updatedAt, refreshMinutes, time, stale, partial, warning, state, label,
-    hideCode, message: cnwString(input.message),
+    hideCode, message: cnwString(input.message), setupTitle: cnwString(input.setupTitle).slice(0, 32),
     cached: warning && items.length > 0,
     count: `${partial ? '至少' : ''}${total}`,
     refreshAfter: new Date(time + refreshMinutes * 60000).toISOString(),
@@ -392,7 +576,7 @@ function cnwItemCard(item, context, options, small) {
 function cnwEmpty(context, small, tight = false) {
   const ready = context.status === 'ready' && !context.partial;
   const compact = tight || (small && context.warning);
-  const title = ready ? CNW_STATES.ready.title : context.state.title;
+  const title = ready ? CNW_STATES.ready.title : (context.status === 'setup' && context.setupTitle ? context.setupTitle : context.state.title);
   const detail = context.message || context.state.detail;
   return cnwStack('column', [
     { type: 'spacer' },
@@ -491,7 +675,7 @@ function cnwLock(context, family) {
       ...(context.warning || context.message ? [cnwText(status, 9, CNW_COLORS.primary, { minScale: 0.75, font: { size: 9, weight: 'semibold' } })] : []),
       ...(first ? [cnwText(context.hideCode ? '取件码已隐藏' : first.text, context.hideCode || !first.usable ? 12 : 18, CNW_COLORS.primary, {
         font: { size: context.hideCode || !first.usable ? 12 : 18, weight: first.usable && !context.hideCode ? 'bold' : 'medium', ...(first.usable && !context.hideCode ? { family: 'Menlo' } : {}) }, minScale: 0.45,
-      })] : [cnwText(context.status === 'ready' ? '没有待取包裹' : context.state.title, 12, CNW_COLORS.primary, { minScale: 0.8 })]),
+      })] : [cnwText(context.status === 'ready' ? '没有待取包裹' : (context.setupTitle || context.state.title), 12, CNW_COLORS.primary, { minScale: 0.8 })]),
       cnwText(cnwLockTimestamp(context), 8, CNW_COLORS.secondary, { minScale: 0.75 }),
     ];
   }
@@ -515,8 +699,8 @@ function renderWidget(model, family, now = Date.now()) {
 // 来源：runtime.mjs
 // 引擎：Egern 原生 generic 脚本 | 语言：JavaScript ES module
 // 构建：node cainiao-widget/build.mjs
-// 运行：安装 cainiao-widget.egern.yaml 并填写 CAINIAO_COOKIE
-// 依赖：core.mjs、render.mjs；发布文件内联，不下载其他代码
+// 运行：导入模块，在手机官方查件页登录并回到 Egern 刷新
+// 依赖：core.mjs、auth.mjs、render.mjs；发布文件内联，不下载其他代码
 
 class CwFailure extends Error {
     constructor(kind) { super(kind); this.kind = kind; }
@@ -548,14 +732,14 @@ function cwSnapshot(value, now) {
     return {items: value.items.map(({id, code, station, company, tail, requiresVerification}) => ({id, code, station, company, tail, requiresVerification})), updatedAt: value.updatedAt};
 }
 
-function cwFailureMessage(kind, cached) {
+function cwFailureMessage(kind, cached, automatic = false) {
     const messages = {
-        expired: "登录已过期，请重新扫码",
+        expired: automatic ? "登录已过期，请重开手机查件页" : "登录已过期，请更新手动登录参数",
         verify: "请在淘宝或菜鸟完成验证",
         offline: "暂时连不上，稍后再试",
         partial: "本次未查全，稍后刷新",
         schema: "接口数据有变化，暂未更新",
-        account: "账号发生变化，请重新导入",
+        account: automatic ? "登录身份失效，请重开手机查件页" : "账号发生变化，请重新导入登录参数",
         error: "查询未成功，稍后再试",
     };
     return (messages[kind] || messages.error) + (cached ? " · 上次结果" : "");
@@ -567,63 +751,137 @@ async function loadCainiaoModel(ctx, clock = () => Date.now()) {
     const refreshMinutes = Number.isFinite(requestedInterval) ? Math.max(5, Math.min(120, Math.floor(requestedInterval))) : 15;
     const base = {items: [], total: 0, updatedAt: null, refreshMinutes,
         privacy: String(ctx.widgetFamily || "").startsWith("accessory") ? env.LOCKSCREEN_SHOW_CODE !== "true" : false};
+    const mode = cwConnectionMode(env);
+    if (mode === "invalid") return {...base, status: "setup", setupTitle: "检查连接设置", message: "连接方式无效，请恢复自动连接"};
+    if (mode === "off") {
+        try { cwClearLocal(ctx); }
+        catch { return {...base, status: "setup", setupTitle: "连接已关闭", message: "本机登录态清除未确认，请检查 Egern"}; }
+        return {...base, status: "setup", setupTitle: "连接已关闭", message: "本机登录态已清除，切回 auto 可重新连接"};
+    }
+    let automatic = null;
+    if (mode === "auto") {
+        try { automatic = cwReadAuth(ctx, now); }
+        catch { return {...base, status: "setup", setupTitle: "检查 Egern 存储", message: "本机登录态无法读取，请重开手机查件页"}; }
+    }
     let imported;
-    try { imported = cwCookieMap(env.CAINIAO_COOKIE || ""); }
-    catch { return {...base, status: "setup", message: "登录参数格式有误，请重新粘贴"}; }
+    try { imported = cwCookieMap(automatic ? automatic.cookie : env.CAINIAO_COOKIE || ""); }
+    catch { return {...base, status: "setup", setupTitle: "检查手动登录参数", message: "登录参数格式有误，请重新粘贴"}; }
     if (!imported.size) {
-        // 清空参数即退出本组件登录，同时覆盖本组件的旧缓存和 Cookie。
-        try { await ctx.storage.setJSON(CW_STORE, null); } catch {}
-        return {...base, status: "setup", message: "先运行扫码助手，再填写登录参数"};
+        try {
+            const saved = ctx.storage.getJSON(CW_STORE);
+            if (!cwObject(saved) || saved.blocked !== true) ctx.storage.setJSON(CW_STORE, null);
+        } catch {}
+        return {...base, status: "setup", ...(mode === "manual" ? {setupTitle: "填写手动登录参数"} : {}),
+            message: mode === "auto" ? "点击组件，打开手机查件页连接" : "手动模式尚未填写登录参数"};
     }
     const owner = cwOwner(imported), inputHash = md5(cwCookieHeader(imported));
-    let old;
-    try { old = await ctx.storage.getJSON(CW_STORE); } catch {}
+    let old, storageOK = true;
+    try { old = ctx.storage.getJSON(CW_STORE); }
+    catch {
+        if (mode === "auto") return {...base, status: "setup", setupTitle: "检查 Egern 存储", message: "账号隔离状态无法读取，请检查 Egern 后重试"};
+        storageOK = false;
+    }
+    if (cwObject(old) && old.blocked === true && old.owner !== owner) return {...base, status: "setup", setupTitle: "重开手机查件页",
+        message: "新账号登录态尚未保存，请重开手机查件页"};
     const sameAccount = cwObject(old) && old.owner === owner;
-    if (sameAccount && old.inputHash === inputHash && old.invalidated === true) return {...base, status: "error", message: cwFailureMessage("account", false)};
+    const sameInput = sameAccount && old.inputHash === inputHash && (automatic
+        ? old.source === "auto" && old.generation === automatic.generation : old.source !== "auto");
+    if (sameInput && old.invalidated === true) return {...base, status: "error", message: cwFailureMessage("account", false, !!automatic)};
     let snapshot = sameAccount ? cwSnapshot(old.snapshot, now) : null;
     let cookies = imported;
-    if (sameAccount && old.inputHash === inputHash) {
+    if (sameInput) {
         try {
             const stored = cwCookieMap(old.cookie);
             if (stored.size && (!imported.get("unb") || !stored.get("unb") || imported.get("unb") === stored.get("unb"))) cookies = stored;
         } catch {}
     }
+    if (automatic) cookies = cwAuthCookies(cookies);
     // 最多保留七天旧结果；更久的数据只保留更新时间用于说明，不再展示码。
     if (snapshot && now - Date.parse(snapshot.updatedAt) > 7 * 86400000) snapshot = null;
-    const state = {version: CW_VERSION, owner, inputHash, cookie: cwCookieHeader(cookies), snapshot,
-        observedUnb: imported.get("unb") || cookies.get("unb") || (sameAccount && old.inputHash === inputHash && typeof old.observedUnb === "string" ? old.observedUnb : "")};
-    let storageOK = true;
-    const persist = async () => {
-        state.cookie = cwCookieHeader(cookies);
-        try { await ctx.storage.setJSON(CW_STORE, state); } catch { storageOK = false; }
+    let terminalStatus = null, ownsState = false, state;
+    const currentAuth = () => {
+        if (mode !== "auto") return null;
+        let current;
+        try { current = cwReadAuth(ctx, clock()); }
+        catch { throw new CwFailure("local"); }
+        if (automatic ? !cwSameAuth(current, automatic) : current !== null) throw new CwFailure("superseded");
+        return current;
     };
-    // 新账号先覆盖旧状态，失败也不能回显另一账号的包裹。
-    await persist();
+    const guard = () => {
+        const current = currentAuth();
+        if (current && (terminalStatus ? current.status !== terminalStatus : !["pending", "connected"].includes(current.status))) throw new CwFailure("superseded");
+        if (ownsState) {
+            let saved;
+            try { saved = ctx.storage.getJSON(CW_STORE); }
+            catch { if (mode === "auto") throw new CwFailure("local"); storageOK = false; return; }
+            if (!cwObject(saved) || saved.owner !== owner || saved.inputHash !== inputHash
+                || saved.source !== state.source || saved.generation !== state.generation || saved.runId !== state.runId) throw new CwFailure("superseded");
+        }
+    };
+    const stopped = kind => ({...base, status: "setup", setupTitle: kind === "local" ? "检查 Egern 存储" : "刷新小组件", message: kind === "local"
+        ? "本机登录态无法读取，请检查 Egern 后重开查件页" : "登录态已更新，请刷新小组件"});
+    if (automatic && !["pending", "connected"].includes(automatic.status)) {
+        try { currentAuth(); } catch (error) { return stopped(error.kind); }
+        if (automatic.status === "invalid") return {...base, status: "setup", message: cwFailureMessage("account", false, true)};
+        return {...base, ...(snapshot || {}), total: snapshot?.items.length || 0, status: automatic.status,
+            message: cwFailureMessage(automatic.status, !!snapshot, true)};
+    }
+    state = {version: CW_VERSION, owner, inputHash, source: automatic ? "auto" : "manual",
+        generation: automatic?.generation || "", runId: md5(now + ":" + Math.random() + ":" + Math.random()), cookie: cwCookieHeader(cookies), snapshot,
+        observedUnb: imported.get("unb") || cookies.get("unb") || (sameInput && typeof old.observedUnb === "string" ? old.observedUnb : "")};
+    const persist = () => {
+        guard();
+        state.cookie = cwCookieHeader(cookies);
+        try {
+            ctx.storage.setJSON(CW_STORE, state);
+            const saved = ctx.storage.getJSON(CW_STORE);
+            if (!cwObject(saved) || saved.owner !== owner || saved.inputHash !== inputHash || saved.source !== state.source
+                || saved.generation !== state.generation || saved.runId !== state.runId || saved.cookie !== state.cookie || saved.invalidated !== state.invalidated
+                || JSON.stringify(cwSnapshot(saved.snapshot, clock())) !== JSON.stringify(state.snapshot)) storageOK = false;
+            else ownsState = true;
+        } catch { storageOK = false; }
+        guard();
+    };
+    const markAuth = status => {
+        if (!automatic) return;
+        guard();
+        const current = currentAuth();
+        const updated = {...current, status, confirmedAt: status === "connected" ? clock() : current.confirmedAt};
+        try {
+            if (cwWriteAuth(ctx, updated, clock())) {
+                if (!["pending", "connected"].includes(status)) terminalStatus = status;
+            } else storageOK = false;
+        } catch { storageOK = false; }
+        guard();
+    };
     const deadline = now + 18000;
     const getPage = async page => {
         for (let attempt = 0; attempt < 3; attempt++) {
+            guard();
             const remaining = deadline - clock();
             if (remaining < 1200) throw new CwFailure("partial");
             let response;
             const beforeToken = cookies.get("_m_h5_tk") || "";
             try {
-                response = await cwBounded(() => ctx.http.get(cwRequestURL(cookies, page, clock()), {
-                    headers: {Cookie: cwCookieHeader(cookies), "User-Agent": CW_UA, Referer: "https://h5.m.taobao.com/", Accept: "application/json"},
+                response = await cwBounded(() => { guard(); return ctx.http.get(cwRequestURL(cookies, page, clock()), {
+                    headers: {Cookie: cwCookieHeader(cookies), "User-Agent": CW_UA, Referer: "https://h5.m.taobao.com/", Accept: "application/json", [CW_SELF_HEADER]: "1"},
                     timeout: Math.max(1, Math.min(7000, remaining - 500)), redirect: "manual", credentials: "omit", insecureTls: false,
-                }), deadline, clock);
+                }); }, deadline, clock);
             } catch (error) { throw error instanceof CwFailure ? error : new CwFailure("offline"); }
+            guard();
             try { cwUpdateCookies(cookies, response.headers, clock()); } catch {}
+            if (automatic) cookies = cwAuthCookies(cookies);
             const nextUnb = cookies.get("unb") || "";
             if (state.observedUnb && state.observedUnb !== nextUnb) {
                 state.snapshot = null; snapshot = null;
                 state.invalidated = true;
-                // 后续同一导入值不再复用已变更的会话，等待用户重新扫码导入。
+                // 旧会话失效后等待新的手机捕获或手动导入，不回显旧码。
                 cookies = new Map();
                 throw new CwFailure("account");
             }
             if (nextUnb) state.observedUnb = nextUnb;
             // 失败响应也可能下发新 token，须先持久化再分类。
-            await persist();
+            persist();
             if ([301, 302, 303, 307, 308, 403, 429].includes(response.status)) throw new CwFailure("verify");
             if (response.status === 401) throw new CwFailure("expired");
             if (response.status >= 500) throw new CwFailure("offline");
@@ -631,6 +889,7 @@ async function loadCainiaoModel(ctx, clock = () => Date.now()) {
             let body;
             try {
                 const raw = await cwBounded(() => response.text(), deadline, clock);
+                guard();
                 if (raw.length > 3 * 1024 * 1024) throw new CwFailure("schema");
                 if (/^\s*</.test(raw)) throw new CwFailure("verify");
                 body = JSON.parse(raw);
@@ -651,6 +910,8 @@ async function loadCainiaoModel(ctx, clock = () => Date.now()) {
     let collected = [], partialItems = [];
     const pageSignatures = new Set();
     try {
+        // 新账号先覆盖旧状态，失败也不能回显另一账号的包裹。
+        persist();
         for (let page = 1; page <= 20; page++) {
             const result = await getPage(page);
             // 相同分页响应不能造成“已经取全”的假象。
@@ -663,24 +924,37 @@ async function loadCainiaoModel(ctx, clock = () => Date.now()) {
                 if (clock() >= deadline) throw new CwFailure("partial");
                 snapshot = {items: partialItems, updatedAt: new Date(clock()).toISOString()};
                 state.snapshot = snapshot;
-                await persist();
+                persist();
+                markAuth("connected");
+                guard();
                 return {...base, ...snapshot, total: snapshot.items.length, status: "ready", message: storageOK ? "" : "本机缓存写入失败，刷新时将重新查询"};
             }
         }
         throw new CwFailure("partial");
     } catch (error) {
         const kind = error instanceof CwFailure ? error.kind : "error";
-        await persist();
+        if (["superseded", "local"].includes(kind)) return stopped(kind);
+        try {
+            persist();
+            if (["expired", "verify", "account"].includes(kind)) markAuth(kind === "account" ? "invalid" : kind);
+            guard();
+        } catch (failure) { return stopped(failure.kind); }
         if (snapshot) return {...base, ...snapshot, total: snapshot.items.length,
-            status: ["expired", "verify", "offline"].includes(kind) ? kind : "error", message: cwFailureMessage(kind, true)};
+            status: ["expired", "verify", "offline"].includes(kind) ? kind : "error", message: cwFailureMessage(kind, true, !!automatic)};
         // 无历史快照时可展示已成功查到的部分，但不能缓存为完整结果或声称完整数量。
         if (partialItems.length && !["account", "expired", "verify"].includes(kind)) return {...base, items: partialItems, total: partialItems.length,
             updatedAt: new Date(clock()).toISOString(), partial: true, status: "partial", message: "只查到部分包裹，数量未取全"};
-        return {...base, status: ["expired", "verify", "offline"].includes(kind) ? kind : "error", message: cwFailureMessage(kind, false)};
+        return {...base, status: ["expired", "verify", "offline"].includes(kind) ? kind : "error", message: cwFailureMessage(kind, false, !!automatic)};
     }
 }
 
 export default async function(ctx) {
+    if (ctx.request) {
+        try { captureCainiaoCredentials(ctx); }
+        catch { console.log("[菜鸟连接] 捕获未完成，原请求继续透传。"); }
+        return;
+    }
+    if (ctx.env?.CAINIAO_DIAGNOSTIC === "true") return diagnoseCainiaoConnection(ctx);
     const model = await loadCainiaoModel(ctx);
     return renderWidget(model, ctx.widgetFamily, Date.now());
 }

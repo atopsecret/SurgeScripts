@@ -227,6 +227,55 @@ class ValidationTests(unittest.TestCase):
             self.assertRegex(source["commit"], r"^[0-9a-f]{40}$")
             self.assertRegex(source["sha256"], r"^[0-9a-f]{64}$")
 
+    def test_cainiao_widget_capture_scope_and_shared_script(self):
+        data = validator.load(ROOT / "cainiao-widget/cainiao-widget.egern.yaml")
+        self.assertEqual(data["env_schema"]["CONNECTION_MODE"]["default_value"], "auto")
+        self.assertEqual(data["env_schema"]["CONNECTION_MODE"]["options"], ["auto", "manual", "off"])
+        self.assertEqual(data["env_schema"]["CAINIAO_COOKIE"]["default_value"], "")
+        self.assertEqual(data["mitm"]["hostnames"]["includes"], ["h5api.m.taobao.com", "acs.m.taobao.com"])
+        rows = data["scriptings"]
+        self.assertEqual(len(rows), 3)
+        capture = rows[0]["http_request"]
+        self.assertFalse(capture["body_required"])
+        self.assertNotIn("binary_body", capture)
+        self.assertLessEqual(capture["timeout"], 5)
+        urls = {body["script_url"] for row in rows for body in row.values()}
+        self.assertEqual(len(urls), 1)
+        self.assertTrue(next(iter(urls)).endswith("cainiao-widget.egern.js?v=1.1.0"))
+        self.assertEqual(rows[2]["generic"]["env"], {"CAINIAO_DIAGNOSTIC": "true"})
+        pattern = re.compile(capture["match"])
+        for host in ["h5api.m.taobao.com", "acs.m.taobao.com"]:
+            self.assertRegex(f"https://{host}/h5/mtop.cainiao.example/1.0/?x=1", pattern)
+            self.assertRegex(f"https://{host}:443/h5/mtop.cainiao.example/1.0/", pattern)
+
+    def test_cainiao_widget_capture_rejects_imprecise_targets(self):
+        data = validator.load(ROOT / "cainiao-widget/cainiao-widget.egern.yaml")
+        pattern = re.compile(data["scriptings"][0]["http_request"]["match"])
+        for url in [
+            "http://h5api.m.taobao.com/h5/mtop.example/1.0/",
+            "https://h5api.m.taobao.com.evil.invalid/h5/mtop.example/1.0/",
+            "https://user@h5api.m.taobao.com/h5/mtop.example/1.0/",
+            "https://h5api.m.taobao.com:444/h5/mtop.example/1.0/",
+            "https://acs.m.taobao.com/gw/mtop.example/1.0/",
+            "https://h5api.m.taobao.com/h5/mtop/1.0/",
+            "https://h5api.m.taobao.com/h5/mtop.example/latest/",
+            "https://h5api.m.taobao.com/h5/mtop.example/1.0/extra",
+            "https://h5api.m.taobao.com/h5/mtop.example/1.0/?x=1#fragment",
+        ]:
+            with self.subTest(url=url):
+                self.assertNotRegex(url, pattern)
+
+    def test_cainiao_widget_current_guides_do_not_require_desktop_login(self):
+        guide = (ROOT / "cainiao-widget/README.md").read_text()
+        script = (ROOT / "cainiao-widget/cainiao-widget.egern.js").read_text()
+        self.assertIn("https://page.cainiao.com/guoguo/app-myexpress-taobao/", guide)
+        self.assertIn("无需电脑扫码", guide)
+        self.assertIn("CW_AUTH_STORE", script)
+        self.assertIn("CW_SELF_HEADER", script)
+        self.assertNotIn("先运行扫码助手", script)
+        self.assertNotIn("请重新扫码", script)
+        self.assertNotIn("无需 MITM 或 CA", guide)
+
     def test_no_public_ca(self):
         for path in validator.MODULES:
             data = validator.load(ROOT / path)

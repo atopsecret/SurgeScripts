@@ -16,7 +16,7 @@ function fixture(replies = []) {
     const memory = new Map(), requests = [];
     let time = NOW;
     const ctx = {
-        env: {CAINIAO_COOKIE: "cookie2=demo-session; unb=demo-user; _m_h5_tk=demo-token_1"}, widgetFamily: "systemMedium",
+        env: {CONNECTION_MODE: "manual", CAINIAO_COOKIE: "cookie2=demo-session; unb=demo-user; _m_h5_tk=demo-token_1"}, widgetFamily: "systemMedium",
         storage: {getJSON: key => structuredClone(memory.get(key) ?? null), setJSON: (key, value) => memory.set(key, structuredClone(value))},
         http: {get: async (url, options) => { requests.push({url: new URL(url), options}); const item = replies.shift(); if (item instanceof Error) throw item; if (typeof item === "function") return item(); if (!item) throw new Error("synthetic-network-error"); return item; }},
     };

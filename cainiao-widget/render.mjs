@@ -1,9 +1,10 @@
 // 引擎：Egern 原生小组件 DSL | 语言：JavaScript ES module
 // 构建：node cainiao-widget/build.mjs
 // 运行：由 runtime.mjs 调用 renderWidget；离线 node --test cainiao-widget/tests/render.test.cjs
-// 依赖：无；不依赖浏览器或第三方运行库
+// 依赖：core.mjs 的官方页面常量；不依赖浏览器或第三方运行库
+import {CW_LOGIN_URL} from "./core.mjs";
 
-const CNW_URL = 'https://www.cainiao.com/';
+const CNW_URL = CW_LOGIN_URL;
 const CNW_COLORS = {
   background: { light: '#F4F7FE', dark: '#0C1527' },
   backgroundEnd: { light: '#EAF1FF', dark: '#13233C' },
@@ -24,8 +25,8 @@ const CNW_FAMILIES = {
 };
 const CNW_STATES = {
   ready: { label: '待取包裹', title: '没有待取包裹', detail: '包裹到站后会显示在这里' },
-  setup: { label: '尚未登录', title: '先连接菜鸟账号', detail: '完成登录后，待取包裹会显示在这里' },
-  expired: { label: '登录过期', title: '需要重新登录', detail: '更新登录凭据后重试' },
+  setup: { label: '尚未连接', title: '先打开手机查件页', detail: '登录后回到 Egern 刷新组件' },
+  expired: { label: '登录过期', title: '重开手机查件页', detail: '登录后回到 Egern 重新连接' },
   offline: { label: '连接失败', title: '暂时无法连接', detail: '稍后会自动重试' },
   verify: { label: '需安全验证', title: '请先完成验证', detail: '在淘宝或菜鸟完成验证后重试' },
   partial: { label: '数据未取全', title: '暂未取得完整列表', detail: '仅显示已确认的待取件' },
@@ -85,7 +86,7 @@ function cnwContext(model, family, now) {
   const hideCode = input.privacy === true || (lock && input.privacy !== false);
   return {
     status, items, total, updatedAt, refreshMinutes, time, stale, partial, warning, state, label,
-    hideCode, message: cnwString(input.message),
+    hideCode, message: cnwString(input.message), setupTitle: cnwString(input.setupTitle).slice(0, 32),
     cached: warning && items.length > 0,
     count: `${partial ? '至少' : ''}${total}`,
     refreshAfter: new Date(time + refreshMinutes * 60000).toISOString(),
@@ -178,7 +179,7 @@ function cnwItemCard(item, context, options, small) {
 function cnwEmpty(context, small, tight = false) {
   const ready = context.status === 'ready' && !context.partial;
   const compact = tight || (small && context.warning);
-  const title = ready ? CNW_STATES.ready.title : context.state.title;
+  const title = ready ? CNW_STATES.ready.title : (context.status === 'setup' && context.setupTitle ? context.setupTitle : context.state.title);
   const detail = context.message || context.state.detail;
   return cnwStack('column', [
     { type: 'spacer' },
@@ -277,7 +278,7 @@ function cnwLock(context, family) {
       ...(context.warning || context.message ? [cnwText(status, 9, CNW_COLORS.primary, { minScale: 0.75, font: { size: 9, weight: 'semibold' } })] : []),
       ...(first ? [cnwText(context.hideCode ? '取件码已隐藏' : first.text, context.hideCode || !first.usable ? 12 : 18, CNW_COLORS.primary, {
         font: { size: context.hideCode || !first.usable ? 12 : 18, weight: first.usable && !context.hideCode ? 'bold' : 'medium', ...(first.usable && !context.hideCode ? { family: 'Menlo' } : {}) }, minScale: 0.45,
-      })] : [cnwText(context.status === 'ready' ? '没有待取包裹' : context.state.title, 12, CNW_COLORS.primary, { minScale: 0.8 })]),
+      })] : [cnwText(context.status === 'ready' ? '没有待取包裹' : (context.setupTitle || context.state.title), 12, CNW_COLORS.primary, { minScale: 0.8 })]),
       cnwText(cnwLockTimestamp(context), 8, CNW_COLORS.secondary, { minScale: 0.75 }),
     ];
   }

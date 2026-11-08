@@ -1,11 +1,11 @@
 # 来源与许可
 
-本组件的 MTOP、PDS 字段和用户确认扫码登录协议参考下列公开实现；本地助手使用 Python 标准库重写请求、TLS、Cookie 域路径选择、登录收尾及私有文件输出。没有捆绑或执行上游 skill，也没有捆绑 Android 应用或 qrcode.js。
+本组件的 MTOP、PDS 字段，以及保留的独立扫码登录助手参考下列公开实现。1.1.0 默认按 [Egern 官方 API](https://egernapp.com/zh-CN/docs/javascript-api/)只读捕获手机官方查件页的 H5 请求头，保存待验证登录态，不依赖扫码助手。旧助手使用 Python 标准库重写请求、TLS、Cookie 域路径选择、登录收尾及私有文件输出。没有捆绑或执行上游 skill，也没有捆绑 Android 应用或 qrcode.js。
 
 - mykohuang/kuaidi-skill，固定提交 da8e16247cd83d7f0b0772f383fda011bb4b89bf：[kuaidi.py](https://github.com/mykohuang/kuaidi-skill/blob/da8e16247cd83d7f0b0772f383fda011bb4b89bf/kuaidi.py)、[LICENSE](https://github.com/mykohuang/kuaidi-skill/blob/da8e16247cd83d7f0b0772f383fda011bb4b89bf/LICENSE)。
 - polygongfw/pickup-assistant，固定提交 46406c53c40c3fbd8b3ee6f5f899eda9ebb0e338：[Api.kt](https://github.com/polygongfw/pickup-assistant/blob/46406c53c40c3fbd8b3ee6f5f899eda9ebb0e338/app/src/main/java/com/coldbrew/pickupassistant/data/Api.kt)、[Mtop.kt](https://github.com/polygongfw/pickup-assistant/blob/46406c53c40c3fbd8b3ee6f5f899eda9ebb0e338/app/src/main/java/com/coldbrew/pickupassistant/data/Mtop.kt)、[Models.kt](https://github.com/polygongfw/pickup-assistant/blob/46406c53c40c3fbd8b3ee6f5f899eda9ebb0e338/app/src/main/java/com/coldbrew/pickupassistant/data/Models.kt)、[QrLogin.kt](https://github.com/polygongfw/pickup-assistant/blob/46406c53c40c3fbd8b3ee6f5f899eda9ebb0e338/app/src/main/java/com/coldbrew/pickupassistant/data/QrLogin.kt)、[LICENSE](https://github.com/polygongfw/pickup-assistant/blob/46406c53c40c3fbd8b3ee6f5f899eda9ebb0e338/LICENSE)。Cookie 行为也核对同一提交中的 CookieStore.kt、Cookies.kt、SessionStore.kt；二维码状态与收尾测试核对 QrLoginTest.kt。
 
-二维码依赖通过 requirements-login.txt 单独安装。二维码内容只在本机编码，不使用第三方在线二维码服务。接口互操作性来源不等于当前服务端可用性保证；需由用户主动运行助手并确认登录。
+二维码依赖通过 requirements-login.txt 单独安装，仅供独立助手使用；默认手机流程无需安装。二维码内容只在本机编码，不使用第三方在线二维码服务。接口互操作性来源不等于当前服务端可用性保证；自动捕获的候选必须经个人列表查询成功确认，离线验证不能代替用户手机验收。
 
 以下保留两份上游 LICENSE 的完整原文。
 

@@ -5,7 +5,7 @@ const NOW = new Date(2026, 10, 8, 14, 35).getTime();
 const UPDATED = new Date(2026, 10, 8, 14, 20).getTime();
 const FAMILIES = ['systemSmall', 'systemMedium', 'systemLarge', 'systemExtraLarge', 'accessoryCircular', 'accessoryRectangular', 'accessoryInline'];
 const STATES = ['setup', 'expired', 'offline', 'verify', 'partial', 'error'];
-const LABELS = ['尚未登录', '登录过期', '连接失败', '需安全验证', '数据未取全', '更新失败'];
+const LABELS = ['尚未连接', '登录过期', '连接失败', '需安全验证', '数据未取全', '更新失败'];
 const modulePromise = import('../render.mjs');
 const sample = (extra = {}) => ({
   status: 'ready', total: 11, updatedAt: UPDATED, refreshMinutes: 15,
@@ -30,7 +30,7 @@ test('七种尺寸仅生成官方支持的 DSL 字段，且点击统一进入官
   for (const family of FAMILIES) {
     const tree = renderWidget(sample(), family, NOW);
     assert.equal(tree.type, 'widget');
-    assert.equal(tree.url, 'https://www.cainiao.com/');
+    assert.equal(tree.url, 'https://page.cainiao.com/guoguo/app-myexpress-taobao/');
     assert.equal(tree.refreshAfter, new Date(NOW + 15 * 60000).toISOString());
     for (const node of walk(tree)) {
       assert.ok(allowed[node.type], `不支持的元素 ${node.type}`);
@@ -182,4 +182,15 @@ test('离线预览接收实际 DSL，转义外来文本，保持取件码和隐�
   assert.ok(!hidden.includes('86-2-3108'));
   assert.match(hidden, /取件码已隐藏/);
   assert.match(hidden, /合成数据 · 离线预览/);
+});
+
+test('关闭连接与本机存储异常的标题不再引导用户重新登录', async () => {
+  const { renderWidget } = await modulePromise;
+  for (const family of ['systemSmall', 'systemMedium', 'systemLarge', 'systemExtraLarge', 'accessoryRectangular']) {
+    for (const setupTitle of ['连接已关闭', '检查 Egern 存储', '填写手动登录参数', '刷新小组件']) {
+      const text = joined(renderWidget(sample({ status: 'setup', items: [], total: 0, updatedAt: null, setupTitle, message: '合成状态说明' }), family, NOW));
+      assert(text.includes(setupTitle), `${family}: ${setupTitle}`);
+      assert(!text.includes('先打开手机查件页'));
+    }
+  }
 });

@@ -267,15 +267,25 @@ class ValidationTests(unittest.TestCase):
         self.assertEqual(data["env_schema"]["CAINIAO_COOKIE"]["default_value"], "")
         self.assertEqual(data["mitm"]["hostnames"]["includes"], ["h5api.m.taobao.com", "acs.m.taobao.com", "cn-acs.m.cainiao.com", "e2e-mtop.cainiao.com"])
         rows = data["scriptings"]
-        self.assertEqual(len(rows), 3)
+        self.assertEqual(len(rows), 5)
         capture = rows[0]["http_request"]
         self.assertFalse(capture["body_required"])
         self.assertNotIn("binary_body", capture)
         self.assertLessEqual(capture["timeout"], 5)
         urls = {body["script_url"] for row in rows for body in row.values()}
         self.assertEqual(len(urls), 1)
-        self.assertTrue(next(iter(urls)).endswith("cainiao-widget.egern.js?v=1.2.2"))
-        self.assertEqual(rows[2]["generic"]["env"], {"CAINIAO_DIAGNOSTIC": "true"})
+        self.assertTrue(next(iter(urls)).endswith("cainiao-widget.egern.js?v=1.2.3"))
+        self.assertEqual(rows[4]["generic"]["env"], {"CAINIAO_DIAGNOSTIC": "true", "CW_TRANSPORT_CHECK": "true"})
+        self.assertGreaterEqual(rows[4]["generic"]["timeout"], 15)
+        response = rows[1]["http_response"]
+        self.assertFalse(response["body_required"])
+        self.assertNotIn("binary_body", response)
+        self.assertNotEqual(response["match"], capture["match"])
+        schema = rows[2]["http_response"]
+        self.assertTrue(schema["body_required"])
+        self.assertTrue(schema["binary_body"])
+        self.assertEqual(schema["max_size"], 262144)
+        self.assertEqual(schema["env"], {"CW_LOGIN_SCHEMA": "true"})
         pattern = re.compile(capture["match"])
         for host in ["h5api.m.taobao.com", "acs.m.taobao.com", "cn-acs.m.cainiao.com", "e2e-mtop.cainiao.com"]:
             self.assertRegex(f"https://{host}/h5/mtop.cainiao.example/1.0/?x=1", pattern)
@@ -302,18 +312,43 @@ class ValidationTests(unittest.TestCase):
             with self.subTest(url=url):
                 self.assertNotRegex(url, pattern)
 
+    def test_cainiao_widget_login_schema_scope_is_exact(self):
+        data = validator.load(ROOT / "cainiao-widget/cainiao-widget.egern.yaml")
+        schema = re.compile(data["scriptings"][2]["http_response"]["match"])
+        capture = re.compile(data["scriptings"][0]["http_request"]["match"])
+        response = re.compile(data["scriptings"][1]["http_response"]["match"])
+        for host in data["mitm"]["hostnames"]["includes"]:
+            for api in ["login", "autoLogin", "logout"]:
+                for channel, suffix in [("h5", "1.0/"), ("gw", "*/"), ("gw", "")]:
+                    url = f"https://{host}/{channel}/com.taobao.mtop.mLoginUnitService.{api}" + ("/" + suffix if suffix else "")
+                    self.assertRegex(url, schema)
+                    self.assertRegex(url, capture)
+                    self.assertNotRegex(url, response, "两个响应入口不能重叠")
+        for api in ["mtop.common.getTimestamp", "mtop.cainiao.lpc.packageservice.queryPdsPackageDataList",
+                    "com.taobao.mtop.mLoginUnitService.future", "com.taobao.mtop.mLoginUnitService.login.extra"]:
+            self.assertNotRegex("https://acs.m.taobao.com/gw/" + api + "/1.0/", schema)
+        self.assertRegex("https://acs.m.taobao.com/gw/mtop.common.getTimestamp/1.0/", response)
+        for url in [
+            "https://acs.m.taobao.com.evil.invalid/gw/com.taobao.mtop.mLoginUnitService.login/1.0/",
+            "http://acs.m.taobao.com/gw/com.taobao.mtop.mLoginUnitService.login/1.0/",
+            "https://acs.m.taobao.com:444/gw/com.taobao.mtop.mLoginUnitService.login/1.0/",
+            "https://acs.m.taobao.com/h5/com.taobao.mtop.mLoginUnitService.login/*/",
+            "https://acs.m.taobao.com/gw/com.taobao.mtop.mLoginUnitService.login/1.0/?x=1#fragment",
+        ]:
+            self.assertNotRegex(url, schema)
+
     def test_cainiao_widget_current_guides_do_not_require_desktop_login(self):
         guide = (ROOT / "cainiao-widget/README.md").read_text()
         script = (ROOT / "cainiao-widget/cainiao-widget.egern.js").read_text()
         self.assertIn("打开淘宝或菜鸟 App", guide)
         self.assertIn("不需要 ZIP、电脑、复制源码、HAR 或 Cookie", guide)
-        self.assertRegex(guide, r"1\.2\.2 (?:正在发布|已发布)")
+        self.assertRegex(guide, r"1\.2\.3 (?:正在发布|已发布)")
         self.assertIn("手机实际连接尚未验收", guide)
         self.assertIn("egern:/modules/new?name=NAME&url=URL", guide)
-        module_url = "https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.2.2"
-        quick_guide = (ROOT / "cainiao-widget/开始使用-1.2.2.md").read_text()
+        module_url = "https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.2.3"
+        quick_guide = (ROOT / "cainiao-widget/开始使用-1.2.3.md").read_text()
         for text in [guide, quick_guide]:
-            self.assertRegex(text, r"1\.2\.2 (?:正在发布|已发布)")
+            self.assertRegex(text, r"1\.2\.3 (?:正在发布|已发布)")
             self.assertIn("手机实际连接尚未验收", text)
             self.assertIn(module_url, text)
             match = re.search(r"\]\((egern:/modules/new\?[^\s)]+)\)", text)
@@ -327,6 +362,8 @@ class ValidationTests(unittest.TestCase):
         self.assertIn("CW_SELF_HEADER", script)
         self.assertIn("CW_IDENTITY_API", script)
         self.assertIn("CW_APP_STORE", script)
+        self.assertIn("CW_RESPONSE_STORE", script)
+        self.assertIn("CW_TRANSPORT_STORE", script)
         self.assertNotIn("CW_LOGIN_URL", script)
         self.assertNotIn("先运行扫码助手", script)
         self.assertNotIn("请重新扫码", script)

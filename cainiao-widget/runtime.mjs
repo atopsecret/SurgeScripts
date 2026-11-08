@@ -1,10 +1,12 @@
 // 引擎：Egern 原生 generic 脚本 | 语言：JavaScript ES module
 // 构建：node cainiao-widget/build.mjs
 // 运行：导入模块，打开本人淘宝／菜鸟 App 快递列表，再运行组件
-// 依赖：core.mjs、app.mjs、auth.mjs、render.mjs；发布文件内联，不下载其他代码
+// 依赖：core.mjs、app.mjs、auth.mjs、response.mjs、transport.mjs、render.mjs；发布文件内联
 import {CW_VERSION, CW_API, CW_COUNT_API, CW_IDENTITY_API, CW_PATH, CW_COUNT_PATH, CW_IDENTITY_PATH, CW_UA, CW_STORE, CW_SELF_HEADER, cwObject, cwKnownVersion, cwCookieMap, cwCookieHeader, cwOwner, cwUpdateCookies, cwRequestURL, cwAccountRequestURL, cwIdentityRequestURL, cwResponseAPI, cwIdentityMatch, cwReturnKind, cwReadPage, cwItems, md5} from "./core.mjs";
 import {cwConnectionMode, cwReadAuth, cwSameAuth, cwWriteAuth, cwAuthCookies, cwLoginCandidate, cwSessionHash, cwRequiresIdentity, cwCachedAuthStatus, cwQueryFields, cwQueryRetCode, cwClearLocal, captureCainiaoCredentials, diagnoseCainiaoConnection} from "./auth.mjs";
 import {cwAppSummary} from "./app.mjs";
+import {captureCainiaoResponse, cwResponseLines} from "./response.mjs";
+import {runCainiaoTransportCheck, cwTransportLines, cwTransportResultLines} from "./transport.mjs";
 import {renderWidget} from "./render.mjs";
 
 class CwFailure extends Error {
@@ -374,14 +376,21 @@ export async function loadCainiaoModel(ctx, clock = () => Date.now()) {
 }
 
 export default async function(ctx) {
-    // 没有配置 response hook；误调用时也不消费正文或将其当作新的 App 捕获。
-    if (ctx.response) return;
+    if (ctx.response) return captureCainiaoResponse(ctx);
     if (ctx.request) {
         try { captureCainiaoCredentials(ctx); }
         catch { console.log("[菜鸟连接] 捕获未完成，原请求继续透传。"); }
         return;
     }
-    if (ctx.env?.CAINIAO_DIAGNOSTIC === "true") return diagnoseCainiaoConnection(ctx);
+    if (ctx.env?.CAINIAO_DIAGNOSTIC === "true") {
+        let result;
+        if (ctx.env.CW_TRANSPORT_CHECK === "true") result = await runCainiaoTransportCheck(ctx);
+        const now = Date.now(), widget = diagnoseCainiaoConnection(ctx, () => now);
+        const transportLines = result ? cwTransportResultLines(result, now) : cwTransportLines(ctx, now);
+        const lines = [...transportLines, ...cwResponseLines(ctx, now)];
+        widget.children[0].text += "\n" + lines.join("\n");
+        return widget;
+    }
     const model = await loadCainiaoModel(ctx);
     return renderWidget(model, ctx.widgetFamily, Date.now());
 }

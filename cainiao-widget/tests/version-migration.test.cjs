@@ -1,4 +1,4 @@
-// 引擎：Node.js 20+ 内置测试 | 版本：1.2.2 | 语言：JavaScript CommonJS
+// 引擎：Node.js 20+ 内置测试 | 版本：1.2.3 | 语言：JavaScript CommonJS
 // 构建：node cainiao-widget/build.mjs
 // 运行：node --experimental-vm-modules --test cainiao-widget/tests/version-migration.test.cjs
 // 依赖：内置库与 auth-fixture.cjs；仅合成会话、内存存储与模拟 HTTP
@@ -105,7 +105,7 @@ function assertReadOnly(f, before) {
 }
 
 function assertMigrated(state, previous) {
-    assert.equal(state.version, "1.2.2");
+    assert.equal(state.version, core.CW_VERSION);
     for (const key of AUTH_FIELDS) assert.equal(state[key], previous[key], key);
 }
 
@@ -131,10 +131,10 @@ function oldAppState() {
     ]};
 }
 
-test("1.2.2 明确认识三个已发布历史版本，未知版本不进入迁移", () => {
-    assert.equal(core.CW_VERSION, "1.2.2");
-    for (const version of ["1.1.0", "1.2.0", "1.2.1", "1.2.2"]) assert.equal(core.cwKnownVersion(version), true, version);
-    for (const version of ["1.2.3", "1.3.0", "1.2", "1.2.1 ", null, true]) assert.equal(core.cwKnownVersion(version), false);
+test("1.2.3 明确认识四个已发布历史版本，未知版本不进入迁移", () => {
+    assert.equal(core.CW_VERSION, "1.2.3");
+    for (const version of ["1.1.0", "1.2.0", "1.2.1", "1.2.2", "1.2.3"]) assert.equal(core.cwKnownVersion(version), true, version);
+    for (const version of ["1.2.4", "1.3.0", "1.2", "1.2.1 ", null, true]) assert.equal(core.cwKnownVersion(version), false);
 });
 
 test("1.2.1 完整 request_cookie 的 pending 与 connected 只读迁移保留所有账号会话字段", () => {
@@ -183,7 +183,7 @@ test("完整 Cookie 升级后网络失败仍保留旧 token、快照和原更新
     assert.equal(f.requests.length, 1);
     assertSigned(f.requests[0], PDS_API, NOW, SERVER_TOKEN);
     assert.equal(f.requests[0].options.headers.Cookie, cache.cookie);
-    assert.equal(cached(f).version, "1.2.2");
+    assert.equal(cached(f).version, core.CW_VERSION);
     for (const key of ["owner", "generation", "inputHash", "cookie"]) assert.equal(cached(f)[key], cache[key]);
     assert.deepEqual(cached(f).snapshot, cache.snapshot);
     assertMigrated(auth.cwReadAuth(f.ctx, f.clock()), previous);
@@ -197,8 +197,8 @@ async function assertConfirmedRefresh(kind) {
     assert.equal(f.requests.length, 1, "匹配的旧证明不应因升级重复 identity 或 COUNT");
     assertSigned(f.requests[0], PDS_API, NOW, SERVER_TOKEN);
     assert.equal(f.requests[0].options.headers.Cookie, cache.cookie);
-    assert.equal(saved(f).version, "1.2.2");
-    assert.equal(cached(f).version, "1.2.2");
+    assert.equal(saved(f).version, core.CW_VERSION);
+    assert.equal(cached(f).version, core.CW_VERSION);
     for (const key of ["owner", "generation", "inputHash", "cookie", "accountCheckedAt", "accountSessionHash"]) assert.equal(saved(f)[key], previous[key]);
     f.advance(60000);
     const second = await load(f);
@@ -231,7 +231,7 @@ test("两种 pending 候选迁移仍须 identity COUNT 完整 PDS，不凭旧 to
         assert.equal(f.requests.length, 3);
         for (const [index, api] of [IDENTITY_API, COUNT_API, PDS_API].entries()) assertSigned(f.requests[index], api, NOW + index, SERVER_TOKEN);
         assert.equal(f.requests[0].options.headers.Cookie, cache.cookie);
-        assert.equal(saved(f).version, "1.2.2");
+        assert.equal(saved(f).version, core.CW_VERSION);
         assert.equal(saved(f).generation, previous.generation);
         assert.equal(saved(f).accountCheckedAt, NOW);
         assert.equal(saved(f).accountSessionHash, auth.cwSessionHash(core.cwCookieMap(cached(f).cookie)));
@@ -309,12 +309,12 @@ test("迁移诊断拒绝旧 1.2.0、未知版本及归属冲突，不能跨账�
     const state = auth.cwReadAuth(f.ctx, f.clock()), before = readSnapshot(f);
     assert(diagnostic(f));
     for (const changes of [
-        {version: "1.1.0"}, {version: "1.2.0"}, {version: "1.2.3"}, {owner: digest("synthetic-foreign-owner")},
+        {version: "1.1.0"}, {version: "1.2.0"}, {version: "1.2.4"}, {owner: digest("synthetic-foreign-owner")},
         {inputHash: digest("synthetic-foreign-input")}, {generation: digest("synthetic-foreign-generation")},
         {source: "manual"}, {source: "capture"}, {blocked: true}, {runId: "synthetic-invalid-run"},
     ]) assert.equal(auth.cwQueryDiagnostic({...cache, ...changes}, state, f.clock()), null, JSON.stringify(changes));
-    assert.deepEqual(auth.cwQueryDiagnostic({...cache, version: "1.2.2"}, state, f.clock()), queryRecord());
-    for (const changes of [{version: "1.2.3"}, {owner: digest("synthetic-foreign-owner")}]) {
+    for (const version of ["1.2.2", core.CW_VERSION]) assert.deepEqual(auth.cwQueryDiagnostic({...cache, version}, state, f.clock()), queryRecord());
+    for (const changes of [{version: "1.2.4"}, {owner: digest("synthetic-foreign-owner")}]) {
         assert.equal(auth.cwAuthState({...previous, ...changes}, f.clock()), null);
         assert.equal(auth.cwQueryDiagnostic(cache, {...state, ...changes}, f.clock()), null);
     }
@@ -322,7 +322,7 @@ test("迁移诊断拒绝旧 1.2.0、未知版本及归属冲突，不能跨账�
 });
 
 test("未知缓存版本或另一账号缓存不继承 token、快照或证明，首先重新验证身份", async () => {
-    for (const changes of [{version: "1.2.3"}, {owner: digest("account:" + OTHER_UID)}]) {
+    for (const changes of [{version: "1.2.4"}, {owner: digest("account:" + OTHER_UID)}]) {
         const f = fixture([new Error("synthetic-migration-untrusted-cache-offline")]), previous = oldAuth();
         seed(f, previous, {...oldCache(previous), ...changes});
         const model = await load(f);
@@ -339,7 +339,7 @@ test("未知缓存版本或另一账号缓存不继承 token、快照或证明�
 });
 
 test("另一账号阻断屏障在已知或未知版本升级后仍优先，旧账号不查询也不显示快照", async () => {
-    for (const version of ["1.2.1", "1.2.2", "1.2.3"]) {
+    for (const version of ["1.2.1", "1.2.2", "1.2.3", "1.2.4"]) {
         const f = fixture(), previous = oldAuth();
         seed(f, previous, {version, owner: digest("account:" + OTHER_UID), source: "capture", blocked: true, cookie: "", snapshot: null});
         const before = readSnapshot(f), model = await load(f);
@@ -372,7 +372,7 @@ test("升级后新匿名观察保留 App startedAt，不续期旧同次证据或
     f.advance(DAY);
     auth.captureCainiaoCredentials(f.incoming("", GW_URL, [["x-uid", UID]]), f.clock);
     const state = f.memory.get(core.CW_APP_STORE), result = app.cwAppSummary(f.ctx, f.clock());
-    assert.equal(state.version, "1.2.2");
+    assert.equal(state.version, core.CW_VERSION);
     assert.equal(state.startedAt, original.startedAt);
     assert.equal(state.rows[0].count, original.rows[0].count + 1);
     assert.equal(state.rows[0].sameRequestNativeSessionAt, original.rows[0].sameRequestNativeSessionAt);
@@ -387,8 +387,8 @@ test("升级后新匿名观察保留 App startedAt，不续期旧同次证据或
     assertReadOnly(f, before);
 });
 
-test("App 行只接受 1.2.1 与当前版本，旧 1.2.0 和未知版本不得借合法字段复用", () => {
-    for (const version of ["1.1.0", "1.2.0", "1.2.3", null]) {
+test("App 行接受 1.2.1、1.2.2 与当前版本，旧 1.2.0 和未知版本不得借合法字段复用", () => {
+    for (const version of ["1.1.0", "1.2.0", "1.2.4", null]) {
         const f = fixture();
         f.memory.set(core.CW_APP_STORE, {...oldAppState(), version});
         const before = readSnapshot(f), result = app.cwAppSummary(f.ctx, f.clock());
@@ -399,9 +399,11 @@ test("App 行只接受 1.2.1 与当前版本，旧 1.2.0 和未知版本不得�
         assert.deepEqual(result.rows, []);
         assertReadOnly(f, before);
     }
-    const f = fixture(), original = {...oldAppState(), version: "1.2.2"};
-    f.memory.set(core.CW_APP_STORE, original);
-    assert.deepEqual(app.cwAppSummary(f.ctx, f.clock()).rows, original.rows);
+    for (const version of ["1.2.2", core.CW_VERSION]) {
+        const f = fixture(), original = {...oldAppState(), version};
+        f.memory.set(core.CW_APP_STORE, original);
+        assert.deepEqual(app.cwAppSummary(f.ctx, f.clock()).rows, original.rows);
+    }
 });
 
 test("原 App 窗口过期后只读不改时间，新观察创建空证据新窗口不搬旧行", () => {
@@ -413,7 +415,7 @@ test("原 App 窗口过期后只读不改时间，新观察创建空证据新窗
     assertReadOnly(f, before);
     auth.captureCainiaoCredentials(f.incoming("", GW_URL), f.clock);
     const state = f.memory.get(core.CW_APP_STORE);
-    assert.equal(state.version, "1.2.2");
+    assert.equal(state.version, core.CW_VERSION);
     assert.equal(state.startedAt, f.clock());
     assert.equal(state.rows.length, 1);
     assert.equal(state.rows[0].count, 1);
@@ -437,7 +439,7 @@ test("升级不恢复旧失败，新的真实 App 采集创建新代次后才可
         const newSession = "synthetic-migration-new-real-session", issued = "synthetic-migration-new-issued-token_3";
         auth.captureCainiaoCredentials(f.incoming("cookie2=" + newSession, GW_URL, [["x-uid", UID], ["x-sid", SID]]), f.clock);
         const next = saved(f);
-        assert.equal(next.version, "1.2.2");
+        assert.equal(next.version, core.CW_VERSION);
         assert.equal(next.captureKind, "request_cookie_candidate");
         assert.equal(next.status, "pending");
         assert.equal(next.confirmedAt, null);

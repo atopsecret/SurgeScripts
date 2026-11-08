@@ -1,20 +1,28 @@
-// 引擎：Egern 原生请求头 API | 版本：1.2.2 | 语言：JavaScript ES module
+// 引擎：Egern 原生请求头 API | 版本：1.2.3 | 语言：JavaScript ES module
 // 构建：node cainiao-widget/build.mjs
 // 运行：由同一小组件的请求入口调用；离线 node --test cainiao-widget/tests/app-entry.test.cjs
 // 依赖：core.mjs；不读 App 正文、不改流量、不发网络请求
 import {CW_VERSION, CW_API, CW_COUNT_API, CW_APP_STORE, cwObject} from "./core.mjs";
 
 export const CW_APP_HOSTS = ["h5api.m.taobao.com", "acs.m.taobao.com", "cn-acs.m.cainiao.com", "e2e-mtop.cainiao.com"];
-const CW_APP_ROUTE = /^https:\/\/(h5api\.m\.taobao\.com|acs\.m\.taobao\.com|cn-acs\.m\.cainiao\.com|e2e-mtop\.cainiao\.com)(?::443)?\/(h5|gw)\/(mtop(?:\.[A-Za-z0-9_-]+)+)(?:\/([0-9]+(?:\.[0-9]+)*|\*))?\/?(?:\?[^#\s]*)?$/i;
+const CW_APP_ROUTE = /^https:\/\/(h5api\.m\.taobao\.com|acs\.m\.taobao\.com|cn-acs\.m\.cainiao\.com|e2e-mtop\.cainiao\.com)(?::443)?\/(h5|gw)\/(mtop(?:\.[A-Za-z0-9_-]+)+|com\.taobao\.mtop\.mLoginUnitService\.(?:login|autoLogin|logout))(?:\/([0-9]+(?:\.[0-9]+)*|\*))?\/?(?:\?[^#\s]*)?$/i;
 const CW_APP_COOKIES = ["unb", "cookie2", "sgcookie", "munb", "_m_h5_tk", "_m_h5_tk_enc", "_tb_token_"];
 const CW_APP_NATIVE_HEADERS = ["x-sid", "x-uid", "x-t", "x-sign", "x-mini-wua", "x-umt", "x-sgext"];
-const CW_APP_API_KINDS = ["personal_list", "personal_count", "public_time", "other"];
+const CW_APP_API_KINDS = ["personal_list", "personal_count", "public_time", "login", "session_refresh", "logout", "other"];
 const CW_APP_WINDOW = 7 * 86400000;
 
 export function cwAppHeaderValues(headers, name) {
     if (!headers) return [];
-    const values = typeof headers.getAll === "function" ? headers.getAll(name)
-        : typeof headers.get === "function" ? [headers.get(name)].filter(value => value !== null && value !== undefined) : [];
+    let values;
+    if (typeof headers.getAll === "function") values = headers.getAll(name);
+    else if (typeof headers.get === "function") values = [headers.get(name)].filter(value => value !== null && value !== undefined);
+    else {
+        if (!cwObject(headers)) throw new Error("header-format");
+        const entries = Object.entries(headers);
+        if (entries.length > 64) throw new Error("header-format");
+        values = entries.filter(([key]) => key.toLowerCase() === name.toLowerCase())
+            .flatMap(([, value]) => Array.isArray(value) ? value : [value]);
+    }
     if (!Array.isArray(values) || values.length > 16 || values.some(value => typeof value !== "string")
         || values.reduce((size, value) => size + value.length, 0) > 65536
         || values.some(value => /[\r\n\x00]/.test(value))) throw new Error("header-format");
@@ -34,7 +42,10 @@ export function cwAppRoute(value, headers) {
     } catch { return null; }
     const api = match[3].toLowerCase();
     const apiKind = api === CW_API.toLowerCase() ? "personal_list" : api === CW_COUNT_API.toLowerCase() ? "personal_count"
-        : api === "mtop.common.gettimestamp" ? "public_time" : "other";
+        : api === "mtop.common.gettimestamp" ? "public_time"
+        : api === "com.taobao.mtop.mloginunitservice.login" ? "login"
+        : api === "com.taobao.mtop.mloginunitservice.autologin" ? "session_refresh"
+        : api === "com.taobao.mtop.mloginunitservice.logout" ? "logout" : "other";
     return {host, channel, apiKind};
 }
 
@@ -58,7 +69,7 @@ function cwAppNames(value, allowed) {
 
 function cwAppState(value, now) {
     const rows = [], empty = {version: CW_VERSION, startedAt: now, rows};
-    if (!cwObject(value) || !["1.2.1", CW_VERSION].includes(value.version) || !Array.isArray(value.rows)
+    if (!cwObject(value) || !["1.2.1", "1.2.2", CW_VERSION].includes(value.version) || !Array.isArray(value.rows)
         || !Number.isSafeInteger(value.startedAt) || value.startedAt <= 0 || value.startedAt > now
         || now - value.startedAt > CW_APP_WINDOW) return empty;
     const seen = new Set();
@@ -90,6 +101,7 @@ export function cwObserveApp(ctx, route, cookies, native, now) {
     const state = cwAppState(ctx.storage.getJSON(CW_APP_STORE), now);
     let row = state.rows.find(item => item.host === route.host && item.channel === route.channel && item.apiKind === route.apiKind);
     if (!row) {
+        if (state.rows.length === 32) state.rows.sort((a, b) => a.at - b.at).shift();
         row = {...route, count: 0, at: now, cookies: [], nativeHeaders: [], sameRequestLoginFields: false, sameRequestLoginFieldsAt: null,
             sameRequestNativeSession: false, sameRequestNativeSessionAt: null};
         state.rows.push(row);

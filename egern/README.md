@@ -8,7 +8,7 @@
 - [高德地图](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.egern.yaml)：2.1.0，RT 开屏 multipart、个人页 v3、十五类页面与内嵌配置净化。
 - [京东 2.0.0](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml)：十二类接口、已知导航、精准开屏素材尺寸与原字节回退。
 - [菜鸟 1.2.1](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.yaml?v=1.2.1)：九个精确主机改为 UDP/QUIC `443` 条件，保留原有页面和素材规则；最新抓包确认仍在展示本地缓存视频，最终开屏效果未真机确认。
-- [菜鸟取件小组件 1.2.2 · 已发布](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.2.2)：修正首次无 H5 token 的签名，保留同次真实 Cookie、严格个人查询及旧会话和诊断；默认手机在线升级同一模块，不要求本地文件；[手机升级与连接](../cainiao-widget/开始使用-1.2.2.md)。
+- [菜鸟取件小组件 1.2.3 · 正在发布](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.2.3)：同一模块集成合成 Cookie 发送对照、合法响应 Cookie 候选和已知登录结构；不要求本地文件；[手机更新步骤](../cainiao-widget/开始使用-1.2.3.md)。真实接入仍未确认。
 - [闲鱼](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-adblock.egern.yaml)：六个网关、新旧开屏和缓存广告引用。
 - [拼多多](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/pinduoduo/pdd-adblock.egern.yaml)：双条件素材规则、单域 QUIC 与已知页面净化。
 - [红果](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/hongguo/hongguo-adblock.egern.yaml)：78 条广告/上报条件，不拒绝主配置公共 DNS。
@@ -24,7 +24,7 @@
 - 高德 RT 的 multipart 字节、CRLF、边界和响应头与现有版本对应；Map Local 不依赖脚本下载。
 - 京东不清空整个 `start`；陌生导航结构保留，普通商品图片不匹配开屏专用尺寸。
 - 菜鸟包含五类广告空体 404、三组页面清理及 20 条拒绝条件；1.2.1 将九个精确解密主机的协议条件扩展至 UDP/QUIC `443`。提供 [Surge 模块](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.sgmodule?v=1.2.1)，Surge 为目标域名另启 `extended-matching`；两端页面脚本由共用纯策略构建。未识别域名的 IP 直连仍可能绕过，模块也不能删除 App 缓存。省去 netflow 整包清空规则，保留未知业务结构。
-- 菜鸟取件是独立模块，可和菜鸟去广告一起使用，不依赖去广告或另装诊断。1.2.2 修正首次缺 token 的签名，仍只读四个精确 H5／GW 主机的请求头，不读取或改写 App 正文；同次真实 Cookie＋UID 候选先验证身份、COUNT 和完整 PDS，不以 SID 覆盖实际 Cookie。同组件诊断只显示保存字段名及固定失败阶段；凭据只留手机，锁屏默认隐藏码，失败保留旧快照。已有本人 Egern CA 不用重装；离线通过不代表手机已连接。
+- 菜鸟取件是独立模块，可和菜鸟去广告一起使用，不依赖去广告或另装诊断。1.2.3 仍限定四个精确 H5／GW 主机，普通响应只看头，三个已知登录 API 只看有限结构并原字节透传；两个响应匹配不重叠。同次响应 Cookie＋有效 UID 仍须身份、COUNT 和完整 PDS。连接状态只用固定假 Cookie 作一次发送对照，不复制个人会话；凭据只留手机，失败保留旧快照。已有本人 Egern CA 不用重装；离线通过不代表手机已连接。
 - 闲鱼默认静默，不把服务端登录错误或错误 `ret` 伪造成成功。
 - 拼多多保留 UA 双条件和单域 QUIC；裸 IP 页面响应必须有精确 API Host，不凭域名子串或 UA 直接认领。保留商品评价图片。已识别的三核心导航仍沿用原来源白名单，可能同时精简其它入口。
 - 红果不复制 `dns.alidns.com`、`doh.pub` 拒绝，不解密整个 `snssdk.com`；金币或看广告解锁入口仍可能受阻。
@@ -70,6 +70,8 @@ NAS 原 Surge 网关条件不能从当前公开 Egern 条件策略字段直接�
 2026-11-08 菜鸟去广告 1.2.1：第四份抓包确认缓存视频继续展示、原生 HTTP/3 仍有双向传输；修正九个精确主机的 UDP/QUIC `443` 条件，Surge 另补 SNI 扩展匹配。菜鸟 **47/47 → 50/50**、全仓 **685/685 → 688/688**、静态 **40/40**。没有真机验证最终开屏效果，见[1.2.1 验证记录](../cainiao/验证记录-1.2.1.md)。
 
 2026-11-08 菜鸟取件小组件 1.2.1 已发布：保留同次实际 Cookie，首次验证失败不误报 App 登录过期，旧终止态不被 SID-only 流量复活；新回归 **49/49**、主组件 **193/193**、全仓 **737/737**、静态 **40/40**、58 个布局零问题。十三个公开原地址的版本及哈希一致，手机接入未验收，见[小组件 1.2.1 记录](../cainiao-widget/验证记录-1.2.1.md)。
+
+2026-11-09 菜鸟取件小组件 1.2.3 正在发布：同模块发送对照、响应候选和有限登录结构已集成；主组件 **232/232 → 384/384**、全仓 **776/776 → 928/928**、静态 **40/40 → 41/41**、旧助手 **32/32**。独立接入复核 **203/203**，58 个同源布局零问题；上线不等于手机登录已接通，见[1.2.3 记录](../cainiao-widget/验证记录-1.2.3.md)。
 
 ## 参考
 

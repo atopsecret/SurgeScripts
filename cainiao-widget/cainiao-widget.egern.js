@@ -1,4 +1,4 @@
-// Egern 原生菜鸟取件小组件 1.2.2 · 自动构建，请编辑本目录源文件。
+// Egern 原生菜鸟取件小组件 1.2.3 · 自动构建，请编辑本目录源文件。
 // 构建：node cainiao-widget/build.mjs；来源与许可见 THIRD_PARTY_NOTICES.md。
 // 来源：core.mjs
 // 引擎：Egern JavaScript | 语言：JavaScript ES module
@@ -6,7 +6,7 @@
 // 运行：由 runtime.mjs 调用；离线验证 node --test cainiao-widget/tests/core.test.cjs
 // 依赖：无；协议来源见 THIRD_PARTY_NOTICES.md
 
-const CW_VERSION = "1.2.2";
+const CW_VERSION = "1.2.3";
 const CW_API = "mtop.cainiao.lpc.packageservice.queryPdsPackageDataList";
 const CW_COUNT_API = "mtop.cainiao.lpc.packageservice.user.package.count.query";
 const CW_IDENTITY_API = "mtop.user.getUserSimple";
@@ -19,6 +19,8 @@ const CW_STORE = "cainiao-widget.local.v1";
 const CW_AUTH_STORE = "cainiao-widget.auth.v1";
 const CW_CAPTURE_STORE = "cainiao-widget.capture.v1";
 const CW_APP_STORE = "cainiao-widget.app.v1";
+const CW_RESPONSE_STORE = "cainiao-widget.response.v1";
+const CW_TRANSPORT_STORE = "cainiao-widget.transport.v1";
 const CW_SELF_HEADER = "X-Cainiao-Widget-Request";
 
 // MD5 只用于 MTOP 协议签名与本地身份摘要，不用于加密存储。
@@ -62,7 +64,7 @@ function cwObject(value) {
 }
 
 function cwKnownVersion(value) {
-    return ["1.1.0", "1.2.0", "1.2.1", CW_VERSION].includes(value);
+    return ["1.1.0", "1.2.0", "1.2.1", "1.2.2", CW_VERSION].includes(value);
 }
 
 function cwText(value, limit = 160) {
@@ -257,22 +259,30 @@ function cwItems(packages) {
 }
 
 // 来源：app.mjs
-// 引擎：Egern 原生请求头 API | 版本：1.2.2 | 语言：JavaScript ES module
+// 引擎：Egern 原生请求头 API | 版本：1.2.3 | 语言：JavaScript ES module
 // 构建：node cainiao-widget/build.mjs
 // 运行：由同一小组件的请求入口调用；离线 node --test cainiao-widget/tests/app-entry.test.cjs
 // 依赖：core.mjs；不读 App 正文、不改流量、不发网络请求
 
 const CW_APP_HOSTS = ["h5api.m.taobao.com", "acs.m.taobao.com", "cn-acs.m.cainiao.com", "e2e-mtop.cainiao.com"];
-const CW_APP_ROUTE = /^https:\/\/(h5api\.m\.taobao\.com|acs\.m\.taobao\.com|cn-acs\.m\.cainiao\.com|e2e-mtop\.cainiao\.com)(?::443)?\/(h5|gw)\/(mtop(?:\.[A-Za-z0-9_-]+)+)(?:\/([0-9]+(?:\.[0-9]+)*|\*))?\/?(?:\?[^#\s]*)?$/i;
+const CW_APP_ROUTE = /^https:\/\/(h5api\.m\.taobao\.com|acs\.m\.taobao\.com|cn-acs\.m\.cainiao\.com|e2e-mtop\.cainiao\.com)(?::443)?\/(h5|gw)\/(mtop(?:\.[A-Za-z0-9_-]+)+|com\.taobao\.mtop\.mLoginUnitService\.(?:login|autoLogin|logout))(?:\/([0-9]+(?:\.[0-9]+)*|\*))?\/?(?:\?[^#\s]*)?$/i;
 const CW_APP_COOKIES = ["unb", "cookie2", "sgcookie", "munb", "_m_h5_tk", "_m_h5_tk_enc", "_tb_token_"];
 const CW_APP_NATIVE_HEADERS = ["x-sid", "x-uid", "x-t", "x-sign", "x-mini-wua", "x-umt", "x-sgext"];
-const CW_APP_API_KINDS = ["personal_list", "personal_count", "public_time", "other"];
+const CW_APP_API_KINDS = ["personal_list", "personal_count", "public_time", "login", "session_refresh", "logout", "other"];
 const CW_APP_WINDOW = 7 * 86400000;
 
 function cwAppHeaderValues(headers, name) {
     if (!headers) return [];
-    const values = typeof headers.getAll === "function" ? headers.getAll(name)
-        : typeof headers.get === "function" ? [headers.get(name)].filter(value => value !== null && value !== undefined) : [];
+    let values;
+    if (typeof headers.getAll === "function") values = headers.getAll(name);
+    else if (typeof headers.get === "function") values = [headers.get(name)].filter(value => value !== null && value !== undefined);
+    else {
+        if (!cwObject(headers)) throw new Error("header-format");
+        const entries = Object.entries(headers);
+        if (entries.length > 64) throw new Error("header-format");
+        values = entries.filter(([key]) => key.toLowerCase() === name.toLowerCase())
+            .flatMap(([, value]) => Array.isArray(value) ? value : [value]);
+    }
     if (!Array.isArray(values) || values.length > 16 || values.some(value => typeof value !== "string")
         || values.reduce((size, value) => size + value.length, 0) > 65536
         || values.some(value => /[\r\n\x00]/.test(value))) throw new Error("header-format");
@@ -292,7 +302,10 @@ function cwAppRoute(value, headers) {
     } catch { return null; }
     const api = match[3].toLowerCase();
     const apiKind = api === CW_API.toLowerCase() ? "personal_list" : api === CW_COUNT_API.toLowerCase() ? "personal_count"
-        : api === "mtop.common.gettimestamp" ? "public_time" : "other";
+        : api === "mtop.common.gettimestamp" ? "public_time"
+        : api === "com.taobao.mtop.mloginunitservice.login" ? "login"
+        : api === "com.taobao.mtop.mloginunitservice.autologin" ? "session_refresh"
+        : api === "com.taobao.mtop.mloginunitservice.logout" ? "logout" : "other";
     return {host, channel, apiKind};
 }
 
@@ -316,7 +329,7 @@ function cwAppNames(value, allowed) {
 
 function cwAppState(value, now) {
     const rows = [], empty = {version: CW_VERSION, startedAt: now, rows};
-    if (!cwObject(value) || !["1.2.1", CW_VERSION].includes(value.version) || !Array.isArray(value.rows)
+    if (!cwObject(value) || !["1.2.1", "1.2.2", CW_VERSION].includes(value.version) || !Array.isArray(value.rows)
         || !Number.isSafeInteger(value.startedAt) || value.startedAt <= 0 || value.startedAt > now
         || now - value.startedAt > CW_APP_WINDOW) return empty;
     const seen = new Set();
@@ -348,6 +361,7 @@ function cwObserveApp(ctx, route, cookies, native, now) {
     const state = cwAppState(ctx.storage.getJSON(CW_APP_STORE), now);
     let row = state.rows.find(item => item.host === route.host && item.channel === route.channel && item.apiKind === route.apiKind);
     if (!row) {
+        if (state.rows.length === 32) state.rows.sort((a, b) => a.at - b.at).shift();
         row = {...route, count: 0, at: now, cookies: [], nativeHeaders: [], sameRequestLoginFields: false, sameRequestLoginFieldsAt: null,
             sameRequestNativeSession: false, sameRequestNativeSessionAt: null};
         state.rows.push(row);
@@ -436,7 +450,7 @@ function cwSessionHash(cookies) {
 }
 
 function cwRequiresIdentity(state) {
-    return !!state && ["native_session_candidate", "request_cookie_candidate"].includes(state.captureKind);
+    return !!state && ["native_session_candidate", "request_cookie_candidate", "response_cookie_candidate"].includes(state.captureKind);
 }
 
 function cwAuthState(value, now = Date.now()) {
@@ -453,12 +467,13 @@ function cwAuthState(value, now = Date.now()) {
     const accountCheckedAt = legacy ? null : value.accountCheckedAt;
     const accountSessionHash = legacy ? "" : value.accountSessionHash;
     const restricted = cwRequiresIdentity({captureKind});
-    if (!["request_cookie", "native_session_candidate", "request_cookie_candidate"].includes(captureKind)
+    if (!["request_cookie", "native_session_candidate", "request_cookie_candidate", "response_cookie_candidate"].includes(captureKind)
+        || captureKind === "response_cookie_candidate" && value.version !== CW_VERSION
         || value.version === "1.2.0" && captureKind === "request_cookie_candidate" || !["h5", "gw"].includes(sourceChannel)
         || !(accountCheckedAt === null || Number.isFinite(accountCheckedAt) && accountCheckedAt > 0 && accountCheckedAt <= now + 60000)
         || typeof accountSessionHash !== "string" || accountSessionHash !== "" && !/^[0-9a-f]{32}$/.test(accountSessionHash)
         || (accountCheckedAt === null) !== (accountSessionHash === "")
-        || restricted && (sourceChannel !== "gw" || value.status === "connected"
+        || restricted && (captureKind !== "response_cookie_candidate" && sourceChannel !== "gw" || value.status === "connected"
             && (accountCheckedAt === null || accountCheckedAt > value.confirmedAt))
         || captureKind === "request_cookie" && (accountCheckedAt !== null || value.status === "unsupported")) return null;
     let cookies;
@@ -506,7 +521,7 @@ function cwQueryFields(record, now = Date.now()) {
 
 function cwQueryDiagnostic(cached, auth, now = Date.now()) {
     const checked = cwAuthState(auth, now);
-    return checked && cwObject(cached) && ["1.2.1", CW_VERSION].includes(cached.version) && cached.source === "auto" && cached.blocked !== true
+    return checked && cwObject(cached) && ["1.2.1", "1.2.2", CW_VERSION].includes(cached.version) && cached.source === "auto" && cached.blocked !== true
         && cached.owner === checked.owner && cached.inputHash === checked.inputHash && cached.generation === checked.generation
         && typeof cached.runId === "string" && /^[0-9a-f]{32}$/.test(cached.runId) ? cwQueryFields(cached.queryDiagnostic, now) : null;
 }
@@ -536,7 +551,7 @@ function cwWriteAuth(ctx, state, now = Date.now()) {
 
 function cwClearLocal(ctx) {
     // off 模式只清本组件键，不改系统代理、CA 或其他模块。
-    const keys = [CW_AUTH_STORE, CW_STORE, CW_CAPTURE_STORE, CW_APP_STORE];
+    const keys = [CW_AUTH_STORE, CW_STORE, CW_CAPTURE_STORE, CW_APP_STORE, CW_RESPONSE_STORE, CW_TRANSPORT_STORE];
     for (const key of keys) ctx.storage.setJSON(key, null);
     if (keys.some(key => ctx.storage.getJSON(key) !== null)) throw new Error("storage-not-confirmed");
 }
@@ -583,9 +598,10 @@ function captureCainiaoCredentials(ctx, clock = () => Date.now()) {
         catch { cwCaptureResult(ctx, "storage", now); return; }
         observe(); cwCaptureResult(ctx, "conflict", now); return;
     }
+    if (route.apiKind === "logout") { observe(); cwCaptureResult(ctx, "anonymous", now); return; }
     const fromCookie = cwLoginCandidate(observedCookies);
     const hasSessionCookie = observedCookies.has("cookie2") || observedCookies.has("sgcookie");
-    const candidateRoute = route.channel === "gw" && route.apiKind !== "public_time";
+    const candidateRoute = route.channel === "gw" && !["public_time", "logout"].includes(route.apiKind);
     const fromCookieCandidate = !fromCookie && !observedCookies.has("unb") && hasSessionCookie && candidateRoute && native.uid;
     const fromNative = !fromCookie && !hasSessionCookie && candidateRoute && native.uid && native.sid;
     if (!fromCookie && !fromCookieCandidate && !fromNative) { observe(); cwCaptureResult(ctx, "anonymous", now); return; }
@@ -604,7 +620,8 @@ function captureCainiaoCredentials(ctx, clock = () => Date.now()) {
     } catch { cwCaptureResult(ctx, "storage", now); return; }
     const active = previous && !cachedTerminal && ["pending", "connected"].includes(previous.status);
     const sameSession = active && previous.sessionHash === sessionHash && previous.captureKind === captureKind;
-    if (previous && previous.owner === owner && (fromNative && ["request_cookie", "request_cookie_candidate"].includes(previous.captureKind)
+    if (previous && previous.owner === owner && (fromNative && ["request_cookie", "request_cookie_candidate", "response_cookie_candidate"].includes(previous.captureKind)
+        || !fromCookie && previous.captureKind === "response_cookie_candidate"
         || active && (fromNative && previous.status === "connected" || !fromCookie && previous.captureKind === "request_cookie"))) {
         observe(); cwCaptureResult(ctx, "unchanged", now); return;
     }
@@ -637,6 +654,67 @@ function captureCainiaoCredentials(ctx, clock = () => Date.now()) {
     cwCaptureResult(ctx, "saved", now);
 }
 
+// 仅消费同次实际响应的已过滤 Cookie；来源和身份仍在这里二次核对。
+function captureCainiaoResponseCandidate(ctx, candidate, clock = () => Date.now()) {
+    const now = clock();
+    const finish = code => { cwCaptureResult(ctx, code, now); return code; };
+    if (cwConnectionMode(ctx.env) !== "auto" || !ctx.request || !ctx.response
+        || !Number.isSafeInteger(now) || now <= 0) return "invalid";
+    const route = cwAppRoute(ctx.request.url, ctx.request.headers);
+    if (!route || !cwObject(candidate) || !cwObject(candidate.route)
+        || ["host", "channel", "apiKind"].some(key => candidate.route[key] !== route[key])
+        || ctx.response.status !== 200 || ["public_time", "logout"].includes(route.apiKind)) return "invalid";
+    let cookies, requestCookies, requestUids;
+    try {
+        if (cwHeaderValues(ctx.request.headers, CW_SELF_HEADER).length) return "invalid";
+        if (!(candidate.cookies instanceof Map) || candidate.cookies.size > CW_AUTH_NAMES.size
+            || [...candidate.cookies].some(([name, value]) => !CW_AUTH_NAMES.has(name) || typeof value !== "string" || !value)) return finish("invalid");
+        cookies = cwCookieMap(cwCookieHeader(candidate.cookies));
+        if (!/^[1-9][0-9]{0,19}$/.test(cookies.get("unb") || "") || !cwLoginCandidate(cookies)) return finish("anonymous");
+        requestCookies = cwCapturedCookies(ctx.request.headers);
+        requestUids = cwHeaderValues(ctx.request.headers, "x-uid").map(value => value.trim()).filter(Boolean);
+        if (requestUids.some(value => !/^[1-9][0-9]{0,19}$/.test(value))) return finish("invalid");
+        if (requestCookies.get("unb") && !/^[1-9][0-9]{0,19}$/.test(requestCookies.get("unb"))) return finish("invalid");
+    } catch { return finish("invalid"); }
+    const identities = [cookies.get("unb"), requestCookies.get("unb"), ...requestUids].filter(Boolean);
+    if (identities.some(value => value !== identities[0])) {
+        try { cwIsolateAccount(ctx, md5("capture-conflicting-identities")); }
+        catch { return finish("storage"); }
+        return finish("conflict");
+    }
+    const owner = cwOwner(cookies), cookie = cwCookieHeader(cookies), inputHash = md5(cookie), sessionHash = cwSessionHash(cookies);
+    let previous, cached, cachedTerminal;
+    try {
+        previous = cwAuthState(ctx.storage.getJSON(CW_AUTH_STORE), now);
+        cached = ctx.storage.getJSON(CW_STORE);
+        cachedTerminal = cwCachedAuthStatus(cached, previous);
+    } catch { return finish("storage"); }
+    const active = previous && !cachedTerminal && ["pending", "connected"].includes(previous.status);
+    const sameResponseSession = previous && previous.captureKind === "response_cookie_candidate" && previous.sessionHash === sessionHash;
+    // 新账号保存失败后，旧响应的 token 更新不是账号切换证据，不能撤销屏障。
+    if (sameResponseSession && cwObject(cached) && cached.blocked === true && cached.owner !== owner) return finish("unchanged");
+    // 终止记录绑定稳定响应会话；短期 token 和重复响应不能解除停止状态。
+    if (sameResponseSession && (!active || previous.inputHash === inputHash)
+        || previous && previous.owner === owner && previous.captureKind === "request_cookie" && active) return finish("unchanged");
+    const sameSession = active && sameResponseSession;
+    try {
+        if (!sameSession || cwObject(cached) && cached.owner !== owner) cwIsolateAccount(ctx, owner);
+    } catch { return finish("storage"); }
+    const state = {version: CW_VERSION, owner, sessionHash, inputHash, cookie,
+        generation: sameSession ? previous.generation : md5(now + ":" + Math.random() + ":" + Math.random()),
+        status: sameSession ? previous.status : "pending", capturedAt: now,
+        confirmedAt: sameSession ? previous.confirmedAt : null, sourceHost: route.host, sourceChannel: route.channel,
+        captureKind: "response_cookie_candidate", accountCheckedAt: sameSession ? previous.accountCheckedAt : null,
+        accountSessionHash: sameSession ? previous.accountSessionHash : ""};
+    try {
+        if (!cwWriteAuth(ctx, state, now)) {
+            const latest = cwReadAuth(ctx, now);
+            return finish(latest && latest.capturedAt >= now && !cwSameAuth(latest, previous) ? "superseded" : "storage");
+        }
+    } catch { return finish("storage"); }
+    return finish("saved");
+}
+
 function diagnoseCainiaoConnection(ctx, clock = () => Date.now()) {
     const now = clock(), lines = ["菜鸟 App 连接状态 " + CW_VERSION, "连接模式：" + cwConnectionMode(ctx.env)];
     const labels = {pending: "已捕获，尚未通过个人列表验证", connected: "个人列表查询已确认", expired: "小组件会话失效，请重开 App 快递列表",
@@ -653,7 +731,8 @@ function diagnoseCainiaoConnection(ctx, clock = () => Date.now()) {
         if (cachedStatus && auth.status !== cachedStatus) lines.push("登录标志写入未确认；缓存已记录停止状态，新的 App 采集才会重试。");
         if (auth && !blocked) {
             const source = auth.captureKind === "native_session_candidate" ? "App native 候选，兼容性须由个人查询确认"
-                : auth.captureKind === "request_cookie_candidate" ? "同次 App 实际 Cookie＋native UID，须验证个人身份" : "App 请求 Cookie";
+                : auth.captureKind === "request_cookie_candidate" ? "同次 App 实际 Cookie＋native UID，须验证个人身份"
+                : auth.captureKind === "response_cookie_candidate" ? "同次 App 服务端 Cookie 候选，须验证个人身份" : "App 请求 Cookie";
             lines.push("会话来源：" + source);
             lines.push("保存的 Cookie 字段名：" + [...cwCookieMap(auth.cookie).keys()].join("、"));
             lines.push("捕获时间：" + new Date(auth.capturedAt).toISOString());
@@ -680,8 +759,839 @@ function diagnoseCainiaoConnection(ctx, clock = () => Date.now()) {
             lines.push("字段名：" + ([...row.cookies, ...row.nativeHeaders].join("、") || "未见必要会话字段"));
         }
     } catch { lines.push("App 请求状态无法读取，未显示异常原文。"); }
-    lines.push("此入口属于小组件，只读本机状态，不发送个人查询，不显示凭据。关闭 App 后的新查询仍需手机验收。");
+    lines.push("连接信息不显示凭据、不发送个人查询；发送对照只使用固定测试字段。关闭 App 后的新查询仍需手机验收。");
     return {type: "widget", padding: 12, children: [{type: "text", text: lines.join("\n")}]};
+}
+
+// 来源：transport.mjs
+// 引擎：Egern 原生 generic 脚本 | 语言：JavaScript ES module
+// 构建：node cainiao-widget/build.mjs
+// 运行：原模块连接状态入口显式启用 CW_TRANSPORT_CHECK=true
+// 依赖：core.mjs；只发送固定合成 Cookie，不读取个人登录存储
+
+const CW_TRANSPORT_ECHO_URL = "https://postman-echo.com/headers";
+const CW_TRANSPORT_TEST_COOKIE = "CW_TEST=123";
+const CW_TRANSPORT_WINDOW = 7 * 86400000;
+const CW_TRANSPORT_LEASE = 30000;
+const CW_TRANSPORT_BUDGET = 10000;
+const CW_TRANSPORT_HTTP_TIMEOUT = 4000;
+const CW_TRANSPORT_MAX_BYTES = 65536;
+const CW_TRANSPORT_SAMPLE_KINDS = new Set(["NOT_RUN", "ECHO", "HTTP_UNKNOWN", "REDIRECT_UNKNOWN", "NETWORK_UNKNOWN",
+    "SCHEMA_UNKNOWN", "SIZE_UNKNOWN", "TIMEOUT_UNKNOWN"]);
+const CW_TRANSPORT_ROOT_LABELS = {
+    DISABLED: "发送对照：未启用；手动、关闭和 HTTP 入口不发送测试请求。",
+    RUNNING: "发送对照：正在执行固定合成 Cookie 检查，结果尚未确认。",
+    COMPLETE: "发送对照：两种模式已检查；仅验证固定合成 Cookie，不确认个人登录。",
+    INCOMPLETE_UNKNOWN: "发送对照：上次检查未完整保存，结果未知；原七天窗口内不重复请求。",
+    EXPIRED: "发送对照：记录已到期，等待下一次显式检查。",
+    STORAGE_UNKNOWN: "发送对照：本机写入或读取未确认，结果未知；已停止本轮请求。",
+    STATE_UNKNOWN: "发送对照：本机记录格式未确认，结果未知；未重新请求。",
+    MODE_CHANGED: "发送对照：连接模式已变化或无法确认，结果未知；已停止本轮检查。",
+    SUPERSEDED: "发送对照：存储归属已变化，结果未知；旧任务已停止。",
+    CLOCK_UNKNOWN: "发送对照：本机时间未确认，结果未知；已停止本轮检查。",
+};
+
+class CwTransportFailure extends Error {
+    constructor(kind) { super(kind); this.kind = kind; }
+}
+
+function cwTransportObject(value) {
+    return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function cwTransportExactKeys(value, keys) {
+    const actual = Object.keys(value);
+    return actual.length === keys.length && actual.every(key => keys.includes(key));
+}
+
+function cwTransportTime(value) {
+    return Number.isSafeInteger(value) && value > 0;
+}
+
+function cwTransportEnabled(ctx) {
+    try {
+        if (!ctx || ctx.request || ctx.response) return false;
+        const env = ctx.env || {};
+        const value = env.CONNECTION_MODE, mode = value === undefined || value === null || value === "" ? "auto" : value;
+        return mode === "auto" && env.CW_TRANSPORT_CHECK === "true";
+    } catch { throw new CwTransportFailure("MODE_CHANGED"); }
+}
+
+function cwTransportSample(kind = "NOT_RUN", at = null, markerReceived = null, extraCookies = null) {
+    return {kind, markerReceived, extraCookies, at};
+}
+
+function cwTransportCleanSample(value, startedAt, at) {
+    if (!cwTransportObject(value) || !cwTransportExactKeys(value, ["kind", "markerReceived", "extraCookies", "at"])
+        || !CW_TRANSPORT_SAMPLE_KINDS.has(value.kind)) return null;
+    if (value.kind === "NOT_RUN") {
+        if (value.at !== null || value.markerReceived !== null || value.extraCookies !== null) return null;
+    } else {
+        if (!cwTransportTime(value.at) || value.at < startedAt || value.at > at) return null;
+        if (value.kind === "ECHO" ? typeof value.markerReceived !== "boolean" || typeof value.extraCookies !== "boolean"
+            : value.markerReceived !== null || value.extraCookies !== null) return null;
+    }
+    return cwTransportSample(value.kind, value.at, value.markerReceived, value.extraCookies);
+}
+
+// 只重建固定字段；不把外来状态、回显正文或异常原文带入结果。
+function cwTransportState(value, now = Date.now()) {
+    try {
+        if (!cwTransportObject(value) || !cwTransportExactKeys(value, ["schema", "version", "runId", "kind", "startedAt", "leaseUntil", "at", "expiresAt", "omit", "include"])
+            || value.schema !== 1 || value.version !== CW_VERSION || !["RUNNING", "COMPLETE"].includes(value.kind)
+            || typeof value.runId !== "string" || !/^[0-9a-f]{32}$/.test(value.runId) || !cwTransportTime(now)
+            || !cwTransportTime(value.startedAt) || value.startedAt > now + 60000 || !cwTransportTime(value.at)
+            || value.at < value.startedAt || value.at > now + 60000 || !cwTransportTime(value.leaseUntil)
+            || value.leaseUntil !== value.startedAt + CW_TRANSPORT_LEASE || value.at >= value.leaseUntil
+            || !cwTransportTime(value.expiresAt) || value.expiresAt !== value.startedAt + CW_TRANSPORT_WINDOW) return null;
+        const omit = cwTransportCleanSample(value.omit, value.startedAt, value.at);
+        const include = cwTransportCleanSample(value.include, value.startedAt, value.at);
+        if (!omit || !include || include.kind !== "NOT_RUN" && omit.kind === "NOT_RUN"
+            || value.kind === "COMPLETE" && (omit.kind === "NOT_RUN" || include.kind === "NOT_RUN")) return null;
+        return {schema: 1, version: CW_VERSION, runId: value.runId, kind: value.kind, startedAt: value.startedAt,
+            leaseUntil: value.leaseUntil, at: value.at, expiresAt: value.expiresAt, omit, include};
+    } catch { return null; }
+}
+
+function cwTransportOutcome(kind, at = null) {
+    return {kind, startedAt: null, at: cwTransportTime(at) ? at : null, expiresAt: null,
+        omit: cwTransportSample(), include: cwTransportSample()};
+}
+
+function cwTransportPublicState(state, now) {
+    if (now >= state.expiresAt) return cwTransportOutcome("EXPIRED", now);
+    const kind = state.kind === "RUNNING" && now >= state.leaseUntil ? "INCOMPLETE_UNKNOWN" : state.kind;
+    return {kind, startedAt: state.startedAt, at: state.at, expiresAt: state.expiresAt,
+        omit: {...state.omit}, include: {...state.include}};
+}
+
+function cwTransportUtf8Size(raw) {
+    let bytes = 0;
+    for (const character of raw) {
+        const code = character.codePointAt(0);
+        bytes += code < 128 ? 1 : code < 2048 ? 2 : code < 65536 ? 3 : 4;
+        if (bytes > CW_TRANSPORT_MAX_BYTES) return bytes;
+    }
+    return bytes;
+}
+
+function cwTransportCookieFlags(value) {
+    if (!value.trim()) return {markerReceived: false, extraCookies: false};
+    let markers = 0, extras = 0;
+    for (const segment of value.split(";")) {
+        const pair = segment.trim(), split = pair.indexOf("=");
+        if (split < 1 || !/^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/.test(pair.slice(0, split))) throw new CwTransportFailure("SCHEMA_UNKNOWN");
+        const cookieValue = pair.slice(split + 1);
+        if (!/^(?:[\x21\x23-\x2b\x2d-\x3a\x3c-\x5b\x5d-\x7e]*|"[\x21\x23-\x2b\x2d-\x3a\x3c-\x5b\x5d-\x7e]*")$/.test(cookieValue)) throw new CwTransportFailure("SCHEMA_UNKNOWN");
+        if (pair === CW_TRANSPORT_TEST_COOKIE) markers++;
+        else extras++;
+    }
+    return {markerReceived: markers > 0, extraCookies: extras > 0 || markers > 1};
+}
+
+// /headers 的已知 JSON 形状只有一个 headers 对象和字符串值。
+// 小型定形解析器也拒绝重复／转义后同名键，不使用 JSON.parse 的后值覆盖来猜标记。
+function cwTransportEcho(raw) {
+    const unknown = kind => ({kind, markerReceived: null, extraCookies: null});
+    if (typeof raw !== "string") return unknown("SCHEMA_UNKNOWN");
+    if (raw.length > CW_TRANSPORT_MAX_BYTES || cwTransportUtf8Size(raw) > CW_TRANSPORT_MAX_BYTES) return unknown("SIZE_UNKNOWN");
+    try {
+        let cursor = 0, count = 0, cookie = "";
+        const names = new Set();
+        const whitespace = () => { while (cursor < raw.length && /[\x20\t\r\n]/.test(raw[cursor])) cursor++; };
+        const expect = character => {
+            whitespace();
+            if (raw[cursor++] !== character) throw new CwTransportFailure("SCHEMA_UNKNOWN");
+        };
+        const string = () => {
+            whitespace();
+            const start = cursor;
+            if (raw[cursor++] !== '"') throw new CwTransportFailure("SCHEMA_UNKNOWN");
+            while (cursor < raw.length) {
+                const character = raw[cursor++];
+                if (character === "\\") { cursor++; continue; }
+                if (character === '"') return JSON.parse(raw.slice(start, cursor));
+            }
+            throw new CwTransportFailure("SCHEMA_UNKNOWN");
+        };
+        expect("{");
+        if (string() !== "headers") throw new CwTransportFailure("SCHEMA_UNKNOWN");
+        expect(":"); expect("{"); whitespace();
+        if (raw[cursor] !== "}") {
+            while (true) {
+                const name = string(); expect(":"); const value = string();
+                if (++count > 128 || name.length > 128 || !/^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/.test(name)
+                    || /[\x00-\x08\x0a-\x1f\x7f]/.test(value)) throw new CwTransportFailure("SCHEMA_UNKNOWN");
+                const key = name.toLowerCase();
+                if (names.has(key)) throw new CwTransportFailure("SCHEMA_UNKNOWN");
+                names.add(key);
+                if (key === "cookie") cookie = value;
+                whitespace();
+                if (raw[cursor] !== ",") break;
+                cursor++;
+            }
+        }
+        expect("}"); expect("}"); whitespace();
+        if (cursor !== raw.length) throw new CwTransportFailure("SCHEMA_UNKNOWN");
+        return {kind: "ECHO", ...cwTransportCookieFlags(cookie)};
+    } catch { return unknown("SCHEMA_UNKNOWN"); }
+}
+
+async function cwTransportBounded(task, deadline, tick, maxWait) {
+    const startedAt = tick(), remaining = deadline - startedAt;
+    if (remaining <= 0) throw new CwTransportFailure("TIMEOUT_UNKNOWN");
+    const wait = Math.min(remaining, maxWait || remaining), operationDeadline = startedAt + wait;
+    let timer;
+    try {
+        const work = Promise.resolve().then(() => {
+            if (tick() >= operationDeadline) throw new CwTransportFailure("TIMEOUT_UNKNOWN");
+            return task();
+        });
+        const limit = typeof globalThis.setTimeout === "function" && typeof globalThis.clearTimeout === "function"
+            ? new Promise((_, reject) => { timer = globalThis.setTimeout(() => reject(new CwTransportFailure("TIMEOUT_UNKNOWN")), wait); }) : null;
+        let result;
+        try { result = await (limit ? Promise.race([work, limit]) : work); }
+        catch (error) {
+            if (tick() >= operationDeadline) throw new CwTransportFailure("TIMEOUT_UNKNOWN");
+            throw error;
+        }
+        if (tick() >= operationDeadline) throw new CwTransportFailure("TIMEOUT_UNKNOWN");
+        return result;
+    } finally {
+        if (timer !== undefined) globalThis.clearTimeout(timer);
+    }
+}
+
+function cwTransportDecode(bytes) {
+    const parts = [];
+    for (let i = 0; i < bytes.length;) {
+        const first = bytes[i++];
+        if (first < 128) { parts.push(String.fromCharCode(first)); continue; }
+        const length = first >= 194 && first <= 223 ? 1 : first >= 224 && first <= 239 ? 2 : first >= 240 && first <= 244 ? 3 : 0;
+        if (!length || i + length > bytes.length) throw new CwTransportFailure("SCHEMA_UNKNOWN");
+        let code = first & (length === 1 ? 31 : length === 2 ? 15 : 7);
+        for (let j = 0; j < length; j++) {
+            const next = bytes[i++];
+            if (next < 128 || next > 191) throw new CwTransportFailure("SCHEMA_UNKNOWN");
+            code = code << 6 | next & 63;
+        }
+        if (code < (length === 1 ? 128 : length === 2 ? 2048 : 65536) || code >= 55296 && code <= 57343 || code > 1114111) throw new CwTransportFailure("SCHEMA_UNKNOWN");
+        parts.push(String.fromCodePoint(code));
+    }
+    return parts.join("");
+}
+
+async function cwTransportReadBody(response, deadline, tick, guard) {
+    const body = response.body;
+    if (!body || typeof body.getReader !== "function") {
+        if (typeof response.text !== "function") throw new CwTransportFailure("SCHEMA_UNKNOWN");
+        // text() 是官方 API；无流读取能力时只能在读完后检查大小，仍不保存正文。
+        return cwTransportBounded(() => { guard(); return response.text(); }, deadline, tick);
+    }
+    const reader = body.getReader(), chunks = [];
+    let size = 0, complete = false;
+    try {
+        for (let count = 0; count < 512; count++) {
+            const row = await cwTransportBounded(() => { guard(); return reader.read(); }, deadline, tick);
+            guard();
+            if (!cwTransportObject(row) || typeof row.done !== "boolean") throw new CwTransportFailure("SCHEMA_UNKNOWN");
+            if (row.done) { complete = true; break; }
+            if (!ArrayBuffer.isView(row.value) || Object.prototype.toString.call(row.value) !== "[object Uint8Array]") throw new CwTransportFailure("SCHEMA_UNKNOWN");
+            size += row.value.byteLength;
+            if (size > CW_TRANSPORT_MAX_BYTES) throw new CwTransportFailure("SIZE_UNKNOWN");
+            chunks.push(new Uint8Array(row.value));
+        }
+        if (!complete) throw new CwTransportFailure("SCHEMA_UNKNOWN");
+        const bytes = new Uint8Array(size);
+        let offset = 0;
+        for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
+        return cwTransportDecode(bytes);
+    } finally {
+        // 取消不是官方事务／超时保证；不等待可能挂起的取消操作，也不输出其异常。
+        if (!complete && typeof reader.cancel === "function") {
+            try { Promise.resolve(reader.cancel()).catch(() => {}); } catch {}
+        }
+        if (typeof reader.releaseLock === "function") { try { reader.releaseLock(); } catch {} }
+    }
+}
+
+async function cwTransportRequest(ctx, mode, deadline, tick, guard) {
+    try {
+        guard();
+        const remaining = deadline - tick();
+        if (remaining <= 0) throw new CwTransportFailure("TIMEOUT_UNKNOWN");
+        const response = await cwTransportBounded(() => {
+            guard();
+            const requestRemaining = deadline - tick();
+            if (requestRemaining <= 0) throw new CwTransportFailure("TIMEOUT_UNKNOWN");
+            return ctx.http.get(CW_TRANSPORT_ECHO_URL, {headers: {Cookie: CW_TRANSPORT_TEST_COOKIE, Accept: "application/json"},
+                credentials: mode, redirect: "manual", insecureTls: false, timeout: Math.max(1, Math.min(CW_TRANSPORT_HTTP_TIMEOUT, requestRemaining))});
+        }, deadline, tick, CW_TRANSPORT_HTTP_TIMEOUT);
+        guard();
+        if (!response || !Number.isInteger(response.status) || response.status < 100 || response.status > 599) throw new CwTransportFailure("SCHEMA_UNKNOWN");
+        if (response.status >= 300 && response.status < 400) throw new CwTransportFailure("REDIRECT_UNKNOWN");
+        if (response.status !== 200) throw new CwTransportFailure("HTTP_UNKNOWN");
+        let raw;
+        try { raw = await cwTransportReadBody(response, deadline, tick, guard); }
+        catch (error) { throw error instanceof CwTransportFailure ? error : new CwTransportFailure("SCHEMA_UNKNOWN"); }
+        guard();
+        return {...cwTransportEcho(raw), at: tick()};
+    } catch (error) {
+        if (error instanceof CwTransportFailure && ["MODE_CHANGED", "SUPERSEDED", "STORAGE_UNKNOWN", "CLOCK_UNKNOWN"].includes(error.kind)) throw error;
+        const kind = error instanceof CwTransportFailure && CW_TRANSPORT_SAMPLE_KINDS.has(error.kind) ? error.kind : "NETWORK_UNKNOWN";
+        return cwTransportSample(kind, tick());
+    }
+}
+
+// 入口由原模块 generic 调度限定；helper 再拒绝 HTTP、关闭、手动和未显式启用的调用。
+async function runCainiaoTransportCheck(ctx, clock = () => Date.now()) {
+    let now = null, record, lastTick;
+    const tick = () => {
+        let at;
+        try { at = clock(); } catch { throw new CwTransportFailure("CLOCK_UNKNOWN"); }
+        if (!cwTransportTime(at) || lastTick !== undefined && at < lastTick) throw new CwTransportFailure("CLOCK_UNKNOWN");
+        lastTick = at;
+        return at;
+    };
+    const read = () => {
+        try { return ctx.storage.getJSON(CW_TRANSPORT_STORE); }
+        catch { throw new CwTransportFailure("STORAGE_UNKNOWN"); }
+    };
+    const confirmed = expected => {
+        const saved = cwTransportState(read(), tick());
+        if (!saved || JSON.stringify(saved) !== JSON.stringify(expected)) throw new CwTransportFailure(saved && saved.runId !== expected.runId ? "SUPERSEDED" : "STORAGE_UNKNOWN");
+    };
+    const guard = () => {
+        if (!cwTransportEnabled(ctx)) throw new CwTransportFailure("MODE_CHANGED");
+        const at = tick(), saved = cwTransportState(read(), at);
+        if (!saved || saved.runId !== record.runId || JSON.stringify(saved) !== JSON.stringify(record) || at >= record.leaseUntil) throw new CwTransportFailure("SUPERSEDED");
+        if (!cwTransportEnabled(ctx)) throw new CwTransportFailure("MODE_CHANGED");
+        if (tick() >= record.leaseUntil) throw new CwTransportFailure("SUPERSEDED");
+    };
+    const persist = next => {
+        guard();
+        try { ctx.storage.setJSON(CW_TRANSPORT_STORE, next); }
+        catch { throw new CwTransportFailure("STORAGE_UNKNOWN"); }
+        confirmed(next);
+        record = next;
+        guard();
+    };
+    try {
+        if (!cwTransportEnabled(ctx)) return cwTransportOutcome("DISABLED");
+        now = tick();
+        const raw = read(), old = raw === null || raw === undefined ? null : cwTransportState(raw, now);
+        if (raw !== null && raw !== undefined && !old) return cwTransportOutcome("STATE_UNKNOWN", now);
+        if (old && now < old.expiresAt) return cwTransportPublicState(old, now);
+        const previous = JSON.stringify(old);
+        record = {schema: 1, version: CW_VERSION, runId: md5("transport:" + now + ":" + Math.random() + ":" + Math.random()),
+            kind: "RUNNING", startedAt: now, leaseUntil: now + CW_TRANSPORT_LEASE, at: now, expiresAt: now + CW_TRANSPORT_WINDOW,
+            omit: cwTransportSample(), include: cwTransportSample()};
+        if (!cwTransportEnabled(ctx)) throw new CwTransportFailure("MODE_CHANGED");
+        const currentRaw = read(), current = currentRaw === null || currentRaw === undefined ? null : cwTransportState(currentRaw, tick());
+        if (currentRaw !== null && currentRaw !== undefined && !current || JSON.stringify(current) !== previous) throw new CwTransportFailure("SUPERSEDED");
+        if (!cwTransportEnabled(ctx)) throw new CwTransportFailure("MODE_CHANGED");
+        try { ctx.storage.setJSON(CW_TRANSPORT_STORE, record); }
+        catch { throw new CwTransportFailure("STORAGE_UNKNOWN"); }
+        confirmed(record); guard();
+        const deadline = now + CW_TRANSPORT_BUDGET;
+        for (const mode of ["omit", "include"]) {
+            const sample = await cwTransportRequest(ctx, mode, deadline, tick, guard);
+            guard();
+            persist({...record, [mode]: sample, at: tick()});
+        }
+        persist({...record, kind: "COMPLETE", at: tick()});
+        return cwTransportPublicState(record, tick());
+    } catch (error) {
+        const kind = error instanceof CwTransportFailure && Object.hasOwn(CW_TRANSPORT_ROOT_LABELS, error.kind) ? error.kind : "STORAGE_UNKNOWN";
+        return cwTransportOutcome(kind, lastTick ?? now);
+    }
+}
+
+// 本轮写失败结果由调用者直接追加；不可用一次旧缓存读取覆盖本轮提示。
+function cwTransportResultLines(result, now = Date.now()) {
+    try {
+        const kind = cwTransportObject(result) && typeof result.kind === "string" && Object.hasOwn(CW_TRANSPORT_ROOT_LABELS, result.kind) ? result.kind : "STATE_UNKNOWN";
+        const lines = [CW_TRANSPORT_ROOT_LABELS[kind]];
+        if (!["RUNNING", "COMPLETE", "INCOMPLETE_UNKNOWN"].includes(kind)) return lines;
+        if (!cwTransportTime(now) || !cwTransportTime(result.startedAt) || !cwTransportTime(result.at) || result.at < result.startedAt
+            || result.at > now + 60000 || result.expiresAt !== result.startedAt + CW_TRANSPORT_WINDOW) return [CW_TRANSPORT_ROOT_LABELS.STATE_UNKNOWN];
+        if (now >= result.expiresAt) return [CW_TRANSPORT_ROOT_LABELS.EXPIRED];
+        for (const mode of ["omit", "include"]) {
+            const sample = cwTransportCleanSample(result[mode], result.startedAt, result.at);
+            if (!sample) return [CW_TRANSPORT_ROOT_LABELS.STATE_UNKNOWN];
+            if (sample.kind === "ECHO") lines.push(mode + "：测试标记" + (sample.markerReceived ? "已收到" : "未收到")
+                + "；额外或重复 Cookie：" + (sample.extraCookies ? "有" : "无"));
+            else lines.push(mode + "：结果未知（" + sample.kind + "），不能据此认定 Cookie 被剥离。");
+        }
+        lines.push("发送对照时间：" + new Date(result.at).toISOString());
+        return lines;
+    } catch { return [CW_TRANSPORT_ROOT_LABELS.STATE_UNKNOWN]; }
+}
+
+// 只读独立键；不续期、不触碰个人 auth/cache、不输出 runId 或任何回显值。
+function cwTransportLines(ctx, now = Date.now()) {
+    try {
+        const raw = ctx.storage.getJSON(CW_TRANSPORT_STORE);
+        if (raw === null || raw === undefined) return ["发送对照：尚无已确认的本机记录。"];
+        const state = cwTransportState(raw, now);
+        return cwTransportResultLines(state ? cwTransportPublicState(state, now) : cwTransportOutcome("STATE_UNKNOWN"), now);
+    } catch { return [CW_TRANSPORT_ROOT_LABELS.STORAGE_UNKNOWN]; }
+}
+
+// 来源：response.mjs
+// 引擎：Egern 原生响应 API | 版本：1.2.3 | 语言：JavaScript ES module
+// 构建：node cainiao-widget/build.mjs
+// 运行：同模块响应入口；node --experimental-vm-modules --test cainiao-widget/tests/response.test.cjs
+// 依赖：core.mjs、app.mjs、auth.mjs；不发网络请求，不保存正文或凭据到取证键
+
+const CW_RESPONSE_NAMES = ["unb", "cookie2", "sgcookie", "munb", "_m_h5_tk", "_m_h5_tk_enc", "_tb_token_"];
+const CW_RESPONSE_KINDS = ["personal_list", "personal_count", "public_time", "other", "login", "session_refresh", "logout"];
+const CW_RESPONSE_CANDIDATE_RESULTS = ["saved", "unchanged", "anonymous", "conflict", "storage", "invalid", "superseded"];
+const CW_RESPONSE_HEADER_RESULTS = [...CW_RESPONSE_CANDIDATE_RESULTS, "none", "scope", "deleted", "limit", "public_time", "logout"];
+const CW_RESPONSE_SCHEMA_RESULTS = ["schema", "read_error", "too_large", "header_invalid"];
+const CW_RESPONSE_FORMATS = ["JSON", "JSON_INVALID", "HTML", "GZIP", "ZLIB", "BINARY", "UNKNOWN", "EMPTY", "TOO_LARGE", "READ_ERROR", "HEADER_INVALID"];
+const CW_RESPONSE_TYPES = ["missing", "null", "object", "array", "string", "number", "boolean"];
+const CW_RESPONSE_PATHS = ["$.data", "$.data.returnValue", "$.data.returnValue.data"];
+const CW_RESPONSE_FIELDS = ["userId", "cookies", "sid", "autoLoginToken", "success", "loginSuccess", "resultCode", "returnValue", "data"];
+const CW_RESPONSE_HTTP = ["NONE", "HTTP_200", "HTTP_2XX", "HTTP_3XX", "HTTP_401", "HTTP_403", "HTTP_429", "HTTP_4XX", "HTTP_5XX", "HTTP_OTHER"];
+const CW_RESPONSE_WINDOW = 7 * 86400000;
+const CW_RESPONSE_MAX_BODY = 256 * 1024;
+const CW_RESPONSE_MAX_COUNT = 999999;
+const CW_RESPONSE_MAX_TIME = 8640000000000000;
+
+function cwResponseError(code = "invalid") {
+    const error = new Error("response-format");
+    error.responseCode = code;
+    return error;
+}
+
+function cwResponseTime(value) {
+    return Number.isSafeInteger(value) && value > 0 && value <= CW_RESPONSE_MAX_TIME;
+}
+
+function cwResponseHeaderValues(headers, name, limit = 64, size = 65536) {
+    if (!headers) return [];
+    let values;
+    if (typeof headers.getAll === "function") values = headers.getAll(name);
+    else if (typeof headers.get === "function") {
+        const value = headers.get(name);
+        values = value === null || value === undefined ? [] : [value];
+    } else {
+        values = [];
+        for (const key of Object.keys(headers)) {
+            if (key.toLowerCase() !== name.toLowerCase()) continue;
+            const value = headers[key];
+            const items = Array.isArray(value) ? value : [value];
+            if (values.length + items.length > limit) throw cwResponseError("limit");
+            for (const item of items) values.push(item);
+        }
+    }
+    if (!Array.isArray(values)) throw cwResponseError();
+    if (values.length > limit) throw cwResponseError("limit");
+    let total = 0;
+    for (const value of values) {
+        if (typeof value !== "string") throw cwResponseError();
+        total += value.length;
+        if (total > size) throw cwResponseError("limit");
+        if (/[^\x20-\x7e]/.test(value)) throw cwResponseError();
+    }
+    return values;
+}
+
+function cwResponseHasSelf(headers) {
+    if (!headers) return false;
+    if (typeof headers.getAll === "function") {
+        const value = headers.getAll(CW_SELF_HEADER);
+        if (!Array.isArray(value)) throw cwResponseError();
+        return value.length !== 0;
+    }
+    if (typeof headers.get === "function") {
+        const value = headers.get(CW_SELF_HEADER);
+        return value !== null && value !== undefined;
+    }
+    return Object.keys(headers).some(key => key.toLowerCase() === CW_SELF_HEADER.toLowerCase());
+}
+
+function cwResponseHttpClass(status) {
+    if (!Number.isInteger(status)) return "NONE";
+    if ([200, 401, 403, 429].includes(status)) return "HTTP_" + status;
+    return status >= 200 && status < 300 ? "HTTP_2XX" : status >= 300 && status < 400 ? "HTTP_3XX"
+        : status >= 400 && status < 500 ? "HTTP_4XX" : status >= 500 && status < 600 ? "HTTP_5XX" : "HTTP_OTHER";
+}
+
+function cwResponseDomainMatches(host, domain) {
+    return host === domain || host.endsWith("." + domain);
+}
+
+function cwResponsePathMatches(target, path) {
+    return target === path || target.startsWith(path.endsWith("/") ? path : path + "/");
+}
+
+function cwResponseAttribute(name, value, hasEquals) {
+    if (["secure", "httponly", "partitioned"].includes(name)) {
+        if (hasEquals) throw cwResponseError();
+        return "";
+    }
+    if (!hasEquals) throw cwResponseError();
+    if (name === "domain") {
+        const domain = value.toLowerCase().replace(/^\./, "");
+        if (!/^[a-z0-9-]+(?:\.[a-z0-9-]+)+$/.test(domain)
+            || domain.split(".").some(part => part.startsWith("-") || part.endsWith("-"))) throw cwResponseError();
+        return domain;
+    }
+    if (name === "path") {
+        if (!value.startsWith("/") || value.length > 4096 || /[\s,\\]/.test(value)) throw cwResponseError();
+        return value;
+    }
+    if (name === "max-age") {
+        if (!/^-?\d{1,16}$/.test(value) || !Number.isSafeInteger(Number(value))) throw cwResponseError();
+        return String(Number(value));
+    }
+    if (name === "expires") {
+        const expires = Date.parse(value);
+        if (!Number.isFinite(expires)) throw cwResponseError();
+        return String(expires);
+    }
+    if (name === "samesite") {
+        const sameSite = value.toLowerCase();
+        if (!["lax", "strict", "none"].includes(sameSite)) throw cwResponseError();
+        return sameSite;
+    }
+    return value;
+}
+
+// 同次响应独立解析。Map 中只有可同时用于来源主机和三项 H5 业务的活 Cookie。
+function cwResponseCookies(headers, route, pathname, now = Date.now()) {
+    const cookies = new Map(), names = new Set(), deleted = new Set();
+    let headerCount = 0, scopeCount = 0, deletedCount = 0;
+    try {
+        if (!route || !CW_APP_HOSTS.includes(route.host) || typeof pathname !== "string" || !pathname.startsWith("/")
+            || !cwResponseTime(now)) throw cwResponseError();
+        const lines = cwResponseHeaderValues(headers, "set-cookie");
+        const pairs = lines.flatMap(line => line.split(/,\s*(?=[!#$%&'*+\-.^_`|~0-9A-Za-z]+\s*=)/));
+        if (pairs.length > 64) throw cwResponseError("limit");
+        headerCount = pairs.length;
+        const seen = new Map();
+        for (const line of pairs) {
+            const parts = line.split(";").map(part => part.trim()), pair = parts.shift(), index = pair.indexOf("=");
+            if (index <= 0) throw cwResponseError();
+            const name = pair.slice(0, index).trim();
+            let value = pair.slice(index + 1).trim();
+            if (!/^[!#$%&'*+\-.^_`|~0-9A-Za-z]{1,128}$/.test(name)) throw cwResponseError();
+            if (value.startsWith('"') || value.endsWith('"')) {
+                if (!(value.startsWith('"') && value.endsWith('"') && value.length >= 2)) throw cwResponseError();
+                value = value.slice(1, -1);
+            }
+            if (value.length > 8192 || !/^[\x21\x23-\x2b\x2d-\x3a\x3c-\x5b\x5d-\x7e]*$/.test(value)) throw cwResponseError();
+            const attrs = new Map();
+            for (const part of parts) {
+                if (!part) continue;
+                const at = part.indexOf("="), key = (at < 0 ? part : part.slice(0, at)).trim().toLowerCase();
+                if (!/^[a-z0-9-]{1,128}$/.test(key)) throw cwResponseError();
+                const item = cwResponseAttribute(key, at < 0 ? "" : part.slice(at + 1).trim(), at >= 0);
+                if (attrs.has(key) && attrs.get(key) !== item) throw cwResponseError("conflict");
+                attrs.set(key, item);
+            }
+            const fingerprint = JSON.stringify([value, [...attrs].sort(([a], [b]) => a.localeCompare(b))]);
+            if (seen.has(name)) {
+                if (seen.get(name) !== fingerprint) throw cwResponseError("conflict");
+                continue;
+            }
+            seen.set(name, fingerprint);
+            if (!CW_RESPONSE_NAMES.includes(name)) continue;
+            names.add(name);
+            const hostOnly = !attrs.has("domain"), domain = attrs.get("domain") || route.host;
+            const path = attrs.get("path") || pathname.slice(0, pathname.lastIndexOf("/")) || "/";
+            const usable = cwResponseDomainMatches(route.host, domain) && cwResponseDomainMatches("h5api.m.taobao.com", domain)
+                && (!hostOnly || route.host === "h5api.m.taobao.com")
+                && [CW_IDENTITY_PATH, CW_COUNT_PATH, CW_PATH].every(target => cwResponsePathMatches(target, path));
+            if (!usable) { scopeCount++; continue; }
+            const expired = attrs.has("max-age") ? Number(attrs.get("max-age")) <= 0
+                : attrs.has("expires") && Number(attrs.get("expires")) <= now;
+            if (!value || expired) { deleted.add(name); deletedCount++; continue; }
+            cookies.set(name, value);
+        }
+        const result = cookies.size ? "usable" : deletedCount ? "deleted" : scopeCount ? "scope" : "none";
+        return {cookies, names: CW_RESPONSE_NAMES.filter(name => names.has(name)), deleted: [...deleted], headerCount, scopeCount, deletedCount, result};
+    } catch (error) {
+        return {cookies: new Map(), names: [], deleted: [], headerCount: 0, scopeCount: 0, deletedCount: 0,
+            result: ["limit", "conflict"].includes(error?.responseCode) ? error.responseCode : "invalid"};
+    }
+}
+
+function cwResponseRequestUID(headers) {
+    // 只借同请求的确切 UID。解析时检测全部重名歧义，其它值不进入响应候选。
+    const cookieHeaders = cwResponseHeaderValues(headers, "cookie", 8, 32768);
+    if (cookieHeaders.reduce((total, value) => total + value.length + 2, 0) > 32768) throw cwResponseError();
+    const cookies = new Map();
+    for (const line of cookieHeaders) for (const [name, value] of cwCookieMap(line, true)) {
+        if (cookies.has(name) && cookies.get(name) !== value) throw cwResponseError("conflict");
+        cookies.set(name, value);
+    }
+    const cookieUid = cookies.get("unb") || "";
+    const values = cwResponseHeaderValues(headers, "x-uid", 16, 8192).map(value => value.trim());
+    if (cookies.has("unb") && !/^[1-9][0-9]{0,19}$/.test(cookieUid)
+        || values.some(value => !/^[1-9][0-9]{0,19}$/.test(value))) throw cwResponseError();
+    const identities = [cookieUid, ...values].filter(Boolean);
+    return {uid: identities[0] || "", conflict: identities.some(value => value !== identities[0])};
+}
+
+function cwResponseEmptySchema(format) {
+    return {format, ret: "NONE", paths: []};
+}
+
+function cwResponseBytes(value) {
+    if (Object.prototype.toString.call(value) === "[object ArrayBuffer]") return new Uint8Array(value);
+    if (ArrayBuffer.isView(value)) return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+    throw cwResponseError();
+}
+
+// 不依赖 TextDecoder/Buffer；严格 UTF-8 检查避免把压缩或任意二进制解释成 JSON。
+function cwResponseUtf8(bytes) {
+    const pieces = [];
+    let start = bytes.length >= 3 && bytes[0] === 239 && bytes[1] === 187 && bytes[2] === 191 ? 3 : 0;
+    for (let i = start; i < bytes.length;) {
+        const a = bytes[i++];
+        let cp = a, extra = a < 128 ? 0 : a >= 194 && a <= 223 ? 1 : a >= 224 && a <= 239 ? 2 : a >= 240 && a <= 244 ? 3 : -1;
+        if (extra < 0 || i + extra > bytes.length) throw cwResponseError();
+        cp &= extra === 1 ? 31 : extra === 2 ? 15 : extra === 3 ? 7 : 127;
+        for (let j = 0; j < extra; j++) {
+            const b = bytes[i++];
+            if (b < 128 || b > 191) throw cwResponseError();
+            cp = cp * 64 + (b & 63);
+        }
+        if (extra === 1 && cp < 128 || extra === 2 && cp < 2048 || extra === 3 && cp < 65536
+            || cp > 1114111 || cp >= 55296 && cp <= 57343) throw cwResponseError();
+        pieces.push(String.fromCodePoint(cp));
+    }
+    return pieces.join("");
+}
+
+function cwResponseType(value, present = true) {
+    return !present ? "missing" : value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
+}
+
+function cwResponseUnwrap(value, budget) {
+    let resolved = value, used = budget;
+    while (typeof resolved === "string" && used < 2) {
+        try { resolved = JSON.parse(resolved); used++; }
+        catch { break; }
+    }
+    return {value: resolved, used};
+}
+
+function cwResponseSchema(raw, headers = {}) {
+    let bytes;
+    try { bytes = cwResponseBytes(raw); } catch { return cwResponseEmptySchema("UNKNOWN"); }
+    if (bytes.byteLength > CW_RESPONSE_MAX_BODY) return cwResponseEmptySchema("TOO_LARGE");
+    let encoding;
+    try { encoding = cwResponseHeaderValues(headers, "content-encoding", 8, 1024).map(value => value.toLowerCase().trim()).join(","); }
+    catch { return cwResponseEmptySchema("HEADER_INVALID"); }
+    if (bytes[0] === 31 && bytes[1] === 139 || /(?:^|,)\s*gzip\s*(?:,|$)/.test(encoding)) return cwResponseEmptySchema("GZIP");
+    if (bytes.length >= 2 && (bytes[0] & 15) === 8 && (bytes[0] >> 4) <= 7 && (bytes[0] * 256 + bytes[1]) % 31 === 0
+        || /(?:^|,)\s*(?:deflate|zlib)\s*(?:,|$)/.test(encoding)) return cwResponseEmptySchema("ZLIB");
+    if (encoding && encoding !== "identity") return cwResponseEmptySchema("BINARY");
+    let text;
+    try { text = cwResponseUtf8(bytes); } catch { return cwResponseEmptySchema("BINARY"); }
+    if (!text.trim()) return cwResponseEmptySchema("EMPTY");
+    if (/^\s*</.test(text)) return cwResponseEmptySchema("HTML");
+    if (!/^\s*[\[{"\-0-9tfn]/.test(text) || /[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(text)) return cwResponseEmptySchema("UNKNOWN");
+    let body;
+    try { body = JSON.parse(text); } catch { return cwResponseEmptySchema("JSON_INVALID"); }
+    const root = cwResponseUnwrap(body, 0), schema = {format: "JSON", ret: "NONE", paths: []};
+    if (!cwObject(root.value)) return schema;
+    if (Array.isArray(root.value.ret) && root.value.ret.length > 0 && root.value.ret.length <= 64) {
+        const codes = root.value.ret.map(item => typeof item === "string" ? item.split("::", 1)[0] : "");
+        schema.ret = codes.every(code => code === "SUCCESS") ? "SUCCESS"
+            : codes.every(code => code === "SUCCESS" || /^FAIL_[A-Z0-9_]{1,128}$/.test(code)) ? "FAILURE" : "UNKNOWN";
+    } else if (Object.hasOwn(root.value, "ret")) schema.ret = "UNKNOWN";
+    let parent = root.value, used = root.used;
+    for (const [index, key] of ["data", "returnValue", "data"].entries()) {
+        const present = cwObject(parent) && Object.hasOwn(parent, key), value = present ? parent[key] : undefined;
+        const decoded = cwResponseUnwrap(value, used), type = cwResponseType(value, present), decodedType = cwResponseType(decoded.value, present);
+        const fields = cwObject(decoded.value) ? CW_RESPONSE_FIELDS.filter(name => Object.hasOwn(decoded.value, name)).map(name => {
+            const item = decoded.value[name];
+            return {name, type: cwResponseType(item), count: Array.isArray(item) ? Math.min(item.length, CW_RESPONSE_MAX_COUNT) : null};
+        }) : [];
+        schema.paths.push({path: CW_RESPONSE_PATHS[index], type, decodedType, fields});
+        parent = decoded.value; used = decoded.used;
+    }
+    return schema;
+}
+
+function cwResponseCleanSchema(value) {
+    if (!cwObject(value) || !CW_RESPONSE_FORMATS.includes(value.format) || !["NONE", "SUCCESS", "FAILURE", "UNKNOWN"].includes(value.ret)
+        || !Array.isArray(value.paths) || ![0, 3].includes(value.paths.length)
+        || value.format !== "JSON" && (value.paths.length || value.ret !== "NONE")) return null;
+    const paths = [];
+    for (const [index, row] of value.paths.entries()) {
+        if (!cwObject(row) || row.path !== CW_RESPONSE_PATHS[index] || !CW_RESPONSE_TYPES.includes(row.type)
+            || !CW_RESPONSE_TYPES.includes(row.decodedType) || !Array.isArray(row.fields) || row.fields.length > CW_RESPONSE_FIELDS.length) return null;
+        if (row.type !== "string" && row.type !== row.decodedType || row.type === "string" && row.decodedType === "missing"
+            || row.decodedType !== "object" && row.fields.length) return null;
+        if (index > 0) {
+            const field = paths[index - 1].fields.find(item => item.name === (index === 1 ? "returnValue" : "data"));
+            if ((field ? field.type : "missing") !== row.type) return null;
+        }
+        const fields = [], names = new Set();
+        for (const field of row.fields) {
+            if (!cwObject(field) || !CW_RESPONSE_FIELDS.includes(field.name) || names.has(field.name) || !CW_RESPONSE_TYPES.includes(field.type)
+                || field.type === "missing" || !(field.type === "array" ? Number.isSafeInteger(field.count) && field.count >= 0 && field.count <= CW_RESPONSE_MAX_COUNT : field.count === null)) return null;
+            names.add(field.name); fields.push({name: field.name, type: field.type, count: field.count});
+        }
+        paths.push({path: row.path, type: row.type, decodedType: row.decodedType,
+            fields: CW_RESPONSE_FIELDS.filter(name => names.has(name)).map(name => fields.find(field => field.name === name))});
+    }
+    return {format: value.format, ret: value.ret, paths};
+}
+
+function cwResponseState(value, now) {
+    const empty = {version: CW_VERSION, startedAt: now, rows: []};
+    if (!cwResponseTime(now) || !cwObject(value) || value.version !== CW_VERSION
+        || !cwResponseTime(value.startedAt) || value.startedAt > now || now - value.startedAt >= CW_RESPONSE_WINDOW
+        || !Array.isArray(value.rows) || value.rows.length > 32) return empty;
+    const rows = [], seen = new Set();
+    for (const row of value.rows) {
+        if (!cwObject(row) || !CW_APP_HOSTS.includes(row.host) || !["h5", "gw"].includes(row.channel) || !CW_RESPONSE_KINDS.includes(row.apiKind)
+            || !["headers", "schema"].includes(row.mode) || !(row.mode === "headers" ? CW_RESPONSE_HEADER_RESULTS : CW_RESPONSE_SCHEMA_RESULTS).includes(row.result)
+            || !CW_RESPONSE_HTTP.includes(row.httpClass)
+            || !Number.isSafeInteger(row.count) || row.count < 1 || !Number.isSafeInteger(row.at) || row.at < value.startedAt || row.at > now
+            || !Array.isArray(row.cookies) || row.cookies.length > 7 || new Set(row.cookies).size !== row.cookies.length || row.cookies.some(name => !CW_RESPONSE_NAMES.includes(name))
+            || ["usable", "scopeCount", "deletedCount"].some(key => !Number.isSafeInteger(row[key]) || row[key] < 0 || row[key] > row.cookies.length)
+            || row.usable + row.scopeCount + row.deletedCount !== row.cookies.length
+            || !Number.isSafeInteger(row.headerCount) || row.headerCount < row.cookies.length || row.headerCount > 64) continue;
+        const schema = row.mode === "schema" ? cwResponseCleanSchema(row.schema) : null;
+        if (row.mode === "schema" && (!schema || !["login", "session_refresh", "logout"].includes(row.apiKind)
+                || row.cookies.length || row.usable || row.headerCount || row.scopeCount || row.deletedCount
+                || row.result !== (schema.format === "READ_ERROR" ? "read_error" : schema.format === "HEADER_INVALID" ? "header_invalid"
+                    : schema.format === "TOO_LARGE" ? "too_large" : "schema"))
+            || row.mode === "headers" && row.schema !== null) continue;
+        if (row.mode === "headers" && (["public_time", "logout"].includes(row.apiKind) ? row.result !== row.apiKind : ["public_time", "logout"].includes(row.result))
+            || row.mode === "headers" && ["saved", "unchanged", "storage", "superseded"].includes(row.result)
+                && (!row.usable || !row.cookies.some(name => ["cookie2", "sgcookie"].includes(name)))) continue;
+        const key = row.host + "|" + row.channel + "|" + row.apiKind + "|" + row.mode;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        rows.push({host: row.host, channel: row.channel, apiKind: row.apiKind, mode: row.mode, count: Math.min(row.count, CW_RESPONSE_MAX_COUNT), at: row.at,
+            result: row.result, httpClass: row.httpClass, cookies: CW_RESPONSE_NAMES.filter(name => row.cookies.includes(name)), usable: row.usable,
+            headerCount: row.headerCount, scopeCount: row.scopeCount, deletedCount: row.deletedCount, schema});
+    }
+    return {version: CW_VERSION, startedAt: value.startedAt, rows};
+}
+
+function cwResponseRecord(ctx, route, now, data) {
+    try {
+        const state = cwResponseState(ctx.storage.getJSON(CW_RESPONSE_STORE), now);
+        const key = item => item.host + "|" + item.channel + "|" + item.apiKind + "|" + item.mode;
+        const incoming = {host: route.host, channel: route.channel, apiKind: route.apiKind, mode: data.mode, count: 1, at: now, ...data};
+        const previous = state.rows.find(row => key(row) === key(incoming));
+        if (previous) {
+            incoming.count = Math.min(previous.count + 1, CW_RESPONSE_MAX_COUNT);
+            state.rows[state.rows.indexOf(previous)] = incoming;
+        } else {
+            if (state.rows.length === 32) state.rows.sort((a, b) => a.at - b.at).shift();
+            state.rows.push(incoming);
+        }
+        const expected = cwResponseState(state, now);
+        if (expected.rows.length !== state.rows.length) throw cwResponseError();
+        ctx.storage.setJSON(CW_RESPONSE_STORE, expected);
+        if (JSON.stringify(cwResponseState(ctx.storage.getJSON(CW_RESPONSE_STORE), now)) !== JSON.stringify(expected)) throw cwResponseError();
+    } catch { console.log("[菜鸟响应] 本机响应状态无法保存，未记录敏感内容。"); }
+}
+
+function cwResponseCaptureHeaders(ctx, route, now, clock) {
+    const parsed = cwResponseCookies(ctx.response.headers, route, new URL(ctx.request.url).pathname, now);
+    let result = parsed.result === "usable" ? "anonymous" : parsed.result;
+    if (["public_time", "logout"].includes(route.apiKind)) result = route.apiKind;
+    else if (parsed.cookies.has("cookie2") || parsed.cookies.has("sgcookie")) {
+        try {
+            const requestIdentity = cwResponseRequestUID(ctx.request.headers), requestUid = requestIdentity.uid, serverUid = parsed.cookies.get("unb") || "";
+            if (serverUid && !/^[1-9][0-9]{0,19}$/.test(serverUid)) throw cwResponseError();
+            if (parsed.deleted.includes("unb")) result = "deleted";
+            else if (parsed.names.includes("unb") && !serverUid) result = "scope";
+            else if (ctx.response.status !== 200) result = "invalid";
+            else if (serverUid || requestUid) {
+                const cookies = new Map(parsed.cookies);
+                if (!serverUid) cookies.set("unb", requestUid);
+                // 有效但冲突的 UID 交给 auth helper 写账号屏障，不能只留下元数据。
+                const captured = captureCainiaoResponseCandidate(ctx, {route, cookies}, clock);
+                const identityConflict = requestIdentity.conflict || !!serverUid && !!requestUid && serverUid !== requestUid;
+                result = identityConflict ? captured === "storage" ? "storage" : "conflict"
+                    : CW_RESPONSE_CANDIDATE_RESULTS.includes(captured) ? captured : "invalid";
+            }
+        } catch (error) { result = error?.responseCode === "conflict" ? "conflict" : "invalid"; }
+    }
+    cwResponseRecord(ctx, route, now, {mode: "headers", result, httpClass: cwResponseHttpClass(ctx.response.status),
+        cookies: parsed.names, usable: parsed.cookies.size, headerCount: parsed.headerCount, scopeCount: parsed.scopeCount, deletedCount: parsed.deletedCount, schema: null});
+}
+
+async function captureCainiaoResponse(ctx, clock = () => Date.now()) {
+    if (cwConnectionMode(ctx.env) !== "auto" || !ctx.request || !ctx.response) return;
+    let route;
+    let now;
+    try {
+        route = cwAppRoute(ctx.request.url, ctx.request.headers);
+        if (!route || cwResponseHeaderValues(ctx.request.headers, "host", 16, 8192)
+            .some(value => ![route.host, route.host + ":443"].includes(value.trim().toLowerCase()))) return;
+        now = clock();
+        if (!cwResponseTime(now) || cwResponseHasSelf(ctx.request.headers) || cwResponseHasSelf(ctx.response.headers)) return;
+    } catch { return; }
+    const schemaMode = ctx.env?.CW_LOGIN_SCHEMA === "true";
+    if (schemaMode && !["login", "session_refresh", "logout"].includes(route.apiKind)) return;
+    const empty = {cookies: [], usable: 0, headerCount: 0, scopeCount: 0, deletedCount: 0};
+    // 部署规则互斥：普通 MTOP 走无正文入口，已知登录走此入口的一次头采集＋有限正文。
+    cwResponseCaptureHeaders(ctx, route, now, clock);
+    if (schemaMode) {
+        const request = ctx.request, response = ctx.response;
+        let bytes, schema;
+        try {
+            let lengths;
+            try { lengths = cwResponseHeaderValues(response.headers, "content-length", 8, 1024); }
+            catch { throw cwResponseError("header_invalid"); }
+            if (lengths.some(value => !/^\d{1,16}$/.test(value.trim()) || value.trim() !== lengths[0].trim())) throw cwResponseError("header_invalid");
+            if (lengths.length && Number(lengths[0]) > CW_RESPONSE_MAX_BODY) {
+                cwResponseRecord(ctx, route, now, {...empty, mode: "schema", result: "too_large", httpClass: cwResponseHttpClass(response.status), schema: cwResponseEmptySchema("TOO_LARGE")});
+                return;
+            }
+            bytes = cwResponseBytes(await response.arrayBuffer());
+            schema = cwResponseSchema(bytes, response.headers);
+        } catch (error) {
+            schema = cwResponseEmptySchema(error?.responseCode === "header_invalid" ? "HEADER_INVALID" : "READ_ERROR");
+        }
+        try {
+            if (cwConnectionMode(ctx.env) === "auto" && ctx.env?.CW_LOGIN_SCHEMA === "true" && ctx.request === request && ctx.response === response) {
+                const observedAt = clock();
+                if (cwResponseTime(observedAt) && observedAt >= now) cwResponseRecord(ctx, route, observedAt, {...empty, mode: "schema",
+                    result: schema.format === "READ_ERROR" ? "read_error" : schema.format === "HEADER_INVALID" ? "header_invalid" : schema.format === "TOO_LARGE" ? "too_large" : "schema",
+                    httpClass: cwResponseHttpClass(response.status), schema});
+            }
+        } catch { /* 已读取正文必须仍按原字节返回；不展开异常。 */ }
+        return bytes ? {body: bytes} : undefined;
+    }
+}
+
+function cwResponseLines(ctx, now = Date.now()) {
+    let state;
+    try { state = cwResponseState(ctx.storage.getJSON(CW_RESPONSE_STORE), now); }
+    catch { return ["响应取证：本机状态无法读取，未显示异常原文。"]; }
+    if (!state.rows.length) return ["响应取证：尚无有效记录；未见登录接口不代表 App 未登录。"];
+    const labels = {personal_list: "个人列表", personal_count: "个人数量", public_time: "公共时间", other: "其他 MTOP", login: "登录", session_refresh: "续登", logout: "退出"};
+    const results = {saved: "已保存响应候选，仍须个人查询", unchanged: "候选未变化", anonymous: "缺少同次账号组合", conflict: "账号或字段冲突，未采纳",
+        storage: "候选存储未确认", invalid: "格式无效，未采纳", superseded: "候选已被更新", none: "未见可用认证 Cookie", scope: "Cookie 域或路径不适用",
+        deleted: "认证字段已删除或到期", limit: "响应头超限", public_time: "公共时间不作登录凭据", logout: "退出响应不作新候选", schema: "已记录有限结构",
+        read_error: "正文读取未完成", too_large: "正文超限，未解析", header_invalid: "正文相关头格式无效"};
+    const lines = ["响应取证：同模块本机记录；字段和结构不等于个人登录成功。"];
+    for (const row of state.rows) {
+        lines.push(row.host + " · " + row.channel + " · " + labels[row.apiKind] + " · " + row.mode + " · " + row.count + " 次");
+        lines.push("最近响应：" + results[row.result] + " · " + row.httpClass + " · " + new Date(row.at).toISOString());
+        if (row.mode === "headers") lines.push("Set-Cookie 字段名：" + (row.cookies.join("、") || "无") + "；本次可用 " + row.usable + " 项，域路径不适用 " + row.scopeCount + " 项");
+        else {
+            lines.push("正文分类：" + row.schema.format + "；返回分类：" + row.schema.ret + "（不是个人查询确认）");
+            for (const node of row.schema.paths) lines.push(node.path + "：" + node.type + (node.decodedType !== node.type ? " → " + node.decodedType : "")
+                + (node.fields.length ? "；" + node.fields.map(field => field.name + ":" + field.type + (field.count === null ? "" : "(" + field.count + ")")).join("、") : ""));
+        }
+    }
+    return lines;
 }
 
 // 来源：render.mjs
@@ -988,7 +1898,7 @@ function renderWidget(model, family, now = Date.now()) {
 // 引擎：Egern 原生 generic 脚本 | 语言：JavaScript ES module
 // 构建：node cainiao-widget/build.mjs
 // 运行：导入模块，打开本人淘宝／菜鸟 App 快递列表，再运行组件
-// 依赖：core.mjs、app.mjs、auth.mjs、render.mjs；发布文件内联，不下载其他代码
+// 依赖：core.mjs、app.mjs、auth.mjs、response.mjs、transport.mjs、render.mjs；发布文件内联
 
 class CwFailure extends Error {
     constructor(kind, failure) {
@@ -1357,14 +2267,21 @@ async function loadCainiaoModel(ctx, clock = () => Date.now()) {
 }
 
 export default async function(ctx) {
-    // 没有配置 response hook；误调用时也不消费正文或将其当作新的 App 捕获。
-    if (ctx.response) return;
+    if (ctx.response) return captureCainiaoResponse(ctx);
     if (ctx.request) {
         try { captureCainiaoCredentials(ctx); }
         catch { console.log("[菜鸟连接] 捕获未完成，原请求继续透传。"); }
         return;
     }
-    if (ctx.env?.CAINIAO_DIAGNOSTIC === "true") return diagnoseCainiaoConnection(ctx);
+    if (ctx.env?.CAINIAO_DIAGNOSTIC === "true") {
+        let result;
+        if (ctx.env.CW_TRANSPORT_CHECK === "true") result = await runCainiaoTransportCheck(ctx);
+        const now = Date.now(), widget = diagnoseCainiaoConnection(ctx, () => now);
+        const transportLines = result ? cwTransportResultLines(result, now) : cwTransportLines(ctx, now);
+        const lines = [...transportLines, ...cwResponseLines(ctx, now)];
+        widget.children[0].text += "\n" + lines.join("\n");
+        return widget;
+    }
     const model = await loadCainiaoModel(ctx);
     return renderWidget(model, ctx.widgetFamily, Date.now());
 }

@@ -114,7 +114,7 @@
     }
   ],
   "h5_signing_review": {
-    "widget_version": "1.2.2",
+    "widget_version": "1.2.3",
     "source_version": "2.7.4",
     "source_url": "https://g.alicdn.com/mtb/lib-mtop/2.7.4/mtop.js",
     "http_status": 200,
@@ -124,6 +124,29 @@
     "missing_token_string": "undefined",
     "assessment": "公开源码静态核对；重新实现首次签名语义，不执行或捆绑官方 JS。签名一致不等于 App 会话兼容，token 更新不替代个人授权。",
     "phone_verified": false
+  },
+  "acquisition_review": {
+    "version": "1.2.3",
+    "review_date": "2026-11-09",
+    "assessment": "原模块手机取证与合法响应 Cookie 候选；只重写本地算法，不执行或捆绑上游源码，不读取电脑上的用户凭据。",
+    "echo_url": "https://postman-echo.com/headers",
+    "echo_credentials": ["omit", "include"],
+    "echo_personal_credentials": false,
+    "echo_fixed_window_days": 7,
+    "known_login_apis": [
+      "com.taobao.mtop.mLoginUnitService.login",
+      "com.taobao.mtop.mLoginUnitService.autoLogin",
+      "com.taobao.mtop.mLoginUnitService.logout"
+    ],
+    "known_login_evidence": "既有固定 alibabauth 2.2.1 SDK 静态引用；只作精确路由和结构参考，不保证当前 iOS 使用这些接口。",
+    "response_hook_matches_disjoint": true,
+    "response_cookie_requires_source_domain_and_three_h5_paths": true,
+    "response_cookie_requires_identity_count_complete_pds": true,
+    "body_credentials_extracted": false,
+    "phone_verified": false,
+    "actual_cookie_transport_verified": false,
+    "app_to_h5_conversion_verified": false,
+    "independent_refresh_verified": false
   },
   "app_entry_review": {
     "version": "1.2.0",

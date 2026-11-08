@@ -13,6 +13,8 @@
 
 公开固定 SDK 副本来自 [mimicode/albcpackage@e4275a7bb8dfc226490e1f30bb90c5ba3dbb41ab](https://github.com/mimicode/albcpackage/tree/e4275a7bb8dfc226490e1f30bb90c5ba3dbb41ab/libs)。MTOP 的 SID 注册与 alibabauth 的服务端 Cookie 注入是独立路径；没有取得 SID 等价于 `cookie2` 的证明。这是第三方副本，不标为官方认证源，也不能推广为当前 iOS 行为。实现只在本人手机有限试验 native 候选；身份匹配、COUNT 和完整 PDS 都通过才确认兼容。
 
+1.2.3 仅据上述旧 SDK 的三个精确登录 API 名观察固定结构，不复制 SDK 代码、不提取正文凭据、不捆绑二进制。响应 Cookie 按实际来源域和三个 H5 路径重新实现过滤与候选门禁。固定合成发送对照使用公开 `https://postman-echo.com/headers`；该服务不接收本组件的个人登录态，不依赖第三方签名服务。上述依据均不证明手机接入已经成功。
+
 以下保留两份上游 LICENSE 的完整原文。
 
 ## mykohuang/kuaidi-skill

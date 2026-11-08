@@ -1,4 +1,4 @@
-// 引擎：Node.js 20+ 内置测试 | 版本：1.2.2 | 语言：JavaScript CommonJS
+// 引擎：Node.js 20+ 内置测试 | 版本：1.2.3 | 语言：JavaScript CommonJS
 // 构建：node cainiao-widget/build.mjs
 // 运行：node --experimental-vm-modules --test cainiao-widget/tests/session-candidate.test.cjs
 // 依赖：本地源码与 auth-fixture.cjs；仅合成会话、模拟 HTTP 和内存存储
@@ -119,8 +119,8 @@ function assertBoundedRecord(f, expected = {}) {
     return record;
 }
 
-test("1.2.2 将实际 Cookie 加 UID 候选与纯 native 候选都置于身份门禁", () => {
-    assert.equal(core.CW_VERSION, "1.2.2");
+test("1.2.3 保留实际 Cookie 加 UID 候选与纯 native 候选的身份门禁", () => {
+    assert.equal(core.CW_VERSION, "1.2.3");
     for (const [captureKind, expected] of [["request_cookie_candidate", true], ["native_session_candidate", true], ["request_cookie", false]]) {
         assert.equal(auth.cwRequiresIdentity({captureKind}), expected);
     }
@@ -260,13 +260,13 @@ test("合法 1.1.0、1.2.0 与 1.2.1 已连接 Cookie auth/cache 迁移保留账
         const oldCache = cacheFor(previous);
         f.memory.set(core.CW_AUTH_STORE, previous); f.memory.set(core.CW_STORE, oldCache);
         const state = auth.cwReadAuth(f.ctx, f.clock());
-        assert.equal(state.version, "1.2.2"); assert.equal(state.captureKind, "request_cookie");
+        assert.equal(state.version, core.CW_VERSION); assert.equal(state.captureKind, "request_cookie");
         for (const key of ["owner", "generation", "inputHash", "sessionHash", "cookie", "status", "capturedAt", "confirmedAt"]) assert.equal(state[key], previous[key], key);
         const model = await load(f); assert.equal(model.status, "offline"); assert.deepEqual(model.items, oldCache.snapshot.items);
         assert.equal(model.updatedAt, oldCache.snapshot.updatedAt); assert.equal(f.requests.length, 1);
         assert.equal(f.requests[0].url.searchParams.get("api"), API);
         assert(f.requests[0].options.headers.Cookie.includes(CAPTURED._m_h5_tk));
-        assert.equal(cached(f).version, "1.2.2"); assert.equal(saved(f).status, "connected");
+        assert.equal(cached(f).version, core.CW_VERSION); assert.equal(saved(f).status, "connected");
     }
 });
 
@@ -290,11 +290,11 @@ test("1.2.0 已连接 native 及匹配缓存证明迁移后保留确认，直接
     const f = fixture([pds([parcel("new", "8-2-2222")])]), oldCache = cacheFor(previous);
     f.memory.set(core.CW_AUTH_STORE, previous); f.memory.set(core.CW_STORE, oldCache);
     const state = auth.cwReadAuth(f.ctx, f.clock());
-    assert.equal(state.version, "1.2.2"); assert.equal(state.accountSessionHash, previous.accountSessionHash);
+    assert.equal(state.version, core.CW_VERSION); assert.equal(state.accountSessionHash, previous.accountSessionHash);
     assert.equal(state.accountCheckedAt, previous.accountCheckedAt); assert.equal(state.generation, previous.generation);
     const model = await load(f); assert.equal(model.status, "ready"); assert.equal(model.items[0].code, "8-2-2222");
     assert.equal(f.requests.length, 1); assert.equal(f.requests[0].url.searchParams.get("api"), API);
-    assert.equal(cached(f).version, "1.2.2"); assert.equal(saved(f).version, "1.2.2");
+    assert.equal(cached(f).version, core.CW_VERSION); assert.equal(saved(f).version, core.CW_VERSION);
 });
 
 test("旧首次 native expired 只纠正接入提示，不复活、猜真实 Cookie 或补造错误原因", async () => {

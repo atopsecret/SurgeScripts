@@ -27,7 +27,7 @@ test('Surge 二进制改写保留多值响应头和顺序，清除旧正文头',
     for (const field of ['content-length', 'content-encoding', 'etag', 'digest', 'content-digest']) {
         assert.equal(output.headers.some(row => row.field.toLowerCase() === field), false, field);
     }
-    assert.equal(output.headers.find(row => row.field === 'X-Cainiao-Cleaner-Version').value, '1.2.0');
+    assert.equal(output.headers.find(row => row.field === 'X-Cainiao-Cleaner-Version').value, '1.2.1');
     assert.equal(JSON.stringify(headers), before);
 });
 
@@ -108,11 +108,15 @@ test('Surge 模块五类 404 的正负边界及空正文与 Egern 一致', () =>
     assert.equal(match('https://nbcps-mtop.cainiao.com.evil.test/gw/mtop.cainiao.nbcps.presentation.fetch.cn'), false);
 });
 
-test('Surge 20 条原生规则解析后与 Egern 完全一致，含 QUIC 与嵌套 UA 条件', () => {
+test('Surge 20 条规则保留 Egern 共有条件，仅 UDP 目标主机额外启用 SNI 匹配', () => {
     const native = readModule();
     const surge = readSurgeModule();
     assert.equal(surge.rules.length, 20);
-    assert.deepEqual(surge.rules, native.rules);
+    const expected = structuredClone(native.rules);
+    const transport = expected.find(row => row.and?.match.some(child => child.dest_port));
+    assert.ok(transport);
+    for (const child of transport.and.match[2].or.match) child.domain.extendedMatching = true;
+    assert.deepEqual(surge.rules, expected);
     const images = [
         'https://p3-sign.douyinpic.com/tos-cn-p-0051-ce/ok2sNqJ87HJEDO6BEAI5EftfgaHwlFEDB0oBkD~tplv-noop.image',
         'https://p3-sign.douyinpic.com/tos-cn-p-0051/ooEkIBANmMqcAhB1Oizkf23JLm4B4iMQhuh3AA~tplv-noop.image',
@@ -129,9 +133,25 @@ test('Surge 20 条原生规则解析后与 Egern 完全一致，含 QUIC 与嵌�
     assert.equal(rejects(surge, 'https://p3-sign.douyinpic.com/tos-cn-p-0051/photo.jpg', 'Cainiao4iPhone/fixture'), false);
     for (const host of native.mitm.hostnames.includes) {
         assert.equal(rejects(surge, 'https://' + host + '/', '', 'quic'), true);
+        assert.equal(rejects(surge, 'https://' + host + '/', '', 'udp'), true);
         assert.equal(rejects(surge, 'https://' + host + '/', '', 'tcp'), false);
     }
     assert.equal(rejects(surge, 'https://guoguouser.cainiao.com/', '', 'quic'), false);
+});
+
+test('Surge IP 直连仅在客户端已识别出目标 SNI 时匹配，不把缺失 SNI 当成功', () => {
+    const surge = readSurgeModule();
+    for (const protocol of ['udp', 'quic']) {
+        assert.equal(rejects(surge, 'https://192.0.2.10/', '', protocol), false);
+        for (const host of readModule().mitm.hostnames.includes) {
+            assert.equal(rejects(surge, 'https://192.0.2.10/', '', protocol, { serverName: host }), true, host);
+        }
+        for (const host of ['netflow-mtop.cainiao.com.evil.test', 'other.netflow-mtop.cainiao.com', 'caps-mtop.cainiao.com', 'example.test']) {
+            assert.equal(rejects(surge, 'https://192.0.2.10/', '', protocol, { serverName: host }), false, host);
+        }
+        assert.equal(rejects(surge, 'https://192.0.2.10:8443/', '', protocol, { serverName: 'netflow-mtop.cainiao.com' }), false);
+        assert.equal(rejects(surge, 'https://192.0.2.10/', '', 'tcp', { serverName: 'netflow-mtop.cainiao.com' }), false);
+    }
 });
 
 test('Surge 模块启用二进制正文与多值头，九个精确 MITM 主机齐全', () => {
@@ -141,7 +161,7 @@ test('Surge 模块启用二进制正文与多值头，九个精确 MITM 主机�
     for (const option of ['requires-body=true', 'binary-body-mode=true', 'full-header-mode=true', 'engine=webview', 'max-size=2097152', 'script-update-interval=3600']) {
         assert.ok(scripts[0].includes(option), option);
     }
-    assert.ok(scripts[0].includes('cainiao-adblock.js?v=1.2.0'));
+    assert.ok(scripts[0].includes('cainiao-adblock.js?v=1.2.1'));
     const pattern = scripts[0].split(',pattern=')[1].split(',requires-body=')[0];
     assert.equal(pattern, native.scriptings[0].http_response.match);
     const hosts = section('MITM')[0].replace('hostname = %APPEND% ', '').split(', ');

@@ -19,14 +19,17 @@ for (const item of native.scriptings) {
     if (new URL(entry.script_url).searchParams.get("v") !== "eg-native-20261108-" + version) throw Error("Egern 脚本 URL 版本不一致");
 }
 
-const types = { domain: "DOMAIN", domain_suffix: "DOMAIN-SUFFIX", url_regex: "URL-REGEX", user_agent: "USER-AGENT", protocol: "PROTOCOL" };
+const types = { domain: "DOMAIN", domain_suffix: "DOMAIN-SUFFIX", url_regex: "URL-REGEX", user_agent: "USER-AGENT", protocol: "PROTOCOL", dest_port: "DEST-PORT" };
 function condition(item) {
     const [[kind, body]] = Object.entries(item);
     if (body.disabled) throw Error("构建不支持禁用条件");
     if (kind === "and" || kind === "or") return kind.toUpperCase() + ",(" + body.match.map(child => "(" + condition(child) + ")").join(",") + ")";
     if (!types[kind] || /[\r\n"]/.test(body.match)) throw Error("不支持的原生规则条件");
     const value = ["url_regex", "user_agent"].includes(kind) ? '"' + body.match + '"' : kind === "protocol" ? body.match.toUpperCase() : body.match;
-    return types[kind] + "," + value;
+    // Surge 默认只匹配连接目标；九个解密主机同时允许匹配客户端已识别的 SNI。
+    // 该选项不是 Egern 字段，也不能替代客户端对 draft QUIC 的识别。
+    const extended = kind === "domain" && native.mitm.hostnames.includes.includes(body.match) ? ",extended-matching" : "";
+    return types[kind] + "," + value + extended;
 }
 
 const rules = native.rules.map(row => {
@@ -43,7 +46,7 @@ const locals = native.map_locals.map(row => {
 const response = native.scriptings.find(item => item.http_response)?.http_response;
 if (!response?.binary_body || !response.body_required) throw Error("缺少二进制响应配置");
 const module = `#!name=菜鸟去广告
-#!desc=${version}；补 HTTP/3 绕过、广告 API 的 cn 变体与自营开屏视频和封面；素材限定菜鸟 UA，五类广告 404、三组页面清理，与 Egern 共用纯策略。
+#!desc=${version}；九个精确主机改为 QUIC 或 UDP 443 条件，并启用 SNI 域名匹配；缓存广告需在 App 内清理，保留五类广告 404 与三组页面清理。
 #!author=skernelx · Kelee / 小白脸 来源
 #!homepage=https://github.com/atopsecret/SurgeScripts/tree/main/cainiao
 #!category=去广告

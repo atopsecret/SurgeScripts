@@ -1,5 +1,5 @@
 name: 菜鸟去广告（Egern 原生）
-description: eg-native-20261108-1.2.0；补 HTTP/3 绕过、广告 API 的 cn 变体与自营开屏视频和封面；素材限定菜鸟 UA，保留三组页面清理。
+description: eg-native-20261108-1.2.1；九个精确主机改为 QUIC 或 UDP 443 条件，补仅识别为 UDP 的连接；缓存广告需在 App 内清理，保留原有页面与素材规则。
 author: skernelx · Kelee / 小白脸 来源
 homepage: https://github.com/atopsecret/SurgeScripts
 rules:
@@ -49,12 +49,18 @@ rules:
 - domain:
     match: admonitor-feedback.cn-hangzhou.log.aliyuncs.com
     policy: REJECT
-# 仅对本模块需要 MITM 的精确主机拒绝 QUIC，促使客户端重试 TCP。
-# 抓包确认 Mtop 走 draft-29 QUIC；回退是否成功仍需手机验收。
+# 仅对需 MITM 的九个精确主机拒绝 UDP/QUIC 443，促使客户端重试 TCP。
+# draft QUIC 可能只被归类为 UDP；域名仍须由客户端识别，不能假定 IP 直连一定命中。
 - and:
     match:
-    - protocol:
-        match: quic
+    - or:
+        match:
+        - protocol:
+            match: quic
+        - protocol:
+            match: udp
+    - dest_port:
+        match: '443'
     - or:
         match:
         - domain:
@@ -119,7 +125,7 @@ scriptings:
 - http_response:
     name: 菜鸟去广告原生处理
     match: '^https://(?:(?:cn-acs\.m|e2e-mtop)\.cainiao\.com(?::[0-9]+)?/gw/mtop\.cainiao\.app\.e2e\.engine\.page\.fetch(?:\.cn)?(?:/[0-9]+(?:\.[0-9]+)*)?/?(?:\?|$)|longquan-mtop\.cainiao\.com(?::[0-9]+)?/gw/mtop\.com\.cainiao\.longquan\.place\.getpageresourcecontent\.cn(?:/[0-9]+(?:\.[0-9]+)*)?/?(?:\?|$))'
-    script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.js?v=eg-native-20261108-1.2.0
+    script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.js?v=eg-native-20261108-1.2.1
     body_required: true
     binary_body: true
     max_size: 2097152
@@ -127,7 +133,7 @@ scriptings:
     timeout: 30
 - generic:
     name: 菜鸟去广告诊断
-    script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.js?v=eg-native-20261108-1.2.0
+    script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.js?v=eg-native-20261108-1.2.1
     update_interval: 3600
     timeout: 30
 map_locals:
@@ -135,31 +141,31 @@ map_locals:
   status_code: 404
   headers:
     Content-Type: text/plain; charset=utf-8
-    X-Cainiao-Cleaner-Version: eg-native-20261108-1.2.0
+    X-Cainiao-Cleaner-Version: eg-native-20261108-1.2.1
   body: ''
 - match: '^https://netflow-mtop\.cainiao\.com(?::[0-9]+)?/gw/mtop\.cainiao\.guoguo\.nbnetflow\.ads\.index(?:\.cn)?(?:/[0-9]+(?:\.[0-9]+)*)?/?(?:\?|$)'
   status_code: 404
   headers:
     Content-Type: text/plain; charset=utf-8
-    X-Cainiao-Cleaner-Version: eg-native-20261108-1.2.0
+    X-Cainiao-Cleaner-Version: eg-native-20261108-1.2.1
   body: ''
 - match: '^https://cn-acs\.m\.cainiao\.com(?::[0-9]+)?/gw/mtop\.cainiao\.adkeyword\.get\.cn(?:/[0-9]+(?:\.[0-9]+)*)?/?(?:\?|$)'
   status_code: 404
   headers:
     Content-Type: text/plain; charset=utf-8
-    X-Cainiao-Cleaner-Version: eg-native-20261108-1.2.0
+    X-Cainiao-Cleaner-Version: eg-native-20261108-1.2.1
   body: ''
 - match: '^https://(?:cn-acs\.m|netflow-mtop)\.cainiao\.com(?::[0-9]+)?/gw/mtop\.cainiao\.guoguo\.nbnetflow\.ads\.m?show(?:\.cn)?(?:/[0-9]+(?:\.[0-9]+)*)?/?(?:\?|$)'
   status_code: 404
   headers:
     Content-Type: text/plain; charset=utf-8
-    X-Cainiao-Cleaner-Version: eg-native-20261108-1.2.0
+    X-Cainiao-Cleaner-Version: eg-native-20261108-1.2.1
   body: ''
 - match: '^https://cn-acs\.m\.cainiao\.com(?::[0-9]+)?/gw/mtop\.cainiao\.adx\.flyad\.getad\.cn(?:/[0-9]+(?:\.[0-9]+)*)?/?(?:\?|$)'
   status_code: 404
   headers:
     Content-Type: text/plain; charset=utf-8
-    X-Cainiao-Cleaner-Version: eg-native-20261108-1.2.0
+    X-Cainiao-Cleaner-Version: eg-native-20261108-1.2.1
   body: ''
 mitm:
   hostnames:

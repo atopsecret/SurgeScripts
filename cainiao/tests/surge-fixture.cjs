@@ -33,9 +33,8 @@ function fields(text) {
 }
 
 function parseCondition(text) {
-    const [type, value, policy, ...extra] = fields(text);
-    assert.equal(extra.length, 0);
-    const types = { DOMAIN: 'domain', 'DOMAIN-SUFFIX': 'domain_suffix', 'URL-REGEX': 'url_regex', 'USER-AGENT': 'user_agent', PROTOCOL: 'protocol', AND: 'and', OR: 'or' };
+    const [type, value, ...options] = fields(text);
+    const types = { DOMAIN: 'domain', 'DOMAIN-SUFFIX': 'domain_suffix', 'URL-REGEX': 'url_regex', 'USER-AGENT': 'user_agent', PROTOCOL: 'protocol', 'DEST-PORT': 'dest_port', AND: 'and', OR: 'or' };
     const kind = types[type];
     assert.ok(kind, type);
     const body = {};
@@ -46,7 +45,16 @@ function parseCondition(text) {
             return parseCondition(child.slice(1, -1));
         });
     } else body.match = kind === 'protocol' ? value.toLowerCase() : value.startsWith('"') ? value.slice(1, -1) : value;
-    if (policy !== undefined) body.policy = policy;
+    for (const option of options) {
+        if (option === 'extended-matching') {
+            assert.equal(kind, 'domain');
+            body.extendedMatching = true;
+        } else {
+            assert.equal(option, 'REJECT');
+            assert.equal(body.policy, undefined);
+            body.policy = option;
+        }
+    }
     return { [kind]: body };
 }
 

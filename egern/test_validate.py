@@ -205,7 +205,7 @@ class ValidationTests(unittest.TestCase):
         for row in data["map_locals"]:
             self.assertEqual(row["status_code"], 404)
             self.assertEqual(row["body"], "")
-            self.assertEqual(row["headers"]["X-Cainiao-Cleaner-Version"], "eg-native-20261108-1.2.0")
+            self.assertEqual(row["headers"]["X-Cainiao-Cleaner-Version"], "eg-native-20261108-1.2.1")
         patterns = [re.compile(row["match"]) for row in data["map_locals"]]
         self.assertTrue(any(p.search("https://nbcps-mtop.cainiao.com/gw/mtop.cainiao.nbcps.presentation.fetch.cn/1.0/?x=1") for p in patterns))
         for url in ["https://nbcps-mtop.cainiao.com.evil.test/gw/mtop.cainiao.nbcps.presentation.fetch.cn", "https://cn-acs.m.cainiao.com/gw/mtop.cainiao.adkeyword.get.cnx", "https://netflow-mtop.cainiao.com/gw/mtop.cainiao.guoguo.nbnetflow.ads.future/1.0/"]:
@@ -249,9 +249,10 @@ class ValidationTests(unittest.TestCase):
 
     def test_cainiao_quic_scope_and_house_splash_assets(self):
         data = validator.load(ROOT / "cainiao/cainiao-adblock.egern.yaml")
-        quic = next(row["and"] for row in data["rules"] if "and" in row and "protocol" in row["and"]["match"][0])
-        self.assertEqual(quic["match"][0], {"protocol": {"match": "quic"}})
-        self.assertEqual({row["domain"]["match"] for row in quic["match"][1]["or"]["match"]}, set(data["mitm"]["hostnames"]["includes"]))
+        quic = next(row["and"] for row in data["rules"] if "and" in row and any("dest_port" in child for child in row["and"]["match"]))
+        self.assertEqual(quic["match"][0], {"or": {"match": [{"protocol": {"match": "quic"}}, {"protocol": {"match": "udp"}}]}})
+        self.assertEqual(quic["match"][1], {"dest_port": {"match": "443"}})
+        self.assertEqual({row["domain"]["match"] for row in quic["match"][2]["or"]["match"]}, set(data["mitm"]["hostnames"]["includes"]))
         patterns = [re.compile(row["and"]["match"][0]["url_regex"]["match"]) for row in data["rules"] if "and" in row and "7clgu" in row["and"]["match"][0].get("url_regex", {}).get("match", "")]
         self.assertEqual(len(patterns), 2)
         for url in ["https://a1.alibabausercontent.com/prod/feupload/user/7clgu/fixture.mp4_.mp4", "https://ossgw.alicdn.com/creatives-assets/prod/feupload/user/7clgu/fixture.jpg"]:

@@ -1,6 +1,8 @@
 # 菜鸟去广告（Surge / Egern）
 
-当前版本 `1.2.0`（Egern：`eg-native-20261108-1.2.0`）。修复原生 HTTP/3 绕过普通改写、广告 API 的 `.cn` 变体和自营开屏视频及备用封面漏拦。规则来自菜鸟 `8.11.1105` 的三次授权 HAR 与一次 PCAP 核对；原有页面规则保留固定 Kelee 来源。
+当前版本 `1.2.1`（Egern：`eg-native-20261108-1.2.1`）。修正仅用 `QUIC` 协议条件的遗漏，九个精确主机改为 `QUIC 或 UDP` 且仅限端口 `443`；Surge 为这些域名增加 `extended-matching`。最新抓包确认开屏播放的是已缓存视频，同时原生 HTTP/3 仍有成功响应。此版本修正规则条件，尚未证明手机端已阻断这些连接或停止开屏。
+
+规则来自菜鸟 `8.11.1105` 的四次授权 HAR、两次 PCAP 及本地解压的应用日志；原有页面规则保留固定 Kelee 来源。复核证据见 [1.2.1 验证记录](验证记录-1.2.1.md)。
 
 Surge 与 Egern 各自使用原生模块和脚本。页面处理共用 `cainiao-policy.js`，构建时内联为独立文件；客户端不需要下载公共运行时。Surge 模块的规则、Map Local、页面匹配和解密主机从 Egern YAML 生成。
 
@@ -9,13 +11,13 @@ Surge 与 Egern 各自使用原生模块和脚本。页面处理共用 `cainiao-
 Surge：将下面的地址添加到模块，需 Surge iOS `5.9.0+` / Mac `5.5.0+`：
 
 ```text
-https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.sgmodule
+https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.sgmodule?v=1.2.1
 ```
 
 Egern：将下面的地址添加到模块：
 
 ```text
-https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.yaml
+https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.yaml?v=1.2.1
 ```
 
 在所用客户端中安装并信任自己的 CA，开启下面九个主机的 HTTPS 解密。不要同时启用会处理相同菜鸟页面接口的旧模块。
@@ -32,13 +34,23 @@ a1.alibabausercontent.com
 ossgw.alicdn.com
 ```
 
-从旧版本更新时，在所用客户端的模块管理中手动更新整个模块。确认 Surge 描述显示 `1.2.0`，Egern 描述显示 `eg-native-20261108-1.2.0`。只刷新远程脚本不会更新 QUIC、Map Local 和素材规则。检查上述主机已加入解密范围，然后完全退出并重新打开菜鸟。
+从旧版本更新时，在所用客户端的模块管理中手动更新整个模块。确认 Surge 描述显示 `1.2.1`，Egern 描述显示 `eg-native-20261108-1.2.1`。只刷新远程脚本不会更新 UDP、Map Local 和素材规则。检查上述主机已加入解密范围。
 
-广告 SDK 的域名拒绝不需要 HTTPS 解密；UC 曝光路径、素材 UA 条件和 Map Local 需要解密。上述九个精确主机上的 QUIC 被拒绝，用于促使请求重试 TCP；没有修改全局 QUIC、DNS 或其它菜鸟业务主机。客户端是否识别该连接、是否回退成功仍需手机验收。已下载到 App 缓存的广告仍可能显示，新规则只能控制后续网络请求。
+最新抓包的 `RtbAdsCostTime` 明确记录 `isCache=true`，展示视频与上一轮下载的视频相同。更新代理模块、刷新脚本或重启代理都不会删除菜鸟的本地素材。请先更新整个模块，再使用菜鸟自身的清理缓存功能，完全退出后重新打开。应用内清理是否包含广告 SDK 的全部缓存，仍由 App 决定；不能把清理操作当作网络阻断已经成功的证据。
+
+广告 SDK 的域名拒绝不需要 HTTPS 解密；UC 曝光路径、素材 UA 条件和 Map Local 需要解密。九个精确主机的 UDP/QUIC `443` 条件用于促使重试 TCP；没有修改全局 QUIC、DNS 或其它菜鸟业务主机。Surge 的 `extended-matching` 只使用客户端已经识别到的 SNI，不会凭空还原 IP 直连的域名；Egern 文档没有这个字段，未照搬。未识别出域名的连接仍可能绕过，TCP 回退和最终开屏效果均未真机确认。
 
 Surge 响应脚本启用二进制正文、完整响应头与 `webview` 引擎；本地诊断小组件为 Egern 专有入口，Surge 使用请求日志检查命中。
 
 ## 覆盖范围
+
+### 1.2.1 协议条件修正与缓存复核
+
+第四份 HAR 中，菜鸟模块实际拒绝了 50 条广告 SDK 请求，但没有列出普通 Mtop 广告接口或本次视频下载。解压应用日志后可见 60 条 Mtop 记录，其中 55 条为 `http3`、5 条为 `http2_0rtt_acs`；开屏事件仍指向上一轮视频，且标记为缓存命中。PCAP 中五个目标 Mtop 主机均有大量双向 UDP 数据，不能据此声称旧版 QUIC 拒绝已生效。
+
+Surge 官方手册明确说明，并非所有 QUIC draft 都能识别；`DOMAIN` 默认也只匹配请求主机名。此版将原条件替换为 `(QUIC 或 UDP) + 443 端口 + 九个精确域名`，Surge 的域名子条件额外使用 `extended-matching`。条件数量仍为 20 条，五类 Map Local、页面清理和素材范围不变。新增测试分别覆盖 UDP 分类、其它端口放行、IP 直连有无可识别 SNI，避免再把离线解析出的域名当作手机客户端已经识别。
+
+48 份可还原的 AMDC 调度响应中没有这些 Mtop 主机，不能凭这份样本确定改写哪个 HTTPDNS 字段会让它们回退。因此未改 AMDC、未硬编码抓包 IP，也未全局封锁 UDP/443。最新 HAR 没有模块版本响应头，只能确认菜鸟模块在处理部分请求，不能证明手机已装载某个具体版本。
 
 ### 1.2.0 HTTP/3 与自营开屏
 
@@ -46,9 +58,9 @@ Surge 响应脚本启用二进制正文、完整响应头与 `webview` 引擎；
 
 日志中的 65 条 Mtop 记录有 60 条标记为 `http3`。PCAP 的 draft-29 QUIC Initial 握手也能识别 `netflow-mtop`、`cn-acs`、`e2e-mtop`、`nbcps-mtop` 和 `longquan-mtop`；这些接口没有出现在普通 HAR 请求列表里。只核对 HAR 的图片下载不足以验证原生广告请求已被处理。
 
-本版新增三条原生条件，合计 20 条：
+`1.2.0` 新增三条原生条件，合计 20 条；其中协议条件已由 `1.2.1` 修正：
 
-- 对上面九个需解密的精确主机拒绝 QUIC，促使重试 TCP。规则同样影响其它 App 对这些主机的 QUIC；其它主机和这些主机的 TCP 保留。
+- 为上面九个需解密的精确主机添加 QUIC 拒绝条件。后续抓包未证明它已阻止目标连接，当前改用上面的 UDP/QUIC `443` 条件。规则同样影响其它 App 对这些主机的该类连接；其它主机和这些主机的 TCP 保留。
 - `a1.alibabausercontent.com`：限定 `/prod/feupload/user/7clgu/` 目录、`*.mp4_.mp4` 格式和菜鸟 UA。
 - `ossgw.alicdn.com`：限定 `/creatives-assets/prod/feupload/user/7clgu/` 目录、`*.jpg` 格式和菜鸟 UA，覆盖视频的备用封面。
 
@@ -109,7 +121,7 @@ Map Local 同时补齐 `.ads.index.cn`、`.ads.show.cn`、`.ads.mshow.cn`，并�
 - 仅处理完整 HTTP `200`；非 JSON 媒体类型、非 UTF-8 声明、失败 `ret`、陌生 `code` 和显式业务失败不改写。
 - 列表字段仅接受数组，运营卡片仅接受对象或数组。未知标量类型保留，不创建缺少的路径。接口路径支持数值版本（如 `/1.0/`），不匹配相似 API 后缀。
 - 只有正文发生变化时才清理旧的长度、压缩、缓存和校验头，并设置 JSON UTF-8、`no-store` 与版本头；未触及的多值 Cookie 和业务头保留。
-- Surge 在不修改正文时调用 `$done({})` 保留原响应；改写时以 UTF-8 字节返回，并保留完整响应头中的重复 Cookie 顺序。五类 Map Local 的空体与 `404` 和 Egern 一致；Egern 专用 Map Local 版本头不参与业务匹配，Surge 页面响应版本头为 `1.2.0`。
+- Surge 在不修改正文时调用 `$done({})` 保留原响应；改写时以 UTF-8 字节返回，并保留完整响应头中的重复 Cookie 顺序。五类 Map Local 的空体与 `404` 和 Egern 一致；Egern 专用 Map Local 版本头不参与业务匹配，Surge 页面响应版本头为 `1.2.1`。
 - Egern Generic 入口“菜鸟去广告诊断”显示版本、固定路由计数与最近状态，不发通知、不请求网络、不保存 URL、Cookie、账号或正文。每项计数封顶 `999999`。计数仅包含三组页面响应处理，域名、URL 和 Map Local 拦截请查看请求日志。
 
 ## 来源
@@ -128,6 +140,8 @@ Map Local 同时补齐 `.ads.index.cn`、`.ads.show.cn`、`.ads.mshow.cn`，并�
 `1.1.1` 使用第二份 156 条请求的 HAR，并复核第一份 169 条请求。聚合结果见[开屏补漏核对记录](har-audit-splash-20261108.json)。原始 HAR、图片正文、Cookie、设备标识和签名参数未上传。
 
 `1.2.0` 增加第三份 147 条请求的 HAR、11,844 个包的 PCAP，以及其中可解压的应用日志。仅解析 QUIC Initial 的 ClientHello，没有解密 QUIC 应用正文。公开记录只保留[聚合结论](capture-audit-20261108-201845.json)，不包含原始捕获、完整日志、IP、账号或定位信息。
+
+`1.2.1` 复核第四份 135 条请求的 HAR、11,260 个包的 PCAP 与应用日志，确认缓存视频继续展示及 HTTP/3 双向传输。公开记录只保留[聚合证据](capture-audit-20261108-204459.json)，不上传原始日志和抓包。官方协议与 SNI 匹配文档链接见 [1.2.1 验证记录](验证记录-1.2.1.md)。
 
 ## 离线验证
 
@@ -151,3 +165,5 @@ python3 -m unittest discover -s egern -p test_validate.py -v
 `1.1.1` 菜鸟测试 **41/41 → 43/43**，全仓脚本 **618/618 → 620/620**，静态测试 **39/39**。第二份 HAR 双端匹配 **98/156 → 102/156**，新增覆盖四次成功下载的广告图片；第一份保持 **123/169**，两份逐条双端差异与覆盖回退均为零。更新后的手机开屏效果仍待验收。
 
 `1.2.0` 菜鸟测试 **43/43 → 47/47**，全仓脚本 **620/620 → 624/624**，静态测试 **39/39 → 40/40**。第三份 HAR 的双端匹配 **69/147 → 70/147**，新增覆盖成功下载的视频；日志确认的四个自营素材地址 **0/4 → 4/4**。按 PCAP SNI 与协议离线判断，24 条可识别 QUIC 连接中有 9 条进入拒绝范围，其余 15 条保留。前两份 HAR 仍为 **123/169** 和 **102/156**。这些统计不能代替客户端对 draft-29 的识别、TCP 回退和开屏验收。
+
+`1.2.1` 菜鸟测试 **47/47 → 50/50**，全仓脚本 **685/685 → 688/688**，静态测试 **40/40**。全仓基线已包含另一个任务发布的小组件测试。九个目标域名的合成输入在 `udp` 分类下匹配 **0/9 → 9/9**；缺失可识别 SNI 的 IP 直连仍不匹配。四份 HAR 覆盖无回退，最新 HAR 保持 **65/135**；此轮没有增加 HTTP 素材匹配。Surge/Egern 是否识别这些连接的域名、TCP 是否回退以及缓存是否清除，均未真机确认。

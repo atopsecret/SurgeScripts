@@ -149,12 +149,33 @@ test('QUIC 只拒绝九个需解密的精确主机，TCP 及其它业务主机�
     for (const host of targetHosts) {
         const url = 'https://' + host + '/ordinary-business';
         assert.equal(rejects(config, url, '', 'quic'), true, host);
-        for (const protocol of ['tcp', 'https', 'http', 'udp']) {
+        for (const protocol of ['tcp', 'https', 'http']) {
             assert.equal(rejects(config, url, '', protocol), false, host + ' ' + protocol);
         }
     }
     for (const host of ['guoguouser.cainiao.com', 'gguser-mtop.cainiao.com', 'caps-mtop.cainiao.com', 'home-bff-mtop.cainiao.com', 'acs.m.taobao.com', 'cn.alicdn.com', 'netflow-mtop.cainiao.com.evil.test', 'other.netflow-mtop.cainiao.com']) {
         assert.equal(rejects(config, 'https://' + host + '/', '', 'quic'), false, host);
+    }
+});
+
+test('客户端仅把 draft QUIC 归为 UDP 时仍覆盖九个目标主机，且仅拒绝 443 端口', () => {
+    for (const host of config.mitm.hostnames.includes) {
+        assert.equal(rejects(config, 'https://' + host + '/', '', 'udp'), true, host);
+        for (const port of [53, 80, 8443]) {
+            for (const protocol of ['udp', 'quic']) {
+                assert.equal(rejects(config, 'https://' + host + ':' + port + '/', '', protocol), false, host + ':' + port);
+            }
+        }
+    }
+    for (const host of ['caps-mtop.cainiao.com', 'guoguouser.cainiao.com', 'cn.alicdn.com', 'example.test']) {
+        assert.equal(rejects(config, 'https://' + host + '/', '', 'udp'), false, host);
+    }
+});
+
+test('域名不可见的 IP 直连不能因离线分析知道原始域名而虚报拦截', () => {
+    for (const protocol of ['udp', 'quic']) {
+        assert.equal(rejects(config, 'https://192.0.2.10/', '', protocol), false);
+        assert.equal(rejects(config, 'https://192.0.2.10/', '', protocol, { serverName: 'netflow-mtop.cainiao.com' }), false);
     }
 });
 

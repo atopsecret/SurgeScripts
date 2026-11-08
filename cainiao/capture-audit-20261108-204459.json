@@ -1,0 +1,91 @@
+{
+  "version": "1.2.1",
+  "baseline_version": "1.2.0",
+  "baseline_commit": "824e84575096be3538862d8b3c17b3e2ee0c1f29",
+  "source": "用户授权的第四份 HAR、PCAP 与可解压应用日志；只公开聚合计数、广告 API 名称和协议握手主机。",
+  "method": "本地解析 HAR，读取 LZ4/Protobuf 应用日志，按 draft-29 Initial 密钥派生解析 QUIC ClientHello SNI；未解密 QUIC 应用正文，未重放业务请求。读取实际双端模块进行离线匹配。",
+  "finding": {
+    "har_requests": 135,
+    "har_rule_rejections": 65,
+    "har_map_local_matches": 13,
+    "har_url_rewrite_matches": 2,
+    "har_http_200": 52,
+    "har_entries_without_response_field": 80,
+    "har_other_status": {
+      "302": 1,
+      "403": 1,
+      "304": 1
+    },
+    "application_log_records": 251,
+    "native_mtop_records": 60,
+    "native_mtop_protocols": {
+      "http3": 55,
+      "http2_0rtt_acs": 5
+    },
+    "cached_splash_events": 2,
+    "cached_splash_source": "100",
+    "cached_splash_material": "a1.alibabausercontent.com/prod/feupload/user/7clgu/*.mp4_.mp4",
+    "causes": [
+      "开屏日志同时标记 isCache=true，展示的是上一轮已经下载的素材。",
+      "原生 Mtop 广告与页面请求继续通过 HTTP/3 运行，普通 HAR 没有列出这些请求。",
+      "Surge 官方说明并非所有 QUIC draft 都能识别；旧版只使用 PROTOCOL,QUIC，无法覆盖只被归类为 UDP 的连接。"
+    ]
+  },
+  "har_replay": {
+    "capture": "2026-11-08-204459",
+    "before": {
+      "egern": 65,
+      "surge": 65
+    },
+    "after": {
+      "egern": 65,
+      "surge": 65
+    },
+    "different_decisions": 0,
+    "lost_coverage": 0,
+    "protocol_rule_only": true,
+    "note": "HAR 是 HTTP 请求集合，协议条件的新增 UDP 分支不会在这份 HTTP 请求列表中增加匹配数。"
+  },
+  "pcap": {
+    "packets": 11260,
+    "quic_version": "draft-29 (ff00001d)",
+    "initial_packets_decrypted": 23,
+    "target_hosts_with_bidirectional_udp443": [
+      "netflow-mtop.cainiao.com",
+      "cn-acs.m.cainiao.com",
+      "e2e-mtop.cainiao.com",
+      "nbcps-mtop.cainiao.com",
+      "longquan-mtop.cainiao.com"
+    ],
+    "synthetic_known_hostname_replay": {
+      "target_hostname_count": 9,
+      "quic": {
+        "before": 9,
+        "after": 9
+      },
+      "udp": {
+        "before": 0,
+        "after": 9
+      }
+    },
+    "note": "五个主机的双向数据来自 PCAP 实测；9/9 来自对模块内九个目标域名构造的协议条件测试，不是九条手机连接或手机命中日志。新分支只在客户端同时识别出目标域名时可命中。"
+  },
+  "amdc": {
+    "raw_tcp_responses_parsed": 48,
+    "target_mtop_hosts_in_responses": 0,
+    "note": "本地还原的 AMDC mobileDispatch 响应没有包含五个目标 Mtop 主机，因此没有凭空改写 HTTPDNS 字段。"
+  },
+  "official_limits": {
+    "surge_protocol": "https://manual.nssurge.com/rules/protocol-and-network.html",
+    "surge_domain": "https://manual.nssurge.com/rules/domain.html",
+    "surge_mitm": "https://manual.nssurge.com/http/mitm.html",
+    "egern_rules": "https://egernapp.com/docs/configuration/rules",
+    "summary": "Surge PROTOCOL,UDP 可覆盖被归类为 UDP 的 QUIC/STUN；DOMAIN 的 extended-matching 额外检查可见 SNI/Host。Egern 没有同名字段。两端均不能把不可见 IP 直连还原成域名。"
+  },
+  "private_har_published": false,
+  "private_pcap_published": false,
+  "decoded_private_logs_published": false,
+  "post_fix_device_verified": false,
+  "cache_cleared_on_device": false,
+  "limits": "1.2.1 修正了协议条件并保留精确主机和 443 端口范围，但没有用户设备上的命中日志。若 Surge/Egern 未识别该 draft 的 SNI，目标连接仍可能绕过；已有素材需由 App 自身清理缓存。"
+}

@@ -7,7 +7,7 @@
 - [Apple 天气增强](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/apple-weather/apple-weather-enhancer.egern.yaml)：WeatherKit v3.1.0 天气、降水、AQI 和 FlatBuffers；参数使用原生 `env_schema`。
 - [高德地图](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.egern.yaml)：2.1.0，RT 开屏 multipart、个人页 v3、十五类页面与内嵌配置净化。
 - [京东 2.0.0](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml)：十二类接口、已知导航、精准开屏素材尺寸与原字节回退。
-- [菜鸟 1.2.0](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.yaml)：补 HTTP/3 绕过、广告 API 的 `.cn` 变体与自营开屏视频和备用封面，保留原有页面清理。
+- [菜鸟 1.2.1](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.yaml?v=1.2.1)：九个精确主机改为 UDP/QUIC `443` 条件，保留原有页面和素材规则；最新抓包确认仍在展示本地缓存视频，最终开屏效果未真机确认。
 - [菜鸟取件小组件 1.2.0 · 已发布](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.2.0)：App 会话采集与独立查询集成同一组件，默认手机在线添加远程模块，不要求本地文件；[手机连接与添加到桌面](../cainiao-widget/开始使用-1.2.0.md)。
 - [闲鱼](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-adblock.egern.yaml)：六个网关、新旧开屏和缓存广告引用。
 - [拼多多](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/pinduoduo/pdd-adblock.egern.yaml)：双条件素材规则、单域 QUIC 与已知页面净化。
@@ -23,7 +23,7 @@
 - HTTP 错误、服务端错误和未知正文保守放行。已读出的正文在解析或处理失败时显式返回，不能把被消费的流当成仍可透传。流读取本身失败时，不能承诺重构没有读完的内容。
 - 高德 RT 的 multipart 字节、CRLF、边界和响应头与现有版本对应；Map Local 不依赖脚本下载。
 - 京东不清空整个 `start`；陌生导航结构保留，普通商品图片不匹配开屏专用尺寸。
-- 菜鸟包含五类广告空体 404、三组页面清理及 20 条拒绝条件；1.2.0 为九个精确解密主机添加 QUIC 拒绝，补 `.cn` 广告接口、自营视频和备用封面。提供 [Surge 模块](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.sgmodule)，两端页面脚本由共用纯策略构建；省去 netflow 整包清空规则，保留未知业务结构。客户端 QUIC 识别和 TCP 回退仍待验收。
+- 菜鸟包含五类广告空体 404、三组页面清理及 20 条拒绝条件；1.2.1 将九个精确解密主机的协议条件扩展至 UDP/QUIC `443`。提供 [Surge 模块](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.sgmodule?v=1.2.1)，Surge 为目标域名另启 `extended-matching`；两端页面脚本由共用纯策略构建。未识别域名的 IP 直连仍可能绕过，模块也不能删除 App 缓存。省去 netflow 整包清空规则，保留未知业务结构。
 - 菜鸟取件是独立模块，可和菜鸟去广告一起使用，不依赖去广告或另装诊断。1.2.0 只读四个精确 H5／GW 主机的请求头，不读取或改写 App 正文；真实 Cookie 优先，native 候选需身份和完整列表确认。登录态只留手机，锁屏默认隐藏码，失败保留旧快照。需信任本人 Egern CA；离线通过不代表手机已连接。
 - 闲鱼默认静默，不把服务端登录错误或错误 `ret` 伪造成成功。
 - 拼多多保留 UA 双条件和单域 QUIC；裸 IP 页面响应必须有精确 API Host，不凭域名子串或 UA 直接认领。保留商品评价图片。已识别的三核心导航仍沿用原来源白名单，可能同时精简其它入口。
@@ -66,6 +66,8 @@ NAS 原 Surge 网关条件不能从当前公开 Egern 条件策略字段直接�
 2026-11-08 菜鸟去广告 1.2.0：根据第三份 HAR、PCAP 和解压应用日志补 HTTP/3、广告 `.cn` 变体及自营开屏素材；菜鸟 **47/47**、全仓 **624/624**、静态 **40/40**。规则覆盖三份 HAR 无回退，客户端协议识别、TCP 回退和缓存仍待验收，见[验证记录](../cainiao/验证记录-1.2.0.md)。
 
 2026-11-08 菜鸟取件小组件 1.2.0 已发布：新增 App 回归 **57/57**、主组件 **83/83 → 144/144**、全仓 **624/624 → 685/685**、静态 **40/40**、旧登录助手 **32/32**，58 个同源布局零问题；十三个公开资源的原地址回读、版本和哈希均通过。原生候选兼容和关闭 App 后的新查询尚未手机验收，见[小组件 1.2.0 记录](../cainiao-widget/验证记录-1.2.0.md)。
+
+2026-11-08 菜鸟去广告 1.2.1：第四份抓包确认缓存视频继续展示、原生 HTTP/3 仍有双向传输；修正九个精确主机的 UDP/QUIC `443` 条件，Surge 另补 SNI 扩展匹配。菜鸟 **47/47 → 50/50**、全仓 **685/685 → 688/688**、静态 **40/40**。没有真机验证最终开屏效果，见[1.2.1 验证记录](../cainiao/验证记录-1.2.1.md)。
 
 ## 参考
 

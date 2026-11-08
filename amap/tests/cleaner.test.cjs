@@ -77,7 +77,7 @@ test('新旧开屏通道、版本子路径、查询及显式端口均覆盖', ()
             if (channel === 'valueadded' && suffix === '_rt') {
                 assert.equal(value, undefined); continue; // 未抓到该通道格式，不套用 aos 的 multipart。
             }
-            assert.ok(value); assert.match(value.header, /X-AMap-Cleaner-Version:2.0.0/);
+            assert.ok(value); assert.ok(value.header.includes('X-AMap-Cleaner-Version:' + VERSION));
             if (!suffix) assert.deepEqual(JSON.parse(value.body).data.ad, []);
         }
     }
@@ -96,11 +96,14 @@ test('普通开屏返回空 JSON 广告容器且不引用任何素材', () => {
     assert.equal(data.result, 'true'); assert.deepEqual(data.data.custom_list, []);
     assert.doesNotMatch(value.body, /https?:|session_id|image_url/);
 });
-test('AI 推荐、路线卡片、订单 Tip、scene、推广天气均有明确本地响应', () => {
-    for (const tail of ['/v1/ai_rec/home_qs', '/v12/ai_rec/home_explore',
+test('已知 AI 推荐、路线卡片、订单 Tip 与推广天气有明确本地响应', () => {
+    for (const tail of ['/v1/ai_rec/home_qs',
         '/ws/faas/amap-navigation/card-service-route-plan?x=1', '/ws/boss/order_web/1234abcd_information',
-        '/ws/shield/scene/recommend', '/ws/valueadded/weather']) {
+        '/ws/valueadded/weather']) {
         assert.equal(mock('https://ai.amap.com' + tail).body, '{}');
+    }
+    for (const tail of ['/v12/ai_rec/home_explore', '/v1/ai_rec/home_qs_report', '/ws/shield/scene/recommend']) {
+        assert.equal(mock('https://ai.amap.com' + tail), undefined);
     }
 });
 test('导航、地图瓦片、定位、家庭组及用户搜索不匹配本地替换', () => {
@@ -213,8 +216,8 @@ test('存储失败、损坏或 API 不可用不影响页面', () => {
 });
 test('诊断仅打印固定路由统计，明确说明开屏不是脚本计数', () => {
     const h = run(); assert.deepEqual(h.output, {});
-    assert.match(h.logs.join('\n'), /脚本版本 2.0.0/); assert.match(h.logs.join('\n'), /开屏由 Map Local 处理/);
-    assert.equal(h.logs.filter(line => line.includes('已改写=')).length, 8);
+    assert.ok(h.logs.join('\n').includes('脚本版本 ' + VERSION)); assert.match(h.logs.join('\n'), /开屏由 Map Local 处理/);
+    assert.equal(h.logs.filter(line => line.includes('已改写=')).length, 15);
 });
 test('存储异常的零计数不被误报为未命中', () => {
     const h = run({ storageThrows: true });

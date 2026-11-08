@@ -1,0 +1,74 @@
+// Engine | Surge iOS 5.9.1+ / Mac 5.5.1+ | JavaScript
+// Build: python3 amap/build.py；修改 amap-policy.js 与 surge-runtime.js.in 后重新生成
+// Run: 导入 amap-adblock.sgmodule；手动运行“高德净化诊断”查看计数
+// Deps: Surge 脚本 API；测试：node --experimental-vm-modules --test amap/tests/cleaner.test.cjs amap/tests/policy.test.cjs
+// Version: {{VERSION}}
+(function () {
+    "use strict";
+{{POLICY}}
+    const STORE = "skernelx_amap_cleaner_v2";
+    function responseHeaders(input) {
+        const output = {};
+        const stale = ["content-length", "content-encoding", "transfer-encoding", "etag", "content-md5", "content-type", "cache-control", "digest", "content-digest", "repr-digest"];
+        for (const key of Object.keys(input || {})) if (!stale.includes(key.toLowerCase())) output[key] = input[key];
+        output["Content-Type"] = "application/json; charset=utf-8";
+        output["Cache-Control"] = "no-store";
+        output["X-AMap-Cleaner-Version"] = VERSION;
+        return output;
+    }
+    function load() {
+        try {
+            const raw = $persistentStore.read(STORE);
+            if (!raw) return { version: VERSION, routes: {}, warning: "本版尚无页面处理记录，不能据此判断开屏是否被拦截" };
+            const value = JSON.parse(raw);
+            if (!record(value) || value.version !== VERSION || !record(value.routes)) {
+                return { version: VERSION, routes: {}, warning: "已有统计版本不同或结构不符，以下显示本版零值" };
+            }
+            return { version: VERSION, routes: value.routes };
+        } catch (_) { return { version: VERSION, routes: {}, warning: "本地存储不可读取，以下零值不代表没有命中" }; }
+    }
+    function count(id, status) {
+        // 仅存固定路由名、结果枚举和有限计数，不保存 URL、请求头或响应内容。
+        try {
+            const value = load();
+            const old = record(value.routes[id]) ? value.routes[id] : {};
+            const next = {};
+            for (const key of ["changed", "unchanged", "empty", "format", "server-error", "http-error"]) {
+                const n = old[key]; next[key] = Number.isSafeInteger(n) && n >= 0 ? Math.min(n, 999999) : 0;
+            }
+            next[status] = Math.min((next[status] || 0) + 1, 999999);
+            value.routes[id] = next;
+            const routes = {};
+            for (const [name] of ROUTES) if (record(value.routes[name])) routes[name] = value.routes[name];
+            if ($persistentStore.write(JSON.stringify({ version: VERSION, routes }), STORE) !== true) console.log("[高德净化 " + VERSION + "] 本地计数未保存");
+        } catch (_) { /* 诊断不能阻止页面响应。 */ }
+    }
+    function diagnostic() {
+        console.log("[高德净化] 脚本版本 " + VERSION);
+        const value = load();
+        if (value.warning) console.log("[高德净化] " + value.warning);
+        for (const [id] of ROUTES) {
+            const row = record(value.routes[id]) ? value.routes[id] : {};
+            const number = k => Number.isSafeInteger(row[k]) && row[k] >= 0 ? Math.min(row[k], 999999) : 0;
+            console.log("[高德净化] " + id + ": 已改写=" + number("changed") + ", 无变化=" + number("unchanged") +
+                ", 格式不符=" + (number("format") + number("empty")) + ", 错误放行=" + (number("server-error") + number("http-error")));
+        }
+        console.log("[高德净化] 开屏由 Map Local 处理，不计入上述脚本命中。请查 splash_screen_rt 的 Map Local 记录与 X-AMap-Cleaner-Version 响应头。");
+    }
+    if (typeof module !== "undefined" && module.exports) module.exports = { VERSION, PATHS, route, transform, responseHeaders };
+    if (typeof $done !== "function") return;
+    let ended = false;
+    function finish(value) { if (!ended) { ended = true; $done(value || {}); } }
+    try {
+        if (typeof $request === "undefined" || !$request) { diagnostic(); finish(); return; }
+        const id = route($request.url);
+        if (!id || typeof $response !== "object" || !$response) { finish(); return; }
+        const result = Number($response.status) === 200 ? transform(id, $response.body) : { status: "http-error" };
+        count(id, result.status);
+        console.log("[高德净化 " + VERSION + "] " + id + ": " + result.status);
+        finish(result.status === "changed" ? { body: result.body, headers: responseHeaders($response.headers) } : {});
+    } catch (_) {
+        console.log("[高德净化 " + VERSION + "] 本地处理异常，保留原响应");
+        finish();
+    }
+}());

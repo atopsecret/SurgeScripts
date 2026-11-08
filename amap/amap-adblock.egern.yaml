@@ -3,8 +3,8 @@
 # Run: 在 Egern 模块中导入本文件；HTTPS 需信任 Egern 当前 CA
 # Deps: 本目录 amap-cleaner.egern.js；不加载旧 Surge 脚本
 name: 高德地图去广告 · Egern
-description: 2.0.0 原生版；RT 开屏本地 multipart 空广告响应，八类页面精确净化，本地诊断无通知。
-author: atopsecret（Surge 原版 skernelx；历史端点参考 ddgksf2013）
+description: 2.1.0 原生版；保留 RT 开屏，修复个人页 v3，十五类页面与嵌套配置定点净化，无第三方脚本依赖。
+author: atopsecret（Surge 原版 skernelx；端点参考 ddgksf2013 / Kelee）
 homepage: https://github.com/atopsecret/SurgeScripts/tree/main/amap
 icon: map.fill
 rules:
@@ -21,16 +21,16 @@ map_locals:
     headers:
       Content-Type: multipart/form-data; boundary=amap-cleaner-2-0-0
       Cache-Control: no-store
-      X-AMap-Cleaner-Version: '2.0.0'
+      X-AMap-Cleaner-Version: '2.1.0'
     body: "--amap-cleaner-2-0-0\r\nContent-Disposition: form-data; name=\"jsonData\"\r\nContent-Type: application/json; charset=utf-8\r\n\r\n{\"result\":\"true\",\"code\":\"1\",\"message\":\"Successful.\",\"version\":\"1.0_amap-aos-info-nogw\",\"data\":{\"status\":\"ok\",\"errcode\":\"1\",\"custom_list\":[],\"ad\":[]}}\r\n--amap-cleaner-2-0-0--\r\n"
   - match: '^https?://(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?/ws/(?:aos|valueadded)/alimama/splash_screen(?:[/?]|$)'
     status_code: 200
     headers:
       Content-Type: application/json
       Cache-Control: no-store
-      X-AMap-Cleaner-Version: '2.0.0'
+      X-AMap-Cleaner-Version: '2.1.0'
     body: '{"result":"true","code":"1","data":{"status":"ok","errcode":"1","ad":[],"custom_list":[]}}'
-  - match: '^https?://(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?/v[0-9]+/ai_rec/'
+  - match: '^https?://ai\.amap\.com(?::[0-9]+)?/v1/ai_rec/home_qs(?:[/?]|$)'
     status_code: 200
     headers: {Content-Type: application/json, Cache-Control: no-store}
     body: '{}'
@@ -42,19 +42,23 @@ map_locals:
     status_code: 200
     headers: {Content-Type: application/json, Cache-Control: no-store}
     body: '{}'
-  - match: '^https?://(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?/ws/shield/scene/recommend(?:[/?]|$)'
+  - match: '^https?://(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?/ws/valueadded/weather(?:[/?]|$)'
     status_code: 200
     headers: {Content-Type: application/json, Cache-Control: no-store}
     body: '{}'
-  - match: '^https?://(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?/ws/valueadded/weather(?:[/?]|$)'
+  - match: '^https?://m5\.amap\.com(?::[0-9]+)?/ws/info_bff/rankingCard(?:[/?]|$)'
+    status_code: 200
+    headers: {Content-Type: application/json, Cache-Control: no-store}
+    body: '{}'
+  - match: '^https?://m5\.amap\.com(?::[0-9]+)?/ws/shield/search_business/process/marketingOperationStructured(?:[/?]|$)'
     status_code: 200
     headers: {Content-Type: application/json, Cache-Control: no-store}
     body: '{}'
 scriptings:
   - http_response:
       name: 高德页面净化 · Egern
-      match: '^https?://(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?/ws/(?:message/notice/list|faas/amap-navigation/main-page|msgbox/pull|shield/dsp/profile/index/nodefaas|shield/search/new_hotword|shield/frogserver/aocs/updatable|shield/search/nearbyrec_smart|promotion-web/resource)(?:[/?]|$)'
-      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-cleaner.egern.js?v=2.0.0
+      match: '^https?://(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?/ws/(?:message/notice/list|faas/amap-navigation/main-page(?:-assets|-aiqs)?|msgbox/pull|shield/dsp/profile/index/nodefaas(?:v3)?|shield/search/new_hotword|shield/frogserver/aocs/updatable|(?:shield/search/nearbyrec_smart|smartui/near_recommend)|promotion-web/resource|shield/search/poi/detail|shield/search_business/process/middleLayer/sug|c3frontend/af-search/search|boss/car/order/content_info|amap/hitch/passenger/content_info|opc/tools/list|shield/scene/recommend)(?:[/?]|$)'
+      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-cleaner.egern.js?v=2.1.0
       body_required: true
       binary_body: true
       max_size: 2097152
@@ -62,7 +66,7 @@ scriptings:
       timeout: 10
   - generic:
       name: 高德净化诊断 · Egern
-      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-cleaner.egern.js?v=2.0.0
+      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-cleaner.egern.js?v=2.1.0
       update_interval: 3600
       timeout: 10
 mitm:

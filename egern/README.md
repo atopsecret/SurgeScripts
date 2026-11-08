@@ -5,7 +5,7 @@
 ## 安装链接
 
 - [Apple 天气增强](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/apple-weather/apple-weather-enhancer.egern.yaml)：WeatherKit v3.1.0 天气、降水、AQI 和 FlatBuffers；参数使用原生 `env_schema`。
-- [高德地图](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.egern.yaml)：RT 开屏 multipart、旧开屏与八类页面净化。
+- [高德地图](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.egern.yaml)：2.1.0，RT 开屏 multipart、个人页 v3、十五类页面与内嵌配置净化。
 - [京东](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml)：八类接口、已知导航、精准开屏素材尺寸。
 - [闲鱼](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-adblock.egern.yaml)：六个网关、新旧开屏和缓存广告引用。
 - [拼多多](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/pinduoduo/pdd-adblock.egern.yaml)：双条件素材规则、单域 QUIC 与已知页面净化。
@@ -46,6 +46,8 @@ NAS 原 Surge 网关条件不能从当前公开 Egern 条件策略字段直接�
 脚本与静态验证均不发送真实业务请求、不启用搜索程序或 GitHub Actions。静态与模拟通过不等于 Egern 真机导入、证书信任、Tailscale 登录或 App 页面验收。
 
 2026-11-08 加入 Apple 天气后：脚本 **423/423**，其中新模块 **52/52**；静态 **22/22**。八个 YAML、七个原生 JS 通过检查。Apple 天气源码构建需要其目录内固定的 esbuild/FlatBuffers；已构建产物的离线测试不需要 npm 安装。
+
+同日高德更新到 2.1.0 后：全仓脚本 **456/456**，高德 **87/87**，静态仍为 **22/22**。包含个人页 v3、十五类页面、内嵌配置、业务保留和双端一致性检查；没有完成手机真机验收。见[高德验证报告](../amap/验证报告-2.1.0.md)。
 
 ## 参考
 

@@ -13,13 +13,16 @@ const source = fs.readFileSync(path.join(root, 'amap-cleaner.egern.js'), 'utf8')
 const yaml = JSON.parse(execFileSync('python3', ['-c', 'import json,sys,yaml; print(json.dumps(yaml.safe_load(open(sys.argv[1], encoding="utf-8"))))',
     path.join(root, 'amap-adblock.egern.yaml')], { encoding: 'utf8', timeout: 5000 }));
 const surge = fs.readFileSync(path.join(root, 'amap-adblock.sgmodule'), 'utf8');
-const oldTransform = require('../amap-cleaner.js').transform;
+const { transform: oldTransform, VERSION } = require('../amap-cleaner.js');
 const KEY = 'egern_amap_cleaner_v2';
 const paths = {
     notice: '/ws/message/notice/list', home: '/ws/faas/amap-navigation/main-page',
     message: '/ws/msgbox/pull', profile: '/ws/shield/dsp/profile/index/nodefaas',
     hotword: '/ws/shield/search/new_hotword', config: '/ws/shield/frogserver/aocs/updatable',
     nearby: '/ws/shield/search/nearbyrec_smart', taxi: '/ws/promotion-web/resource',
+    poi: '/ws/shield/search/poi/detail', suggest: '/ws/shield/search_business/process/middleLayer/sug',
+    quicklink: '/ws/c3frontend/af-search/search', taxiOrder: '/ws/boss/car/order/content_info',
+    hitch: '/ws/amap/hitch/passenger/content_info', tools: '/ws/opc/tools/list', scene: '/ws/shield/scene/recommend',
 };
 const plain = value => JSON.parse(JSON.stringify(value));
 class Headers {
@@ -79,9 +82,9 @@ async function harness(options = {}) {
 function map(url) { return yaml.map_locals.find(entry => new RegExp(entry.match).test(url)); }
 function bytesOf(output) { return Buffer.from(output.body); }
 
-test('原生 YAML 七条 Map Local 与原 Surge 正文、状态和头逐项一致', () => {
+test('原生 YAML 八条 Map Local 与 Surge 正文、状态和头逐项一致', () => {
     const lines = surge.slice(surge.indexOf('[Map Local]'), surge.indexOf('[URL Rewrite]')).split('\n').filter(line => line.startsWith('^'));
-    assert.equal(yaml.map_locals.length, 7); assert.equal(lines.length, 7);
+    assert.equal(yaml.map_locals.length, 8); assert.equal(lines.length, 8);
     for (const [index, line] of lines.entries()) {
         const row = yaml.map_locals[index], data = line.match(/ data="([^"]*)"/)[1];
         const expected = line.includes('data-type=base64') ? Buffer.from(data, 'base64') : Buffer.from(data);
@@ -102,7 +105,7 @@ test('RT multipart 仅 jsonData，CRLF、结束边界及零图片完全保留', 
     assert.equal(data.version, '1.0_amap-aos-info-nogw');
     assert.match(row.body, /\r\n--amap-cleaner-2-0-0--\r\n$/);
     assert.doesNotMatch(row.body, /image_url|filename=|imgData|imgMsg/);
-    assert.equal(row.headers['X-AMap-Cleaner-Version'], '2.0.0');
+    assert.equal(row.headers['X-AMap-Cleaner-Version'], VERSION);
 });
 test('开屏 `_rt` 排在普通入口前且只覆盖已知通道，允许显式端口及版本子路径', () => {
     assert.match(yaml.map_locals[0].match, /splash_screen_rt/);
@@ -121,11 +124,14 @@ test('本地替换拒绝伪造主机、未知后缀、普通导航和定位路�
     for (const tail of ['/v3/direction/driving', '/v3/geocode/regeo', '/ws/render/bmd/tile', '/v3/place/text',
         '/ws/tservice/team/family/member/status', '/ws/valueadded/weather_detail']) assert.equal(map('https://m5.amap.com' + tail), undefined);
 });
-test('五类推广 Map Local 不扩大到整域名或主地图业务', () => {
-    for (const tail of ['/v12/ai_rec/home_explore', '/ws/faas/amap-navigation/card-service-route-plan',
-        '/ws/boss/order_web/1234abcd_information', '/ws/shield/scene/recommend', '/ws/valueadded/weather']) {
+test('推广 Map Local 不扩大到整个 AI 目录或 scene 正常内容', () => {
+    for (const tail of ['/ws/faas/amap-navigation/card-service-route-plan',
+        '/ws/boss/order_web/1234abcd_information', '/ws/info_bff/rankingCard',
+        '/ws/shield/search_business/process/marketingOperationStructured', '/ws/valueadded/weather']) {
         assert.equal(map('https://m5.amap.com' + tail).body, '{}');
     }
+    assert.equal(map('https://ai.amap.com/v1/ai_rec/home_qs').body, '{}');
+    for (const tail of ['/v12/ai_rec/home_explore', '/ws/shield/scene/recommend']) assert.equal(map('https://m5.amap.com' + tail), undefined);
     assert.deepEqual(yaml.rules[0], { domain: { match: 'optimus-ads.amap.com', policy: 'REJECT' } });
     const reject = new RegExp(yaml.rules[1].url_regex.match);
     assert.equal(reject.test('https://m5.amap.com/ws/asa/ads_attribution?x=1'), true);
@@ -141,18 +147,26 @@ const fixtures = {
     config: { gd_notch_logo: { value: '广告', version: 'x', extra: 1 }, ai_route_navigation: { value: '保留', version: 'x' } },
     nearby: { coupon: [1], activity: {}, modules: ['coupon', 'map', { name: 'activity', unknown: true }], result: '保留' },
     taxi: { icon: {}, banner: [1], tips: '未知字符串', popup: [1], orders: [1] },
+    poi: { modules: { CouponBanner: { ad: 1 }, baseInfo: { name: '保留' }, UnknownModule: {} }, regions: { main: ['CouponBanner', 'baseInfo', 'UnknownModule'] } },
+    suggest: {},
+    quicklink: { modules: { quickLink: { data: { list: [{ badge: { text: '推广', keep: 1 }, name: '保留' }] } } } },
+    taxiOrder: { lubanData: { skin: {}, popup: {}, kingToolBox: { dataList: [{ biz: { id: 'dache_toolbox_promo' } }, { biz: { id: 'unknown' } }] } }, order: '保留' },
+    hitch: { lubanData: { banner: {}, order: '保留' } },
+    tools: { category: [{ tools: [{ id: '547' }, { id: 1, tips: '推广', name: '保留' }] }] },
+    scene: { shadingWords: { data: { modules: { ad: {}, history: {} }, regions: { content: ['ad', 'history'] } } }, history: [1] },
 };
 for (const [id, data] of Object.entries(fixtures)) {
     test('原生页面分支 ' + id + ' 与旧纯函数相同，只清理已知字段', async () => {
-        const body = JSON.stringify({ result: 'true', code: '1', data, extra: '未知😀' });
+        const body = JSON.stringify({ result: 'true', code: '1', data, extra: '未知😀',
+            ...(id === 'suggest' ? { tip_list: [{ tip: { result_type: 'ad' } }, { tip: { result_type: 'poi', name: '真实地点' } }] } : {}) });
         const h = await harness({ url: 'https://m5.amap.com' + paths[id] + '?x=1', body });
         assert.equal(h.reads, 1); assert.equal(h.output.body, oldTransform(id, body).body);
-        assert.equal(h.output.headers['X-AMap-Cleaner-Version'], '2.0.0');
+        assert.equal(h.output.headers['X-AMap-Cleaner-Version'], VERSION);
         const again = await harness({ url: 'https://m5.amap.com' + paths[id], body: h.output.body });
         assert.deepEqual(bytesOf(again.output), Buffer.from(h.output.body));
     });
 }
-test('模块页面 match 与原生分流八路一致，未知前缀或伪造域名不读正文', async () => {
+test('模块页面 match 与原生分流十五路一致，未知前缀或伪造域名不读正文', async () => {
     const h = await harness({ generic: true });
     const pattern = new RegExp(yaml.scriptings[0].http_response.match);
     for (const [id, tail] of Object.entries(paths)) {
@@ -173,6 +187,30 @@ test('非 200 不消费 body，HTTP 错误仅计数并保持响应', async () =>
         assert.equal(JSON.parse(h.store.get(KEY)).routes.notice['http-error'], 1);
     }
 });
+test('v3 和新页面别名实际进入原生入口，未知版本不读正文', async () => {
+    for (const [tail, data] of [
+        ['shield/dsp/profile/index/nodefaasv3', fixtures.profile],
+        ['faas/amap-navigation/main-page-assets', fixtures.home],
+        ['faas/amap-navigation/main-page-aiqs', fixtures.home],
+        ['smartui/near_recommend', fixtures.nearby]
+    ]) {
+        const h = await harness({ url: 'https://m5.amap.com/ws/' + tail + '?x=1', body: JSON.stringify({ data }) });
+        assert.equal(h.reads, 1); assert.equal(h.output.headers['X-AMap-Cleaner-Version'], VERSION);
+    }
+    for (const tail of ['nodefaasv4', 'nodefaasv3_extra']) {
+        const h = await harness({ url: 'https://m5.amap.com/ws/shield/dsp/profile/index/' + tail, body: JSON.stringify({ data: fixtures.profile }) });
+        assert.equal(h.reads, 0); assert.equal(h.output, undefined);
+    }
+});
+test('2.0.0 旧计数不混入 2.1.0，诊断和实际新页面记录各自明确', async () => {
+    const store = new Map([[KEY, JSON.stringify({ version: '2.0.0', routes: { profile: { changed: 999 } } })]]);
+    const diag = await harness({ generic: true, store });
+    assert.match(JSON.stringify(diag.output), /旧统计结构不符/);
+    const h = await harness({ store, url: 'https://m5.amap.com/ws/shield/dsp/profile/index/nodefaasv3', body: JSON.stringify({ data: fixtures.profile }) });
+    const saved = JSON.parse(store.get(KEY));
+    assert.equal(saved.version, VERSION); assert.equal(saved.routes.profile.changed, 1);
+    assert.equal(h.notices.length, 0);
+});
 test('服务端明确失败、未知 JSON、JSONP、空体和非 UTF-8 都回传已读原字节', async () => {
     for (const body of ['', 'callback({"data":{}})', '{', '[1]', 'null', ' { "data": {"noticeList":[]}, "extra": 1 } ',
         '{"code":500,"data":{"noticeList":[1]}}', '{"result":"false","data":{"noticeList":[1]}}',
@@ -188,7 +226,7 @@ test('改写后去除旧校验/压缩/长度头，多值 Cookie 保持数组，�
         'Content-Type': 'application/json', 'Set-Cookie': ['fixture-a=1', 'fixture-b=2'], 'X-Unknown': '保留' };
     const h = await harness({ body: '{"data":{"noticeList":[1]}}', headers });
     assert.deepEqual(plain(h.output.headers), { 'Set-Cookie': ['fixture-a=1', 'fixture-b=2'], 'X-Unknown': '保留',
-        'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-AMap-Cleaner-Version': '2.0.0' });
+        'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-AMap-Cleaner-Version': VERSION });
     assert.equal(h.response.headers.get('Content-Length'), null);
     assert.equal(h.output.headers, h.response.headers);
 });
@@ -225,7 +263,7 @@ test('原生存储读写异常不影响页面，也不泄露异常或发通知',
     }
 });
 test('处理统计仅固定路由/枚举/封顶数字；不会存 URL、账号或未知字段', async () => {
-    const store = new Map([[KEY, JSON.stringify({ version: '2.0.0', secret: 'SECRET_SAVED', routes: {
+    const store = new Map([[KEY, JSON.stringify({ version: VERSION, secret: 'SECRET_SAVED', routes: {
         notice: { changed: 9999999999, unchanged: 'SECRET_COUNT', unknown: 'SECRET_EXTRA' }, 'SECRET_ROUTE': { changed: 1 },
     } })]]);
     const h = await harness({ store, url: 'https://m5.amap.com' + paths.notice + '?token=SECRET_QUERY', body: '{"data":{"noticeList":[1]},"account":"SECRET_BODY"}' });
@@ -258,7 +296,7 @@ test('原生配置启用二进制取体、2MiB 上限，所有脚本 URL 指向�
         const row = Object.values(item)[0], url = new URL(row.script_url);
         assert.equal(url.hostname, 'raw.githubusercontent.com');
         assert.equal(url.pathname, '/atopsecret/SurgeScripts/main/amap/amap-cleaner.egern.js');
-        assert.equal(url.searchParams.get('v'), '2.0.0');
+        assert.equal(url.searchParams.get('v'), VERSION);
         assert.ok(fs.existsSync(path.join(root, path.basename(url.pathname))));
     }
     assert.doesNotMatch(source, /\$(?:done|request|response|persistentStore|httpClient|notification)\b|\bimport\s/);

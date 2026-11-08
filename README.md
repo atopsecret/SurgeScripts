@@ -10,7 +10,7 @@ Surge 与 Egern 去广告模块、蔚来自动签到脚本及 Apple 天气增强
 
 - **Apple 天气增强 1.0.0（Egern）**：基于 WeatherKit v3.1.0 的可用数据集、天气替换、降水补充和 AQI 算法；原生入口与二进制响应处理。
   [使用说明](apple-weather/README.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/apple-weather/apple-weather-enhancer.egern.yaml)
-- **高德地图 2.0.0**：开屏本地响应、首页和搜索等已知页面推广处理。
+- **高德地图 2.1.0**：保留 RT 开屏，修复个人页 v3；十五类页面与内嵌配置定点净化。
   [使用说明](amap/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.egern.yaml)
 - **京东**：开屏、页面推广、已知底栏导航及短视频组件。
   [使用说明](jd/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml)
@@ -46,7 +46,7 @@ Egern 使用 `.egern.yaml` 和对应原生脚本，不直接运行 Surge 全局�
 
 ### 从旧地址迁移
 
-旧账号地址不会因为复制源码自动重定向。已经安装的模块需要换成上面的新链接，并刷新远程脚本缓存。高德模块描述应显示 `2.0.0`；Surge 蔚来任务日志应显示 `脚本版本 2.1.6`，Egern 原生蔚来模块描述应显示 `3.2.0`。
+旧账号地址不会因为复制源码自动重定向。已经安装的模块需要换成上面的新链接，并刷新远程脚本缓存。高德模块描述应显示 `2.1.0`；Surge 蔚来任务日志应显示 `脚本版本 2.1.6`，Egern 原生蔚来模块描述应显示 `3.2.0`。
 
 旧账号迁移不导出或迁移客户端登录凭据。原作者署名和原有本地诊断存储键保留，详见[迁移范围](MIGRATION.md)。Egern 原生重写使用独立存储，行为差异见 [Egern 说明](egern/README.md)。
 
@@ -88,13 +88,13 @@ RULE-SET,https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/Telegram
 ```sh
 node --experimental-vm-modules --test --test-reporter=tap \
   amap/tests/cleaner.test.cjs weilai/tests/checkin.test.cjs \
-  amap/tests/egern.test.cjs jd/tests/egern.test.cjs \
+  amap/tests/egern.test.cjs amap/tests/policy.test.cjs jd/tests/egern.test.cjs \
   xianyu/tests/egern.test.cjs pinduoduo/tests/egern.test.cjs \
   jyjt/tests/egern.test.cjs weilai/tests/egern.test.cjs \
   apple-weather/tests/egern.test.cjs
 ```
 
-当前脚本测试共 423 项。Apple 天气新增 52 项，其中可用性和九组真实二进制用例与原 v3.1.0 发布包作对照。测试在各模块目录，不恢复已删除的根 `tests/`。字段、匹配和来源子集另有 22 项 Python 测试，依赖 PyYAML 6：
+当前脚本测试共 456 项。高德 2.1.0 为 87 项，较 2.0.0 增加 33 项；Apple 天气为 52 项，其中可用性和九组真实二进制用例与原 v3.1.0 发布包作对照。测试在各模块目录，不恢复已删除的根 `tests/`。字段、匹配和来源子集另有 22 项 Python 测试，依赖 PyYAML 6：
 
 ```sh
 python3 egern/validate.py
@@ -108,6 +108,8 @@ Egern 的 `.egern.js` 是 ES module，单文件语法检查使用 `node --input-
 离线通过不代替 Surge/Egern 真机配置加载、接口匹配与页面验收。
 
 2026-11-08 Apple 天气转换：新增 52/52；全仓脚本 423/423，静态测试 22/22；八个 YAML 与七个原生 JS 字段、引用和语法检查通过。详情见 [Apple 天气验证报告](apple-weather/验证报告.md)。原插件 URL 本次抓取为 403，实际采用固定公开镜像，不声称核实了原站当前内容。
+
+2026-11-08 高德 2.1.0：高德回归 54/54 → 87/87，全仓脚本 423/423 → 456/456，静态 22/22；补全十五类页面与内嵌配置处理，保留 RT 开屏契约。详情见[高德验证报告](amap/验证报告-2.1.0.md)。未做手机真机验证。
 
 ## 反馈与来源
 

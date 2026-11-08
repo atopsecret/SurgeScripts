@@ -1,0 +1,2 @@
+# 固定上游绑定保留原始行尾空白，避免格式化改变来源 SHA-256。
+vendor/weatherkit/src/proto/apple/wk2.js -whitespace

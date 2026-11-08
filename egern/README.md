@@ -1,9 +1,10 @@
 # Egern 原生模块
 
-七个独立原生模块。响应脚本用 `export default async function(ctx)`，逻辑规则和本地响应采用原生 YAML，不把 Surge 脚本包进兼容壳。
+八个独立原生模块。响应脚本用 `export default` 异步函数，逻辑规则和本地响应采用原生 YAML，不把 Surge 脚本包进兼容壳。
 
 ## 安装链接
 
+- [Apple 天气增强](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/apple-weather/apple-weather-enhancer.egern.yaml)：WeatherKit v3.1.0 天气、降水、AQI 和 FlatBuffers；参数使用原生 `env_schema`。
 - [高德地图](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.egern.yaml)：RT 开屏 multipart、旧开屏与八类页面净化。
 - [京东](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml)：八类接口、已知导航、精准开屏素材尺寸。
 - [闲鱼](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-adblock.egern.yaml)：六个网关、新旧开屏和缓存广告引用。
@@ -16,6 +17,7 @@
 
 ## 原生实现差异
 
+- Apple 天气保留固定镜像引用的 v3.1.0 算法，原插件 URL 本次为 403；原生 HTTP、存储和设置按调用隔离。保留 Apple ASN 的 QUIC 条件，动作使用文档化 `REJECT`；不迁移 BoxJs。API 或编码失败回传保存的原文，模型未知的新字段不保证重编码保留。详情见[独立说明](../apple-weather/README.md)。
 - HTTP 错误、服务端错误和未知正文保守放行。已读出的正文在解析或处理失败时显式返回，不能把被消费的流当成仍可透传。流读取本身失败时，不能承诺重构没有读完的内容。
 - 高德 RT 的 multipart 字节、CRLF、边界和响应头与现有版本对应；Map Local 不依赖脚本下载。
 - 京东不清空整个 `start`；陌生导航结构保留，普通商品图片不匹配开屏专用尺寸。
@@ -42,6 +44,8 @@ NAS 原 Surge 网关条件不能从当前公开 Egern 条件策略字段直接�
 2026-11-06 脚本回归 **340/340**，其中 Surge 77 项、原生 263 项；公共静态测试 **17/17**。七个 YAML、六个原生 JS 和 9,980 条公共规则条件检查通过。红果不需要响应脚本，其 78 条条件及 Map Local 边界由静态测试覆盖。
 
 脚本与静态验证均不发送真实业务请求、不启用搜索程序或 GitHub Actions。静态与模拟通过不等于 Egern 真机导入、证书信任、Tailscale 登录或 App 页面验收。
+
+2026-11-08 加入 Apple 天气后：脚本 **423/423**，其中新模块 **52/52**；静态 **22/22**。八个 YAML、七个原生 JS 通过检查。Apple 天气源码构建需要其目录内固定的 esbuild/FlatBuffers；已构建产物的离线测试不需要 npm 安装。
 
 ## 参考
 

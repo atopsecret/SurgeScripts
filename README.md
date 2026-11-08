@@ -1,6 +1,6 @@
 # SurgeScripts
 
-Surge 与 Egern 去广告模块、蔚来自动签到脚本。七个主模块均有独立 Egern 原生版本；各模块可以单独安装，不需要替换整份客户端配置。
+Surge 与 Egern 去广告模块、蔚来自动签到脚本及 Apple 天气增强。八个模块提供独立 Egern 原生版本；各模块可以单独安装，不需要替换整份客户端配置。
 
 当前仓库：[atopsecret/SurgeScripts](https://github.com/atopsecret/SurgeScripts)。安装入口使用 `main`；蔚来 Egern 脚本固定到完整提交地址。
 
@@ -8,6 +8,8 @@ Surge 与 Egern 去广告模块、蔚来自动签到脚本。七个主模块均�
 
 ## 模块索引
 
+- **Apple 天气增强 1.0.0（Egern）**：基于 WeatherKit v3.1.0 的可用数据集、天气替换、降水补充和 AQI 算法；原生入口与二进制响应处理。
+  [使用说明](apple-weather/README.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/apple-weather/apple-weather-enhancer.egern.yaml)
 - **高德地图 2.0.0**：开屏本地响应、首页和搜索等已知页面推广处理。
   [使用说明](amap/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.egern.yaml)
 - **京东**：开屏、页面推广、已知底栏导航及短视频组件。
@@ -81,17 +83,18 @@ RULE-SET,https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/Telegram
 
 ## 离线校验
 
-需要 Node.js 20+，不需要额外 npm 依赖。测试只使用本地文件、虚构凭据和模拟 HTTP，不执行真实签到或目标 App 请求。
+需要 Node.js 20+，运行已构建脚本的测试不需要额外 npm 依赖。测试只使用本地文件、虚构凭据和模拟 HTTP，不执行真实签到或目标 App 请求。Apple 天气的源码重建另需其目录内的固定依赖。
 
 ```sh
 node --experimental-vm-modules --test --test-reporter=tap \
   amap/tests/cleaner.test.cjs weilai/tests/checkin.test.cjs \
   amap/tests/egern.test.cjs jd/tests/egern.test.cjs \
   xianyu/tests/egern.test.cjs pinduoduo/tests/egern.test.cjs \
-  jyjt/tests/egern.test.cjs weilai/tests/egern.test.cjs
+  jyjt/tests/egern.test.cjs weilai/tests/egern.test.cjs \
+  apple-weather/tests/egern.test.cjs
 ```
 
-当前脚本测试共 340 项，其中 Surge 77 项、Egern 原生上下文 263 项。测试在各模块目录，不恢复已删除的根 `tests/`。字段、匹配和来源子集另有 17 项 Python 测试，依赖 PyYAML 6：
+当前脚本测试共 423 项。Apple 天气新增 52 项，其中可用性和九组真实二进制用例与原 v3.1.0 发布包作对照。测试在各模块目录，不恢复已删除的根 `tests/`。字段、匹配和来源子集另有 22 项 Python 测试，依赖 PyYAML 6：
 
 ```sh
 python3 egern/validate.py
@@ -103,6 +106,8 @@ Egern 的 `.egern.js` 是 ES module，单文件语法检查使用 `node --input-
 2026-11-06 在 Node.js 26.5.0、Python 3.14.3、PyYAML 6.0.3 下运行：脚本 **340/340**、Python **17/17**，无失败或跳过。蔚来包含 Surge 48 项和 Egern 76 项，覆盖带表情的成功通知、简短凭据提醒及合并、累计字段兼容、同日统计观察与原字节回传。另对 Rules 仓库六份原生集合做了 **9,980 条**条件等价检查；两份 LAN 辅助集合各 14 条。
 
 离线通过不代替 Surge/Egern 真机配置加载、接口匹配与页面验收。
+
+2026-11-08 Apple 天气转换：新增 52/52；全仓脚本 423/423，静态测试 22/22；八个 YAML 与七个原生 JS 字段、引用和语法检查通过。详情见 [Apple 天气验证报告](apple-weather/验证报告.md)。原插件 URL 本次抓取为 403，实际采用固定公开镜像，不声称核实了原站当前内容。
 
 ## 反馈与来源
 

@@ -17,7 +17,8 @@ ROOT = file.resolve().parents[1]
 
 
 class ValidationTests(unittest.TestCase):
-    def test_seven_modules(self):
+    def test_all_native_modules(self):
+        self.assertEqual(len(validator.MODULES), 8)
         for path in validator.MODULES:
             with self.subTest(path=path):
                 validator.validate_module(ROOT / path, ROOT)
@@ -118,6 +119,54 @@ class ValidationTests(unittest.TestCase):
     def test_old_account_script_rejected(self):
         with self.assertRaises(ValueError):
             validator.script_path("https://raw.githubusercontent.com/skernelx/SurgeScripts/master/jd/jd-ad-block.egern.js", ROOT)
+
+    def test_weather_rule_scope_and_binary_mode(self):
+        module = validator.load(ROOT / "apple-weather/apple-weather-enhancer.egern.yaml")
+        self.assertEqual(len(module["rules"]), 4)
+        quic = module["rules"][-1]["and"]
+        self.assertEqual(quic["match"][0]["or"]["match"], [
+            {"asn": {"match": "714", "no_resolve": True}},
+            {"asn": {"match": "6185", "no_resolve": True}},
+        ])
+        self.assertEqual(quic["match"][1], {"protocol": {"match": "quic"}})
+        self.assertEqual(module["mitm"]["hostnames"]["includes"], ["weatherkit.apple.com"])
+        self.assertTrue(module["scriptings"][1]["http_response"]["binary_body"])
+        self.assertEqual(len(module["env_schema"]), 8)
+
+    def test_weather_url_boundaries(self):
+        module = validator.load(ROOT / "apple-weather/apple-weather-enhancer.egern.yaml")
+        pattern = re.compile(module["scriptings"][1]["http_response"]["match"])
+        self.assertRegex("https://weatherkit.apple.com/api/v2/weather/zh-CN/31/121", pattern)
+        self.assertNotRegex("https://weatherkit.apple.com.evil.invalid/api/v2/weather/x", pattern)
+        self.assertNotRegex("https://weatherkit.apple.com/api/v2/weather_other/x", pattern)
+
+    def test_native_bundler_default_export(self):
+        self.assertTrue(validator.is_native_source("async function a(ctx){}export{a as default};"))
+        self.assertTrue(validator.is_native_source("export default async function(ctx){}"))
+        self.assertFalse(validator.is_native_source("export const foo = 1;"))
+        self.assertFalse(validator.is_native_source("export default async function(ctx){ $done({}); }"))
+
+    def test_env_schema_invalid_fields_rejected(self):
+        original = validator.load(ROOT / "apple-weather/apple-weather-enhancer.egern.yaml")
+        for descriptor in [
+            {"default_value": True}, {"options": [True, False]},
+            {"options": ["a", "a"]}, {"secret": True},
+            {"default_value": "bad", "options": ["a"]},
+        ]:
+            with self.subTest(descriptor=descriptor), tempfile.TemporaryDirectory() as directory:
+                module = dict(original, env_schema={"FIXTURE": descriptor})
+                path = Path(directory) / "invalid.yaml"
+                path.write_text(validator.yaml.safe_dump(module))
+                with self.assertRaises(ValueError):
+                    validator.validate_module(path, ROOT)
+
+    def test_weather_ui_defaults_match_native_runtime(self):
+        schema = validator.load(ROOT / "apple-weather/apple-weather-enhancer.egern.yaml")["env_schema"]
+        self.assertEqual(schema["Weather.Provider"]["default_value"], "ColorfulClouds")
+        self.assertEqual(schema["AirQuality.Calculate.Algorithm"]["default_value"], "EU_EAQI")
+        for key in ["API.ColorfulClouds.Token", "API.QWeather.Token", "API.WAQI.Token"]:
+            self.assertEqual(schema[key]["default_value"], "")
+        self.assertNotIn("Storage", schema)
 
 
 if __name__ == "__main__":

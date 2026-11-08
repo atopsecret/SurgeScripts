@@ -3,7 +3,7 @@
 # 构建：无需编译
 # 运行：python3 egern/validate.py [--rules-dir RULES_DIRECTORY]
 # 依赖：PyYAML 6、Node.js 20+；不联网，不调用客户端或业务 API
-"""检查七个原生模块字段、正则、脚本引用和可选公共规则目录。
+"""检查八个原生模块字段、正则、脚本引用和可选公共规则目录。
 
 范围是本项目实际使用的官方文档字段，不伪装成 Egern 官方解析器。
 只读本地文件；不加载私人配置、不执行脚本业务，不证明手机运行可用。
@@ -30,6 +30,7 @@ MODULES = (
     "hongguo/hongguo-adblock.egern.yaml",
     "jyjt/jyjt-member.egern.yaml",
     "weilai/weilai-auto-checkin.egern.yaml",
+    "apple-weather/apple-weather-enhancer.egern.yaml",
 )
 META = {"name", "description", "author", "homepage", "manual", "icon", "open_url"}
 RULE_TYPES = {"domain", "domain_suffix", "domain_keyword", "domain_regex", "domain_wildcard", "geoip", "ip_cidr", "ip_cidr6", "asn", "url_regex", "user_agent", "dest_port", "protocol", "ssid", "bssid", "cellular"}
@@ -111,11 +112,25 @@ def script_path(url: str, root: Path) -> Path:
 def validate_module(path: Path, root: Path) -> set[Path]:
     module = load(path)
     require(isinstance(module, dict), "模块根必须为映射")
-    require(not set(module) - META - {"rules", "scriptings", "map_locals", "mitm"}, "模块根含非本项目所用官方字段")
+    require(not set(module) - META - {"rules", "scriptings", "map_locals", "mitm", "env_schema"}, "模块根含非本项目所用官方字段")
     for key in META & set(module):
         require(isinstance(module[key], str) and bool(module[key]), "模块元数据必须为非空字符串")
     for key in ("name", "description", "author", "homepage"):
         require(key in module, "模块缺少必要说明")
+    if "env_schema" in module:
+        schema = module["env_schema"]
+        require(isinstance(schema, dict) and bool(schema), "env_schema 必须为非空映射")
+        for key, descriptor in schema.items():
+            require(isinstance(key, str) and bool(key), "环境变量名称必须为非空字符串")
+            require(isinstance(descriptor, dict) and not set(descriptor) - {"name", "description", "default_value", "options"}, "环境变量描述含非文档字段")
+            for field in {"name", "description", "default_value"} & set(descriptor):
+                require(isinstance(descriptor[field], str), "环境变量说明和默认值必须为字符串")
+            if "options" in descriptor:
+                options = descriptor["options"]
+                require(isinstance(options, list) and bool(options) and all(isinstance(value, str) for value in options), "环境变量选项必须为字符串数组")
+                require(len(options) == len(set(options)), "环境变量选项不能重复")
+                if "default_value" in descriptor:
+                    require(descriptor["default_value"] in options, "本项目枚举默认值须包含在 options 中")
     for item in module.get("rules", []):
         validate_rule(item)
     for item in module.get("map_locals", []):
@@ -229,13 +244,18 @@ def main():
         paths.update(validate_module(args.root / relative, args.root))
     for path in sorted(paths):
         source = path.read_text()
-        require("export default" in source and not re.search(r"\$(?:request|response|done|persistentStore|httpClient|notification)\b", source), "脚本不是独立原生入口")
+        require(is_native_source(source), "脚本不是独立原生入口")
         subprocess.run(["node", "--input-type=module", "--check"], input=source, text=True, check=True, timeout=15, capture_output=True)
     result = {"native_modules": len(MODULES), "native_scripts": len(paths), "static_check": "PASS", "network_requests": 0, "runtime_verified": False}
     if args.rules_dir:
         result["rules"] = validate_rules(args.rules_dir)
         result["lan_support_sets"] = 2
     print(json.dumps(result, ensure_ascii=False))
+
+
+def is_native_source(source):
+    default_export = re.search(r"\bexport\s+default\b|\bexport\s*\{[^}]*\bas\s+default\b", source)
+    return bool(default_export) and not re.search(r"\$(?:request|response|done|persistentStore|httpClient|notification)\b", source)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,99 @@
+# Engine | Egern 原生 YAML 模块 | YAML
+# Build: 无需构建；源码构建见本目录 README.md
+# Run: Egern 模块中添加本文件 URL；HTTPS 需启用 MITM 并信任当前 CA
+# Deps: 本目录 apple-weather-enhancer.egern.js；不加载 Loon 兼容脚本
+name: Apple 天气增强 · Egern
+description: 1.0.0 原生版；基于 WeatherKit v3.1.0，扩展可用数据集、天气数据源、下一小时降水及 AQI 算法。适用 iOS 18+；需 MITM。
+author: atopsecret（原作者 VirgilClyne、WordlessEcho、001）
+homepage: https://github.com/atopsecret/SurgeScripts/tree/main/apple-weather
+manual: https://github.com/atopsecret/SurgeScripts/blob/main/apple-weather/README.md
+icon: cloud.sun.fill
+open_url: https://apps.apple.com/app/id1069513131
+env_schema:
+  Weather.Provider:
+    name: 天气数据源
+    description: 替换范围沿用上游默认：中国大陆。WeatherKit 表示保留原始天气。
+    default_value: ColorfulClouds
+    options: [ColorfulClouds, WeatherKit, QWeather]
+  NextHour.Provider:
+    name: 下一小时降水数据源
+    description: 原始数据缺失时补充；WeatherKit 表示不补充。第三方覆盖范围和 API 权限由数据源决定。
+    default_value: ColorfulClouds
+    options: [ColorfulClouds, WeatherKit, QWeather]
+  AirQuality.Calculate.Algorithm:
+    name: AQI 计算算法
+    description: 通过污染物浓度本地计算指数。None 表示不转换，CN_25_DRAFT 是上游的 2025 年草案算法，不代表现行标准。
+    default_value: EU_EAQI
+    options: [EU_EAQI, None, UBA, WAQI_InstantCast_US, WAQI_InstantCast_CN, WAQI_InstantCast_CN_25_DRAFT]
+  API.ColorfulClouds.Token:
+    name: 彩云天气 API 令牌
+    description: 留空沿用上游公开备用令牌；额度和可用性无保证。建议填入自己的令牌。
+    default_value: ''
+  API.QWeather.Host:
+    name: 和风天气 API 主机
+    description: 只填域名，不带 https://、端口或路径；使用和风开发平台实际分配的主机。
+    default_value: devapi.qweather.com
+  API.QWeather.Token:
+    name: 和风天气 API 令牌
+    description: 本版本沿用上游 X-QW-Api-Key 鉴权，不把此字段当成 JWT Bearer Token。
+    default_value: ''
+  API.WAQI.Token:
+    name: WAQI API 令牌
+    description: 保留上游参数；v3.1.0 默认 AQI 路径为本地计算，填写此项不会自动切换 AQI 数据源。
+    default_value: ''
+  LogLevel:
+    name: 处理日志等级
+    description: 控制不含定位、令牌和完整 URL 的处理摘要。不转发上游原始日志；详细状态见手动诊断。
+    default_value: WARN
+    options: [WARN, 'OFF', ERROR, INFO, DEBUG, ALL]
+rules:
+  - domain:
+      match: weather-analytics-events.apple.com
+      policy: REJECT
+  - domain:
+      match: tether.edge.apple
+      policy: REJECT
+  - domain_suffix:
+      match: tthr.apple.com
+      policy: REJECT
+  # 保留原插件 Apple ASN 范围，不扩大成全局 UDP/443 拒绝。
+  - and:
+      match:
+        - or:
+            match:
+              - asn:
+                  match: '714'
+                  no_resolve: true
+              - asn:
+                  match: '6185'
+                  no_resolve: true
+        - protocol:
+            match: quic
+      policy: REJECT
+scriptings:
+  - http_response:
+      name: Apple 天气可用性 · Egern
+      match: '(?i)^https?://weatherkit\.apple\.com/api/v1/availability/'
+      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/apple-weather/apple-weather-enhancer.egern.js?v=1.0.0
+      body_required: true
+      max_size: 4194304
+      timeout: 30
+      update_interval: 86400
+  - http_response:
+      name: Apple 天气数据 · Egern
+      match: '(?i)^https?://weatherkit\.apple\.com/api/v2/weather/'
+      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/apple-weather/apple-weather-enhancer.egern.js?v=1.0.0
+      body_required: true
+      binary_body: true
+      max_size: 4194304
+      timeout: 30
+      update_interval: 86400
+  - generic:
+      name: Apple 天气增强诊断 · Egern
+      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/apple-weather/apple-weather-enhancer.egern.js?v=1.0.0
+      timeout: 10
+      update_interval: 86400
+mitm:
+  hostnames:
+    includes:
+      - weatherkit.apple.com

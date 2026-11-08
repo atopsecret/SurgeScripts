@@ -1,0 +1,13 @@
+{
+  "name": "apple-weather-enhancer-egern",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --experimental-vm-modules --test tests/egern.test.cjs"
+  },
+  "dependencies": { "flatbuffers": "24.12.23" },
+  "devDependencies": { "esbuild": "0.25.12" }
+}

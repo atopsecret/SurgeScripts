@@ -1,0 +1,30 @@
+{
+  "original_url": "https://kelee.one/Tool/Loon/Lpx/AppleWeatherEnhancer.lpx",
+  "original_fetch": "HTTP 403; current origin content not verified",
+  "mirror_url": "https://github.com/Moli-X/Tool/blob/f4720ca1468bc5d97c7d6fc7771b894acf0770a1/Loon/Plugin/Kelee/AppleWeatherEnhancer.plugin",
+  "mirror_date": "2026-10-02 13:57:49",
+  "upstream_version": "v3.1.0",
+  "upstream_commit": "77d06d5525297ba5f85543934db505aab6ef7547",
+  "schema_url": "https://github.com/wuchunkei/weather-kit/blob/d44877a505308bac9970366fd7c0305257598168/src/proto/apple/wk2.js",
+  "files": {
+    "vendor/AppleWeatherEnhancer.lpx": "441435e116526c857c5843d6011ff800edce3d70b22dcabf3c1b2979b50ce885",
+    "vendor/weatherkit/LICENSE": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+    "vendor/weatherkit/src/class/AirQuality.mjs": "f407dfc4ccce20e7358e7f03d26a6ad3b27c1e71253813576b535dc85e55ed87",
+    "vendor/weatherkit/src/class/ColorfulClouds.mjs": "c05a7572e1aa763215d17719b6b7b31417bba0f851341bf3a4a5f3d55290a03b",
+    "vendor/weatherkit/src/class/ForecastNextHour.mjs": "c531b68ca1580613c1a66c5c301f639505942ee6da8ae2fb770e9eed106d462c",
+    "vendor/weatherkit/src/class/QWeather.mjs": "58b2518ab3c2367962290540b0fdcbe97b05a9fb783bf7d4d9cf3ba2f7708420",
+    "vendor/weatherkit/src/class/SimplePrecisionMath.mjs": "5a95761beaa6423f0925ad67d2dba9e5eb08ee03564f739b323686d22478284e",
+    "vendor/weatherkit/src/class/WAQI.mjs": "900ee3a4cd89cd7fbcaf6d83dbfcc06c4e8f5ca22f36337efb5bb1a4989cfb9b",
+    "vendor/weatherkit/src/class/Weather.mjs": "dcf39ef68840577d21d3d6280cfe0ad450556f8544c39537f7eaeb041db5433f",
+    "vendor/weatherkit/src/class/WeatherKit2.mjs": "2e9eda950cb23d74f6168e256aa86d35815c3bdb86d1e388ad26b6206771c1c7",
+    "vendor/weatherkit/src/function/database.mjs": "a7705e55c9ff16c1d5e34e4259a34018fcea25fd5527549f89961b3484776d1e",
+    "vendor/weatherkit/src/function/parseWeatherKitURL.mjs": "1ebdcc7a5b9777c840b0b474796d963563040caf420b446241290b87bf86fc87",
+    "vendor/weatherkit/src/function/providerNameToLogo.mjs": "86e1207298920f182f41c9280cb2363105d6c36483473a2d1c53224244e1ab8a",
+    "vendor/weatherkit/src/function/setENV.mjs": "b9ad3d91c58522c65d67355b1ec844564d1ff24fd918fbd5a6ace43566e4fb30",
+    "vendor/weatherkit/src/process/Response.mjs": "ad924f6ff5806f2d5102bf8337d31303101ce45f65565ce582cd71e392b24c41",
+    "vendor/weatherkit/src/proto/apple/wk2.js": "1d9893ca7f4bcf8c9fb12eb43118f9df687dc1fe60fa453f66fa79c0c6711ceb",
+    "tests/fixtures/upstream-v3.1.0.bundle.js": "e7c75725d67c4e8f78d3fdc003481762a377c624ae89bba64b23b2cb5ea9f342",
+    "vendor/FLATBUFFERS-LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "vendor/NSNANOCAT-UTIL-LICENSE": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+  }
+}

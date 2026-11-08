@@ -2,9 +2,9 @@
 
 取件码放大，驿站和快递信息放在下面。支持桌面四种尺寸、浅深色与锁屏三种尺寸；查询失败时保留上次结果和原更新时间。
 
-**1.2.0 把 App 会话采集和独立查询放进同一个小组件。默认通过手机在线模块安装，不需要 ZIP、电脑、复制源码、HAR 或 Cookie。** 可以与[菜鸟去广告](../cainiao/README.md)一起使用，不依赖去广告模块或另装诊断。采集只读四个精确 MTOP 网关的请求头，不读取短信、App 正文或沙盒，不改写查件响应。
+**1.2.1 保留 App 同次请求里的真实 Cookie，不再用 SID 顶替；缺少 `unb` 时只补同次有效 UID，仍需个人身份和完整列表验证。默认通过手机在线模块安装，不需要 ZIP、电脑、复制源码、HAR 或 Cookie。** 可以与[菜鸟去广告](../cainiao/README.md)一起使用，不依赖去广告模块或另装诊断。采集只读四个精确 MTOP 网关的请求头，不读取短信、App 正文或沙盒，不改写查件响应。
 
-**1.2.0 已发布；安装模块与它引用的脚本均已回读核验。手机实际连接尚未验收。** 本版通过离线模拟。真实请求 Cookie 优先；原生 SID/UID 的兼容接入是有失败门限的试验，不是已经证实的 Cookie 别名。
+**1.2.0 已发布；1.2.1 正在发布，尚未完成公开资源回读核验。手机实际连接尚未验收。** 用户已确认发布本轮修复，以下是新版目标地址；公开回读完成前不能把链接参数当作上线证明。真实 Cookie＋UID 和原生 SID/UID 都只是待验证候选，不是已经证实可用于 H5 的凭据。
 
 ![浅深色与锁屏布局，合成数据离线预览](preview/overview.png)
 
@@ -12,15 +12,15 @@
 
 ## 安装
 
-已安装旧版或本地试用版时，先停用旧模块，不要同时启用两份同名组件。远程脚本 URL 的 `?v=1.2.0` 只是缓存更新参数，不会锁定 Git 提交，也不会让未发布的版本自动上线；升级需核对模块描述和 JS 首行。
+已安装在线模块时更新原模块和它引用的远程 JS，不用重装自己的 CA、填写凭据或增加诊断模块。只有另建新版模块时才先停用旧模块，不要同时启用两份同名组件。远程脚本 URL 的 `?v=1.2.1` 只是缓存更新参数，不会锁定 Git 提交，也不会让未发布的版本自动上线；升级需核对模块描述和 JS 首行。手机简短步骤见[1.2.1 升级说明](开始使用-1.2.1.md)。
 
 ### 在线安装（默认）
 
 **本地模块不是必要条件。** Egern 支持远程模块和远程脚本；添加一个模块就会加载它的会话采集、组件、连接状态及所引用的同一份自包含 JS，不需要用户另建脚本文件或装依赖。
 
-[在 Egern 一次添加菜鸟取件小组件](egern:/modules/new?name=%E8%8F%9C%E9%B8%9F%E5%8F%96%E4%BB%B6%20%C2%B7%20%E5%8E%9F%E7%94%9F%E5%B0%8F%E7%BB%84%E4%BB%B6&url=https%3A%2F%2Fraw.githubusercontent.com%2Fatopsecret%2FSurgeScripts%2Fmain%2Fcainiao-widget%2Fcainiao-widget.egern.yaml%3Fv%3D1.2.0)
+[在 Egern 一次添加菜鸟取件小组件](egern:/modules/new?name=%E8%8F%9C%E9%B8%9F%E5%8F%96%E4%BB%B6%20%C2%B7%20%E5%8E%9F%E7%94%9F%E5%B0%8F%E7%BB%84%E4%BB%B6&url=https%3A%2F%2Fraw.githubusercontent.com%2Fatopsecret%2FSurgeScripts%2Fmain%2Fcainiao-widget%2Fcainiao-widget.egern.yaml%3Fv%3D1.2.1)
 
-如果当前阅读器不允许打开 `egern:`，把[远程模块地址](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.2.0)添加到 Egern 即可；不用下载本地文件。模块描述和 JS 首行均应显示 **1.2.0**。
+如果当前阅读器不允许打开 `egern:`，把[远程模块地址](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.2.1)添加到 Egern 即可；不用下载本地文件。模块描述和 JS 首行均应显示 **1.2.1**。
 
 1. 在手机点一次添加链接，确认添加 Egern 模块；客户端下载模块和脚本。保持 `CONNECTION_MODE=auto`、`CAINIAO_COOKIE` 留空，已有旧版先停用，不同时启用两份。
 2. 保持 Egern 代理运行。**已有自己的 HTTPS 解密证书且已信任时，不用重装。** 尚未配置时按客户端指引安装并信任自己的 Egern CA；这一步只需首次配置，模块不能代替系统信任。模块仅声明四个精确 MTOP 主机，不代改手机系统设置。
@@ -30,7 +30,7 @@
 
 官方安装入口与字段见 [Egern 小组件文档](https://egernapp.com/zh-CN/docs/configuration/widgets/)。客户端需支持模块 `widgets`、`generic` 脚本及原生 DSL；旧版本若没有小组件画廊，先更新 Egern。
 
-Egern 官方一次添加模块格式为 `egern:/modules/new?name=NAME&url=URL`，是单斜杠 `egern:/`，且模块必须是手机可访问的 URL。上面的名称和模块 URL 各编码一次，公开模块及其精确脚本 URL 已核对同字节；不使用未文档化的内联 JS、脚本 data URL 或附件自动导入。见 [URL scheme 文档](https://egernapp.com/zh-CN/docs/url-scheme/)。
+Egern 官方一次添加模块格式为 `egern:/modules/new?name=NAME&url=URL`，是单斜杠 `egern:/`，且模块必须是手机可访问的 URL。上面的名称和模块 URL 各编码一次；新版模块及其精确脚本 URL 在发布后按原地址回读核验，不使用未文档化的内联 JS、脚本 data URL 或附件自动导入。见 [URL scheme 文档](https://egernapp.com/zh-CN/docs/url-scheme/)。
 
 ### 分享给别人
 
@@ -47,11 +47,11 @@ Egern 官方一次添加模块格式为 `egern:/modules/new?name=NAME&url=URL`�
 - **尚未观察到 App 请求**：确认代理、四个主机的 HTTPS 解密和是否实际刷新快递列表。没有命中不能说明 App 未登录，也不能仅凭它归因证书、HTTPDNS 或 QUIC。
 - **已看到请求，尚无完整会话**：组件看到了流量，但同一次请求没有完整账号与会话。不会拼接不同请求的 UID、SID 或 Cookie，也不会把原生一次性签名当登录态。
 - **已捕获但未连接**：候选只在本人手机验证。仅获得 `_m_h5_tk`、公共时间 `SUCCESS` 或 COUNT 成功，都不够确认；必须完成本轮个人列表查询。
-- **App 接入未确认**：原生 SID 不一定被淘宝 H5 接受，实际身份响应形状也尚未验证。身份无法匹配或接口不兼容时停止反复试探，不显示虚假的零包裹。重新采集后才再验证。
-- **登录过期或需验证**：在淘宝／菜鸟 App 完成登录或验证，刷新一次快递列表，再回到组件。有效会话的网关 token 轮换由脚本处理，不要求每次刷新都打开 App。
+- **App 接入未确认**：首次候选还没通过完整个人查询。H5 拒绝它不能证明 App 已退出登录；停止同代次试探，不显示虚假的零包裹。运行“菜鸟连接状态”查看固定失败阶段和原因，新的实际 Cookie 采集后才再验证。
+- **小组件会话失效或需验证**：先前已经确认的小组件会话不再有效，或服务端要求验证。在 App 刷新快递列表／完成验证后再回到组件。有效会话的网关 token 轮换由脚本处理，不要求每次刷新都打开 App。
 - **本机存储异常**：检查 Egern 后重开 App 列表。写入会回读确认；没有写成功不声称凭据持久验证成功。新账号屏障已保存但候选写入失败时，也不会恢复旧账号查询。
 
-同一模块里的 **“菜鸟连接状态”** 只读入口能显示固定网关、字段名和连接阶段，不发送个人查询，不显示 Cookie、SID、UID、签名或账号摘要。需要反馈时提供这个入口的文字或截图即可，不再导出 HAR，不另装诊断工具。
+同一模块里的 **“菜鸟连接状态”** 只读入口能显示保存的 Cookie 字段名、固定验证阶段及失败原因，不发送个人查询，不显示 Cookie、SID、UID、签名或账号摘要。网关下的观察字段是窗口内多请求并集，不能证明同次组合；实际保存字段单独显示。失败记录最多保留七天，读取不续期，过期也不恢复终止候选。旧版首次失败只纠正为接入未确认，不补造原先没保存的原因。需要反馈时提供这里的文字或截图即可，不再导出 HAR，不另装诊断工具。
 
 自动凭据只保存必要会话；原生候选只留本机 SID/UID 所构成的受限候选，不存 native 签名、WUA 或设备标识。服务端身份结果只在内存比对，不存昵称或响应正文。包裹缓存只保留展示字段。存储不承诺单独加密，不分享含手动 Env 的导出或私人存储。
 
@@ -61,15 +61,18 @@ Egern 官方一次添加模块格式为 `egern:/modules/new?name=NAME&url=URL`�
 
 ```text
 App 请求中的真实 Cookie → 新签名的完整 PDS → 确认连接
+App 同次真实 cookie2/sgcookie＋有效 native UID → 只补 unb → 身份匹配 → COUNT → 完整 PDS
 App 同次 native SID/UID → 身份匹配 → COUNT → 完整 PDS → 确认兼容
 之后关闭 App → 组件自己生成新 t/sign → 新 PDS → 更新显示
 ```
+
+完整真实 Cookie 优先；缺 `unb` 但同次有实际 `cookie2/sgcookie` 和有效 `x-uid` 时保留七项白名单原值，只补 `unb`，不要求 SID，不用它覆盖 `cookie2`。只有没有实际会话 Cookie 时才试原 SID 候选。两类真实 Cookie 状态即使已终止，也不会被 SID-only 流量降级；弱流量不能撤销另一账号保存失败留下的屏障。新的真实 Cookie 请求可以重新接入。
 
 `x-sid` 作为候选 `cookie2`、`x-uid` 作为候选 `unb` 的对应尚无协议等价证明。SDK 的 SID 注册与 Cookie 注入是独立路径。本版只能有限试验，并以独立身份结果和业务查询拒绝不兼容候选。
 
 身份检查固定使用 `mtop.user.getUserSimple`，原文 `data={}`。官方页面消费顶层 `userNumId`；仅这个值为正十进制字符串或正安全整数、与捕获 UID 相同才继续。缺失、零、不安全数、嵌套别名和昵称都不补判。接着检查 `mtop.cainiao.lpc.packageservice.user.package.count.query`，再查询完整 PDS；账号检查时间只在全部成功后保存。官方消费代码不等于当前 H5 schema 保证，因此这个严格检查可能拒绝尚未适配的真实响应。
 
-native 的身份验证同时绑定本机稳定会话摘要。短期 H5 token 更新不要求重验；稳定会话 Cookie 轮换则丢弃当次响应，重新检查身份和 COUNT，并从 PDS 第一页取数，最多三轮、共用十八秒预算。缓存、凭据代次及当前会话的验证记录都一致时，下一轮才直接查 PDS；缓存缺失或写入未确认会重新验证。服务端删除最后一个登录会话 Cookie 时立即停止，不会用剩余 UID 继续查询或确认空列表。
+两类受限候选的身份验证同时绑定本机稳定会话摘要。短期 H5 token 更新不要求重验；稳定会话 Cookie 轮换则丢弃当次响应，重新检查身份和 COUNT，并从 PDS 第一页取数，最多三轮、共用十八秒预算。缓存、凭据代次及当前会话的验证记录都一致时，下一轮才直接查 PDS；缓存缺失或写入未确认会重新验证。服务端删除最后一个登录会话 Cookie 时立即停止，不会用剩余 UID 继续查询或确认空列表。
 
 ## 排版
 

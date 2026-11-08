@@ -1,4 +1,4 @@
-// 引擎：Node.js 20+ 内置测试 | 版本：1.2.0 | 语言：JavaScript CommonJS
+// 引擎：Node.js 20+ 内置测试 | 版本：1.2.1 | 语言：JavaScript CommonJS
 // 构建：node cainiao-widget/build.mjs
 // 运行：node --experimental-vm-modules --test cainiao-widget/tests/app-entry.test.cjs
 // 依赖：本地源码与 auth-fixture.cjs；仅合成会话、模拟网络和模拟存储
@@ -65,8 +65,8 @@ function nativePds(packages = [parcel()], totalPage = 1, currentPage = 1) {
     return response({api: API, ret: ["SUCCESS::成功"], data: {packages, totalPage, currentPage}});
 }
 
-test("1.2.0 的 App 采集属于同一小组件，固定四网关及本机元数据键", () => {
-    assert.equal(core.CW_VERSION, "1.2.0");
+test("1.2.1 的 App 采集属于同一小组件，固定四网关及本机元数据键", () => {
+    assert.equal(core.CW_VERSION, "1.2.1");
     assert.equal(core.CW_APP_STORE, "cainiao-widget.app.v1");
     assert.deepEqual([...app.CW_APP_HOSTS].sort(), HOSTS.slice().sort());
 });
@@ -218,12 +218,16 @@ test("头 API 超限、非法返回类型和逗号合并的会话头均拒绝", 
     }
 });
 
-test("原生候选不能借匿名 Cookie 或旧网关 token 拼成会话", () => {
+test("同次真实 Cookie 加有效 native UID 保留原值，但只是待验证候选", () => {
     const f = fixture(); captureNative(f, {cookie: "cookie2=synthetic-anonymous-cookie; _m_h5_tk=synthetic-guessed-token_1; munb=synthetic-old-munb"});
     const cookies = core.cwCookieMap(saved(f).cookie);
-    assert.deepEqual([...cookies.keys()].sort(), ["cookie2", "unb"]);
-    assert.equal(cookies.get("cookie2"), SID);
-    for (const value of ["synthetic-anonymous-cookie", "synthetic-guessed-token_1", "synthetic-old-munb"]) assert(!saved(f).cookie.includes(value));
+    assert.deepEqual([...cookies.keys()].sort(), ["_m_h5_tk", "cookie2", "munb", "unb"]);
+    assert.equal(cookies.get("cookie2"), "synthetic-anonymous-cookie");
+    assert.equal(cookies.get("_m_h5_tk"), "synthetic-guessed-token_1");
+    assert.equal(cookies.get("munb"), "synthetic-old-munb");
+    assert.equal(saved(f).captureKind, "request_cookie_candidate");
+    assert.equal(saved(f).status, "pending"); assert.equal(saved(f).confirmedAt, null);
+    assert(!saved(f).cookie.includes(SID)); assert.equal(f.requests.length, 0);
 });
 
 test("同账号已有已确认 Cookie 时不同 native SID 不降级、不丢 token 或缓存", () => {
@@ -262,7 +266,8 @@ test("native 候选失效后没有新 App 请求就不恢复，重新采集清�
     const old = {...saved(f), status: "expired"}; f.memory.set(core.CW_AUTH_STORE, old);
     const cached = cachedState(old); cached.cookie += "; _m_h5_tk=synthetic-stale-server-token_1";
     f.memory.set(core.CW_STORE, cached);
-    const model = await load(f); assert.equal(model.status, "expired"); assert.equal(f.requests.length, 0);
+    const model = await load(f); assert.equal(model.status, "setup"); assert.equal(model.setupTitle, "App 接入未确认"); assert.equal(f.requests.length, 0);
+    assert.equal(saved(f).status, "expired");
     f.advance(1000); captureNative(f);
     assert.equal(saved(f).status, "pending"); assert.notEqual(saved(f).generation, old.generation);
     assert.equal(saved(f).confirmedAt, null); assert.equal(saved(f).accountCheckedAt, null);
@@ -290,13 +295,13 @@ test("已校验的 1.1.0 Cookie 状态规范迁移，不要求老用户再次打
     const f = fixture([success([])]), previous = legacyState();
     f.memory.set(core.CW_AUTH_STORE, previous); f.memory.set(core.CW_STORE, cachedState(previous));
     const migrated = auth.cwReadAuth(f.ctx, f.clock());
-    assert.equal(migrated.version, "1.2.0"); assert.equal(migrated.captureKind, "request_cookie");
+    assert.equal(migrated.version, "1.2.1"); assert.equal(migrated.captureKind, "request_cookie");
     assert.equal(migrated.sourceChannel, "h5"); assert.equal(migrated.accountCheckedAt, null);
     for (const key of ["owner", "generation", "inputHash", "sessionHash", "cookie", "status", "capturedAt", "confirmedAt"]) assert.equal(migrated[key], previous[key]);
     const model = await load(f); assert.equal(model.status, "ready"); assert.equal(f.requests.length, 1);
     assert.equal(f.requests[0].url.searchParams.get("api"), API);
     assert(f.requests[0].options.headers.Cookie.includes("synthetic-h5-token_1"));
-    assert.equal(saved(f).version, "1.2.0"); assert.equal(saved(f).captureKind, "request_cookie");
+    assert.equal(saved(f).version, "1.2.1"); assert.equal(saved(f).captureKind, "request_cookie");
 });
 
 test("1.1.0 迁移仍复核旧状态完整性，损坏值或其他版本不能跳过验证", () => {
@@ -527,10 +532,13 @@ test("不兼容 native 身份只试一次，新 App 采集后才重新验证", a
 
 test("native 身份网关 token 不更新就停止，令牌更新重试仍最多三次", async () => {
     const noChange = fixture([response({ret: ["FAIL_SYS_TOKEN_EXPIRED::过期"]})]); captureNative(noChange);
-    assert.equal((await load(noChange)).status, "expired"); assert.equal(noChange.requests.length, 1);
+    const unchanged = await load(noChange);
+    assert.equal(unchanged.status, "setup"); assert.equal(unchanged.setupTitle, "App 接入未确认");
+    assert.equal(saved(noChange).status, "unsupported"); assert.equal(noChange.requests.length, 1);
     const f = fixture(Array.from({length: 4}, (_, index) => response({ret: ["FAIL_SYS_TOKEN_EXPIRED::过期"]}, ["_m_h5_tk=synthetic-retry-token-" + index + "_2; Path=/"])));
-    captureNative(f); assert.equal((await load(f)).status, "expired"); assert.equal(f.requests.length, 3);
-    assert.equal(saved(f).status, "expired"); await load(f); assert.equal(f.requests.length, 3);
+    captureNative(f); const exhausted = await load(f);
+    assert.equal(exhausted.status, "setup"); assert.equal(exhausted.setupTitle, "App 接入未确认"); assert.equal(f.requests.length, 3);
+    assert.equal(saved(f).status, "unsupported"); await load(f); assert.equal(f.requests.length, 3);
 });
 
 test("native 身份和 COUNT 共用十八秒预算，预算不足不能继续个人列表查询", async () => {
@@ -656,14 +664,14 @@ test("首个缓存写入 noop 的旧任务不能覆盖同账号较新快照，�
     }
 });
 
-test("native identity 响应删除稳定 session 时立即过期，排队的 COUNT/PDS SUCCESS 也不得继续", async () => {
+test("native identity 响应删除稳定 session 时终止首次接入，排队的 COUNT/PDS SUCCESS 也不得继续", async () => {
     const f = fixture([
         withSetCookies(identityResponse(), ["cookie2=; Max-Age=0; Path=/"]),
         countResponse({data: {count: 0}}), nativePds([]),
     ]);
     captureNative(f); const model = await load(f);
-    assert.equal(model.status, "expired"); assert.equal(model.items.length, 0); assert.equal(model.updatedAt, null);
-    assert.equal(f.requests.length, 1); assert.equal(saved(f).status, "expired");
+    assert.equal(model.status, "setup"); assert.equal(model.setupTitle, "App 接入未确认"); assert.equal(model.items.length, 0); assert.equal(model.updatedAt, null);
+    assert.equal(f.requests.length, 1); assert.equal(saved(f).status, "unsupported");
     assert.equal(saved(f).accountCheckedAt, null); assert.equal(saved(f).confirmedAt, null);
     assert.equal(f.memory.get(core.CW_STORE).snapshot, null);
     await load(f); assert.equal(f.requests.length, 1);
@@ -752,7 +760,7 @@ test("native AUTH 终止写入 noop 时缓存 unsupported 阻止重复试探，�
     const f = fixture([identityResponse(undefined, {userNumId: undefined})]); captureNative(f);
     const generation = saved(f).generation, write = f.ctx.storage.setJSON;
     f.ctx.storage.setJSON = (key, value) => {if (key !== core.CW_AUTH_STORE) write(key, value);};
-    const first = await load(f); assert.equal(first.status, "error"); assert.match(first.message, /写入失败/);
+    const first = await load(f); assert.equal(first.status, "setup"); assert.equal(first.setupTitle, "App 接入未确认"); assert.match(first.message, /写入失败/);
     assert.equal(saved(f).status, "pending"); assert.equal(saved(f).accountCheckedAt, null);
     const terminal = f.memory.get(core.CW_STORE);
     assert.equal(terminal.terminalStatus, "unsupported"); assert.equal(terminal.source, "auto");
@@ -766,9 +774,9 @@ test("native AUTH 终止写入 noop 时缓存 unsupported 阻止重复试探，�
     assert.equal((await load(f)).status, "ready"); assert.equal(saved(f).status, "connected"); assert.equal(f.requests.length, 4);
 });
 
-test("native AUTH expired、verify 或 invalid 写入 noop 时本机缓存仍终止请求，重捕获才能解除", async () => {
+test("native 首次 AUTH 拒绝、verify 或 invalid 写入 noop 时本机缓存仍终止请求，重捕获才能解除", async () => {
     for (const [terminalStatus, reply] of [
-        ["expired", response({ret: ["FAIL_SYS_SESSION_EXPIRED::过期"]})],
+        ["unsupported", response({ret: ["FAIL_SYS_SESSION_EXPIRED::过期"]})],
         ["verify", response({ret: ["FAIL_SYS_USER_VALIDATE::验证"]})],
         ["invalid", identityResponse(OTHER_UID)],
     ]) {

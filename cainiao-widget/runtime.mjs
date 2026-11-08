@@ -2,29 +2,40 @@
 // 构建：node cainiao-widget/build.mjs
 // 运行：导入模块，打开本人淘宝／菜鸟 App 快递列表，再运行组件
 // 依赖：core.mjs、app.mjs、auth.mjs、render.mjs；发布文件内联，不下载其他代码
-import {CW_VERSION, CW_API, CW_COUNT_API, CW_IDENTITY_API, CW_PATH, CW_COUNT_PATH, CW_IDENTITY_PATH, CW_UA, CW_STORE, CW_SELF_HEADER, cwObject, cwCookieMap, cwCookieHeader, cwOwner, cwUpdateCookies, cwRequestURL, cwAccountRequestURL, cwIdentityRequestURL, cwResponseAPI, cwIdentityMatch, cwReturnKind, cwReadPage, cwItems, md5} from "./core.mjs";
-import {cwConnectionMode, cwReadAuth, cwSameAuth, cwWriteAuth, cwAuthCookies, cwLoginCandidate, cwSessionHash, cwCachedAuthStatus, cwClearLocal, captureCainiaoCredentials, diagnoseCainiaoConnection} from "./auth.mjs";
+import {CW_VERSION, CW_API, CW_COUNT_API, CW_IDENTITY_API, CW_PATH, CW_COUNT_PATH, CW_IDENTITY_PATH, CW_UA, CW_STORE, CW_SELF_HEADER, cwObject, cwKnownVersion, cwCookieMap, cwCookieHeader, cwOwner, cwUpdateCookies, cwRequestURL, cwAccountRequestURL, cwIdentityRequestURL, cwResponseAPI, cwIdentityMatch, cwReturnKind, cwReadPage, cwItems, md5} from "./core.mjs";
+import {cwConnectionMode, cwReadAuth, cwSameAuth, cwWriteAuth, cwAuthCookies, cwLoginCandidate, cwSessionHash, cwRequiresIdentity, cwCachedAuthStatus, cwQueryFields, cwQueryRetCode, cwClearLocal, captureCainiaoCredentials, diagnoseCainiaoConnection} from "./auth.mjs";
 import {cwAppSummary} from "./app.mjs";
 import {renderWidget} from "./render.mjs";
 
 class CwFailure extends Error {
-    constructor(kind) { super(kind); this.kind = kind; }
+    constructor(kind, failure) {
+        super(kind); this.kind = kind;
+        this.failure = failure || {expired: "AUTH_REJECTED", verify: "VERIFY_REQUIRED", offline: "OFFLINE", partial: "PARTIAL",
+            schema: "SCHEMA_INVALID", account: "ACCOUNT_MISMATCH", unsupported: "IDENTITY_UNVERIFIED", session: "SESSION_UNSTABLE",
+            local: "STORAGE_UNCONFIRMED"}[kind] || "UNKNOWN";
+    }
+}
+
+function cwHttpClass(status) {
+    if (!Number.isInteger(status)) return "NONE";
+    if ([200, 401, 403, 429].includes(status)) return "HTTP_" + status;
+    return status >= 300 && status < 400 ? "HTTP_3XX" : status >= 500 && status < 600 ? "HTTP_5XX" : "HTTP_OTHER";
 }
 
 // 原生文档未承诺浏览器计时器；检测到支持时为 HTTP 与读体增加 Promise 等待上限。
 // 无计时器时依赖 ctx.http.timeout 和脚本时限，仍在接受结果前复核预算。
 export async function cwBounded(task, deadline, clock) {
     const remaining = deadline - clock();
-    if (remaining <= 0) throw new CwFailure("partial");
+    if (remaining <= 0) throw new CwFailure("partial", "DEADLINE");
     let timer;
     try {
         const work = Promise.resolve().then(task);
         let result;
         if (typeof globalThis.setTimeout === "function" && typeof globalThis.clearTimeout === "function") {
-            const limit = new Promise((_, reject) => { timer = globalThis.setTimeout(() => reject(new CwFailure("partial")), remaining); });
+            const limit = new Promise((_, reject) => { timer = globalThis.setTimeout(() => reject(new CwFailure("partial", "DEADLINE")), remaining); });
             result = await Promise.race([work, limit]);
         } else result = await work;
-        if (clock() >= deadline) throw new CwFailure("partial");
+        if (clock() >= deadline) throw new CwFailure("partial", "DEADLINE");
         return result;
     } finally {
         if (timer !== undefined) globalThis.clearTimeout(timer);
@@ -39,13 +50,13 @@ function cwSnapshot(value, now) {
 
 function cwFailureMessage(kind, cached, automatic = false) {
     const messages = {
-        expired: automatic ? "登录已过期，请重开 App 快递列表" : "登录已过期，请更新手动登录参数",
+        expired: automatic ? "小组件会话失效，请重开 App 快递列表" : "登录已过期，请更新手动登录参数",
         verify: "请在淘宝或菜鸟完成验证",
         offline: "暂时连不上，稍后再试",
         partial: "本次未查全，稍后刷新",
         schema: "接口数据有变化，暂未更新",
         account: automatic ? "App 账号未匹配，请重开快递列表连接" : "账号发生变化，请重新导入登录参数",
-        unsupported: "App 会话尚不能用于独立查询，请重开快递列表接入",
+        unsupported: "本次独立查询未确认；失败原因见菜鸟连接状态",
         error: "查询未成功，稍后再试",
     };
     return (messages[kind] || messages.error) + (cached ? " · 上次结果" : "");
@@ -94,7 +105,8 @@ export async function loadCainiaoModel(ctx, clock = () => Date.now()) {
     }
     if (cwObject(old) && old.blocked === true && old.owner !== owner) return {...base, status: "setup", setupTitle: "重开 App 快递列表",
         message: "新账号登录态尚未保存，请重开 App 快递列表"};
-    const sameAccount = cwObject(old) && old.owner === owner;
+    // 未知版本只尊重上方账号屏障，不继承其 Cookie、快照或身份证明。
+    const sameAccount = cwObject(old) && cwKnownVersion(old.version) && old.owner === owner;
     const sameInput = sameAccount && old.inputHash === inputHash && (automatic
         ? old.source === "auto" && old.generation === automatic.generation : old.source !== "auto");
     if (sameInput && old.invalidated === true) return {...base, status: "error", message: cwFailureMessage("account", false, !!automatic)};
@@ -144,23 +156,27 @@ export async function loadCainiaoModel(ctx, clock = () => Date.now()) {
     };
     const stopped = kind => ({...base, status: "setup", setupTitle: kind === "local" ? "检查 Egern 存储" : "刷新小组件", message: kind === "local"
         ? "本机登录态无法读取，请检查 Egern 后重开 App 快递列表" : "登录态已更新，请刷新小组件"});
-    const cachedTerminal = cwCachedAuthStatus(old, automatic), authStatus = cachedTerminal || automatic?.status;
+    const restricted = cwRequiresIdentity(automatic);
+    const initialCandidate = restricted && automatic.confirmedAt === null;
+    const cachedTerminal = cwCachedAuthStatus(old, automatic), recordedStatus = cachedTerminal || automatic?.status;
+    // 迁移旧首次失败时只纠正显示；保留原终止状态，不发请求或补造原因。
+    const authStatus = initialCandidate && recordedStatus === "expired" ? "unsupported" : recordedStatus;
     if (automatic && !["pending", "connected"].includes(authStatus)) {
         try { currentAuth(); guardCache(); } catch (error) { return stopped(error.kind); }
-        const storageMessage = cachedTerminal && authStatus !== automatic.status ? " · 登录标志写入未确认，已停止重试" : "";
+        const storageMessage = cachedTerminal && recordedStatus !== automatic.status ? " · 登录标志写入未确认，已停止重试" : "";
         if (authStatus === "invalid") return {...base, status: "setup", message: cwFailureMessage("account", false, true) + storageMessage};
-        if (authStatus === "unsupported") return {...base, status: "setup", setupTitle: "App 接入未确认", message: cwFailureMessage("unsupported", false, true) + storageMessage};
-        return {...base, ...(snapshot || {}), total: snapshot?.items.length || 0, status: authStatus,
+        if (authStatus === "unsupported" && initialCandidate) return {...base, status: "setup", setupTitle: "App 接入未确认", message: cwFailureMessage("unsupported", false, true) + storageMessage};
+        return {...base, ...(snapshot || {}), total: snapshot?.items.length || 0, status: authStatus === "unsupported" ? "error" : authStatus,
             message: cwFailureMessage(authStatus, !!snapshot, true) + storageMessage};
     }
-    const native = automatic?.captureKind === "native_session_candidate";
-    const validAccountProof = native && sameInput && automatic.status === "connected" && old.accountCheckedAt === automatic.accountCheckedAt
+    const validAccountProof = restricted && sameInput && automatic.status === "connected" && old.accountCheckedAt === automatic.accountCheckedAt
         && old.accountSessionHash === automatic.accountSessionHash && old.accountSessionHash === cwSessionHash(cookies);
     let accountCheckedAt = validAccountProof ? automatic.accountCheckedAt : null;
     state = {version: CW_VERSION, owner, inputHash, source: automatic ? "auto" : "manual",
         generation: automatic?.generation || "", runId: md5(now + ":" + Math.random() + ":" + Math.random()), cookie: cwCookieHeader(cookies), snapshot,
         observedUnb: imported.get("unb") || cookies.get("unb") || (sameInput && typeof old.observedUnb === "string" ? old.observedUnb : ""),
-        accountSessionHash: validAccountProof ? cwSessionHash(cookies) : "", accountCheckedAt, terminalStatus: ""};
+        accountSessionHash: validAccountProof ? cwSessionHash(cookies) : "", accountCheckedAt, terminalStatus: "", queryDiagnostic: null};
+    let queryPhase = automatic && automatic.confirmedAt === null ? "initial" : restricted && !validAccountProof ? "revalidate" : "refresh";
     const persist = () => {
         guard();
         state.cookie = cwCookieHeader(cookies);
@@ -170,20 +186,24 @@ export async function loadCainiaoModel(ctx, clock = () => Date.now()) {
             if (!cwObject(saved) || saved.owner !== owner || saved.inputHash !== inputHash || saved.source !== state.source
                 || saved.generation !== state.generation || saved.runId !== state.runId || saved.cookie !== state.cookie || saved.invalidated !== state.invalidated
                 || saved.accountSessionHash !== state.accountSessionHash || saved.accountCheckedAt !== state.accountCheckedAt || saved.terminalStatus !== state.terminalStatus
+                || JSON.stringify(saved.queryDiagnostic ?? null) !== JSON.stringify(state.queryDiagnostic)
                 || JSON.stringify(cwSnapshot(saved.snapshot, clock())) !== JSON.stringify(state.snapshot)) storageOK = false;
             else ownsState = true;
         } catch { storageOK = false; }
         guard();
     };
-    const clearAccountProof = () => { accountCheckedAt = null; state.accountSessionHash = ""; state.accountCheckedAt = null; };
+    const clearAccountProof = () => {
+        accountCheckedAt = null; state.accountSessionHash = ""; state.accountCheckedAt = null;
+        if (restricted) queryPhase = "revalidate";
+    };
     const markAuth = status => {
         if (!automatic) return;
         guard();
         const current = currentAuth();
-        if (native && status === "connected" && accountCheckedAt === null) throw new CwFailure("unsupported");
+        if (restricted && status === "connected" && accountCheckedAt === null) throw new CwFailure("unsupported");
         const updated = {...current, status, confirmedAt: status === "connected" ? clock() : current.confirmedAt,
-            accountCheckedAt: native && status === "connected" ? accountCheckedAt : current.accountCheckedAt,
-            accountSessionHash: native && status === "connected" ? cwSessionHash(cookies) : current.accountSessionHash};
+            accountCheckedAt: restricted && status === "connected" ? accountCheckedAt : current.accountCheckedAt,
+            accountSessionHash: restricted && status === "connected" ? cwSessionHash(cookies) : current.accountSessionHash};
         if (!["pending", "connected"].includes(status)) state.terminalStatus = status;
         try {
             if (cwWriteAuth(ctx, updated, clock())) {
@@ -193,16 +213,22 @@ export async function loadCainiaoModel(ctx, clock = () => Date.now()) {
         guard();
     };
     const deadline = now + 18000;
-    let requestTime = now - 1;
-    const getMtop = async (requestURL, requestPath, read) => {
+    let requestTime = now - 1, sessionAttempt = 1;
+    const updateQuery = fields => {
+        const at = clock();
+        state.queryDiagnostic = cwQueryFields({...state.queryDiagnostic, ...fields, at, expiresAt: at + 7 * 86400000}, at);
+    };
+    const getMtop = async (requestURL, requestPath, read, stage, page = null) => {
         for (let attempt = 0; attempt < 3; attempt++) {
             guard();
-            if (automatic && !cwLoginCandidate(cookies)) { clearAccountProof(); throw new CwFailure("expired"); }
-            const remaining = deadline - clock();
-            if (remaining < 1200) throw new CwFailure("partial");
-            let response;
             const beforeToken = cookies.get("_m_h5_tk") || "";
-            const beforeSession = native ? cwSessionHash(cookies) : "";
+            updateQuery({schema: 1, phase: queryPhase, stage, failure: "NONE", retCode: "NONE", httpClass: "NONE",
+                tokenPresentBefore: !!beforeToken, tokenUpdated: false, sessionAttempt, tokenAttempt: attempt + 1, page});
+            if (automatic && !cwLoginCandidate(cookies)) { clearAccountProof(); throw new CwFailure("expired", "SESSION_MISSING"); }
+            const remaining = deadline - clock();
+            if (remaining < 1200) throw new CwFailure("partial", "DEADLINE");
+            let response;
+            const beforeSession = restricted ? cwSessionHash(cookies) : "";
             try {
                 response = await cwBounded(() => {
                     guard();
@@ -216,6 +242,7 @@ export async function loadCainiaoModel(ctx, clock = () => Date.now()) {
             guard();
             try { cwUpdateCookies(cookies, response.headers, clock(), requestPath); } catch {}
             if (automatic) cookies = cwAuthCookies(cookies);
+            updateQuery({httpClass: cwHttpClass(response.status), tokenUpdated: (cookies.get("_m_h5_tk") || "") !== beforeToken});
             const nextUnb = cookies.get("unb") || "";
             if (state.observedUnb && state.observedUnb !== nextUnb) {
                 state.snapshot = null; snapshot = null;
@@ -227,9 +254,9 @@ export async function loadCainiaoModel(ctx, clock = () => Date.now()) {
             }
             if (nextUnb) state.observedUnb = nextUnb;
             if (automatic && !cwLoginCandidate(cookies)) {
-                clearAccountProof(); persist(); throw new CwFailure("expired");
+                clearAccountProof(); persist(); throw new CwFailure("expired", "SESSION_MISSING");
             }
-            if (native && cwSessionHash(cookies) !== beforeSession) {
+            if (restricted && cwSessionHash(cookies) !== beforeSession) {
                 // 稳定会话变化时丢弃这次证明／列表；新会话重新验证，不沿用旧 UID 成功响应。
                 clearAccountProof(); persist(); throw new CwFailure("session");
             }
@@ -248,43 +275,48 @@ export async function loadCainiaoModel(ctx, clock = () => Date.now()) {
                 body = JSON.parse(raw);
             } catch (error) { throw error instanceof CwFailure ? error : new CwFailure("schema"); }
             const kind = cwReturnKind(body);
+            updateQuery({retCode: cwQueryRetCode(body)});
             if (kind === "success") {
                 try { return read(body); }
-                catch (error) { throw error instanceof CwFailure ? error : new CwFailure(native ? "unsupported" : "schema"); }
+                catch (error) { throw error instanceof CwFailure ? error : new CwFailure(restricted ? "unsupported" : "schema", "SCHEMA_INVALID"); }
             }
             if (kind === "token") {
                 const nextToken = cookies.get("_m_h5_tk") || "";
                 if (attempt < 2 && nextToken && nextToken !== beforeToken) continue;
-                throw new CwFailure("expired");
+                const failure = state.queryDiagnostic?.retCode === "FAIL_SYS_ILLEGAL_ACCESS" ? "ILLEGAL_ACCESS"
+                    : !beforeToken && !nextToken ? "TOKEN_NOT_ISSUED" : "TOKEN_RETRY_EXHAUSTED";
+                throw new CwFailure("expired", failure);
             }
             throw new CwFailure(kind);
         }
         throw new CwFailure("error");
     };
     const getPage = page => getMtop((current, tick) => cwRequestURL(current, page, tick), CW_PATH, body => {
-        if (native && !cwResponseAPI(body, CW_API)) throw new CwFailure("unsupported");
+        if (restricted && !cwResponseAPI(body, CW_API)) throw new CwFailure("unsupported", "API_MISMATCH");
         return cwReadPage(body, page);
-    });
+    }, "pds", page);
     let collected = [], partialItems = [];
     const pageSignatures = new Set();
     try {
         // 新账号先覆盖旧状态，失败也不能回显另一账号的包裹。
         persist();
-        for (let sessionAttempt = 0; sessionAttempt < 3; sessionAttempt++) {
+        for (sessionAttempt = 1; sessionAttempt <= 3; sessionAttempt++) {
             try {
                 collected = []; partialItems = []; pageSignatures.clear();
-                if (native && (automatic.status === "pending" || accountCheckedAt === null)) {
+                if (restricted && (automatic.status === "pending" || accountCheckedAt === null)) {
                     await getMtop(cwIdentityRequestURL, CW_IDENTITY_PATH, body => {
+                        if (!cwResponseAPI(body, CW_IDENTITY_API)) throw new CwFailure("unsupported", "API_MISMATCH");
                         const match = cwIdentityMatch(body, imported.get("unb"));
                         if (match === "unverified") throw new CwFailure("unsupported");
                         if (match === "mismatch") {
                             state.snapshot = null; snapshot = null; state.invalidated = true; cookies = new Map();
                             clearAccountProof(); throw new CwFailure("account");
                         }
-                    });
+                    }, "identity");
                     await getMtop(cwAccountRequestURL, CW_COUNT_PATH, body => {
-                        if (!cwResponseAPI(body, CW_COUNT_API) || !cwObject(body.data)) throw new CwFailure("unsupported");
-                    });
+                        if (!cwResponseAPI(body, CW_COUNT_API)) throw new CwFailure("unsupported", "API_MISMATCH");
+                        if (!cwObject(body.data)) throw new CwFailure("unsupported", "SCHEMA_INVALID");
+                    }, "count");
                     // 此证明只在完整 PDS 成功后写入；COUNT 单独成功不是连接成功。
                     accountCheckedAt = clock();
                 }
@@ -297,12 +329,13 @@ export async function loadCainiaoModel(ctx, clock = () => Date.now()) {
                     collected = collected.concat(result.packages);
                     try { partialItems = cwItems(collected); } catch { throw new CwFailure("schema"); }
                     if (result.complete) {
-                        if (clock() >= deadline) throw new CwFailure("partial");
-                        if (native && accountCheckedAt === null) throw new CwFailure("unsupported");
+                        if (clock() >= deadline) throw new CwFailure("partial", "DEADLINE");
+                        if (restricted && accountCheckedAt === null) throw new CwFailure("unsupported");
                         snapshot = {items: partialItems, updatedAt: new Date(clock()).toISOString()};
                         state.snapshot = snapshot;
-                        state.accountSessionHash = native ? cwSessionHash(cookies) : "";
-                        state.accountCheckedAt = native ? accountCheckedAt : null;
+                        state.accountSessionHash = restricted ? cwSessionHash(cookies) : "";
+                        state.accountCheckedAt = restricted ? accountCheckedAt : null;
+                        updateQuery({failure: "NONE"});
                         persist();
                         markAuth("connected");
                         guard();
@@ -312,22 +345,25 @@ export async function loadCainiaoModel(ctx, clock = () => Date.now()) {
                 throw new CwFailure("partial");
             } catch (error) {
                 if (error instanceof CwFailure && error.kind === "session") {
-                    if (sessionAttempt < 2) continue;
-                    throw new CwFailure("expired");
+                    if (sessionAttempt < 3) continue;
+                    throw new CwFailure("expired", "SESSION_UNSTABLE");
                 }
                 throw error;
             }
         }
         throw new CwFailure("partial");
     } catch (error) {
-        const kind = error instanceof CwFailure ? error.kind : "error";
+        const originalKind = error instanceof CwFailure ? error.kind : "error";
+        const kind = initialCandidate && originalKind === "expired" ? "unsupported" : originalKind;
         if (["superseded", "local"].includes(kind)) return stopped(kind);
         try {
+            if (state.queryDiagnostic) updateQuery({failure: error instanceof CwFailure ? error.failure : "UNKNOWN"});
             if (["expired", "verify", "account", "unsupported"].includes(kind)) markAuth(kind === "account" ? "invalid" : kind);
             persist();
             guard();
         } catch (failure) { return stopped(failure.kind); }
         const failureMessage = cached => cwFailureMessage(kind, cached, !!automatic) + (storageOK ? "" : " · 本机状态写入失败");
+        if (kind === "unsupported" && initialCandidate) return {...base, status: "setup", setupTitle: "App 接入未确认", message: failureMessage(false)};
         if (snapshot) return {...base, ...snapshot, total: snapshot.items.length,
             status: ["expired", "verify", "offline"].includes(kind) ? kind : "error", message: failureMessage(true)};
         // 无历史快照时可展示已成功查到的部分，但不能缓存为完整结果或声称完整数量。

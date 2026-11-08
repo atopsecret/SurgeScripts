@@ -1,4 +1,4 @@
-// 引擎：Egern 原生请求头 API | 版本：1.2.0 | 语言：JavaScript ES module
+// 引擎：Egern 原生请求头 API | 版本：1.2.1 | 语言：JavaScript ES module
 // 构建：node cainiao-widget/build.mjs
 // 运行：由同一小组件的请求入口调用；离线 node --test cainiao-widget/tests/app-entry.test.cjs
 // 依赖：core.mjs；不读 App 正文、不改流量、不发网络请求

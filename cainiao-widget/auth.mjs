@@ -2,12 +2,21 @@
 // 构建：node cainiao-widget/build.mjs
 // 运行：模块自动捕获；离线 node --test cainiao-widget/tests/auth.test.cjs
 // 依赖：core.mjs；只读请求头，原样放行，不发送网络请求
-import {CW_VERSION, CW_STORE, CW_AUTH_STORE, CW_CAPTURE_STORE, CW_APP_STORE, CW_SELF_HEADER, cwObject, cwCookieMap, cwCookieHeader, cwOwner, md5} from "./core.mjs";
+import {CW_VERSION, CW_STORE, CW_AUTH_STORE, CW_CAPTURE_STORE, CW_APP_STORE, CW_SELF_HEADER, cwObject, cwKnownVersion, cwCookieMap, cwCookieHeader, cwOwner, md5} from "./core.mjs";
 import {CW_APP_HOSTS, cwAppRoute, cwAppHeaderValues, cwAppNativeFields, cwObserveApp, cwAppSummary} from "./app.mjs";
 
 const CW_AUTH_NAMES = new Set(["unb", "cookie2", "sgcookie", "munb", "_m_h5_tk", "_m_h5_tk_enc", "_tb_token_"]);
 const CW_AUTH_STATUSES = new Set(["pending", "connected", "expired", "verify", "invalid", "unsupported"]);
 const CW_AUTH_TERMINAL_STATUSES = new Set(["expired", "verify", "invalid", "unsupported"]);
+const CW_QUERY_FAILURES = new Set(["TOKEN_NOT_ISSUED", "TOKEN_RETRY_EXHAUSTED", "AUTH_REJECTED", "ILLEGAL_ACCESS", "SESSION_MISSING",
+    "SESSION_UNSTABLE", "IDENTITY_UNVERIFIED", "ACCOUNT_MISMATCH", "API_MISMATCH", "SCHEMA_INVALID", "VERIFY_REQUIRED", "OFFLINE",
+    "DEADLINE", "PARTIAL", "STORAGE_UNCONFIRMED", "NONE", "UNKNOWN"]);
+const CW_QUERY_RET_CODES = new Set(["SUCCESS", "FAIL_SYS_TOKEN_EMPTY", "FAIL_SYS_TOKEN_EXPIRED", "FAIL_SYS_TOKEN_EXOIRED",
+    "FAIL_SYS_SESSION_EXPIRED", "FAIL_SYS_SESSION_MISSING", "FAIL_SYS_LOGIN_REQUIRED", "FAIL_SYS_USER_NOT_LOGIN", "FAIL_SYS_AUTH_REJECT",
+    "FAIL_SYS_ILLEGAL_ACCESS", "FAIL_SYS_USER_VALIDATE", "FAIL_SYS_ACCESS_DENIED", "FAIL_SYS_TRAFFIC_LIMIT", "FAIL_SYS_FLOW_LIMIT",
+    "FAIL_SYS_RGV587_ERROR", "FAIL_SYS_API_NOT_FOUND", "FAIL_SYS_SERVICE_NOT_EXIST", "FAIL_SYS_PARAM_MISSING", "NONE", "OTHER"]);
+const CW_QUERY_HTTP_CLASSES = new Set(["HTTP_200", "HTTP_401", "HTTP_403", "HTTP_429", "HTTP_3XX", "HTTP_5XX", "HTTP_OTHER", "NONE"]);
+const CW_QUERY_WINDOW = 7 * 86400000;
 const CW_CAPTURE_RESULTS = {
     saved: "已保存 App 会话候选，等待个人列表查询确认",
     unchanged: "登录态未变化，保留当前状态",
@@ -57,9 +66,13 @@ export function cwSessionHash(cookies) {
     return md5("capture-session:" + ["unb", "cookie2", "sgcookie", "munb"].map(name => name + "=" + (cookies.get(name) || "")).join(";"));
 }
 
+export function cwRequiresIdentity(state) {
+    return !!state && ["native_session_candidate", "request_cookie_candidate"].includes(state.captureKind);
+}
+
 export function cwAuthState(value, now = Date.now()) {
     const legacy = cwObject(value) && value.version === "1.1.0";
-    if (!cwObject(value) || !(value.version === CW_VERSION || legacy) || !CW_AUTH_STATUSES.has(value.status)
+    if (!cwObject(value) || !cwKnownVersion(value.version) || !CW_AUTH_STATUSES.has(value.status)
         || typeof value.generation !== "string" || !/^[0-9a-f]{32}$/.test(value.generation)
         || !Number.isFinite(value.capturedAt) || value.capturedAt <= 0 || value.capturedAt > now + 60000
         || !(value.confirmedAt === null || Number.isFinite(value.confirmedAt) && value.confirmedAt > 0 && value.confirmedAt <= now + 60000)
@@ -70,11 +83,13 @@ export function cwAuthState(value, now = Date.now()) {
     const sourceChannel = legacy ? "h5" : value.sourceChannel;
     const accountCheckedAt = legacy ? null : value.accountCheckedAt;
     const accountSessionHash = legacy ? "" : value.accountSessionHash;
-    if (!["request_cookie", "native_session_candidate"].includes(captureKind) || !["h5", "gw"].includes(sourceChannel)
+    const restricted = cwRequiresIdentity({captureKind});
+    if (!["request_cookie", "native_session_candidate", "request_cookie_candidate"].includes(captureKind)
+        || value.version === "1.2.0" && captureKind === "request_cookie_candidate" || !["h5", "gw"].includes(sourceChannel)
         || !(accountCheckedAt === null || Number.isFinite(accountCheckedAt) && accountCheckedAt > 0 && accountCheckedAt <= now + 60000)
         || typeof accountSessionHash !== "string" || accountSessionHash !== "" && !/^[0-9a-f]{32}$/.test(accountSessionHash)
         || (accountCheckedAt === null) !== (accountSessionHash === "")
-        || captureKind === "native_session_candidate" && (sourceChannel !== "gw" || value.status === "connected"
+        || restricted && (sourceChannel !== "gw" || value.status === "connected"
             && (accountCheckedAt === null || accountCheckedAt > value.confirmedAt))
         || captureKind === "request_cookie" && (accountCheckedAt !== null || value.status === "unsupported")) return null;
     let cookies;
@@ -82,8 +97,8 @@ export function cwAuthState(value, now = Date.now()) {
     if (!cwLoginCandidate(cookies) || [...cookies.keys()].some(name => !CW_AUTH_NAMES.has(name))
         || value.cookie !== cwCookieHeader(cookies) || value.owner !== cwOwner(cookies)
         || value.sessionHash !== cwSessionHash(cookies) || value.inputHash !== md5(value.cookie)
-        || captureKind === "native_session_candidate" && (!/^[1-9][0-9]{0,19}$/.test(cookies.get("unb") || "")
-            || !/^[A-Za-z0-9._~%+/=-]{8,8192}$/.test(cookies.get("cookie2") || "")
+        || restricted && !/^[1-9][0-9]{0,19}$/.test(cookies.get("unb") || "")
+        || captureKind === "native_session_candidate" && (!/^[A-Za-z0-9._~%+/=-]{8,8192}$/.test(cookies.get("cookie2") || "")
             || [...cookies.keys()].some(name => !["unb", "cookie2"].includes(name)))) return null;
     return {version: CW_VERSION, owner: value.owner, sessionHash: value.sessionHash, generation: value.generation,
         inputHash: value.inputHash, cookie: value.cookie, status: value.status,
@@ -92,9 +107,39 @@ export function cwAuthState(value, now = Date.now()) {
 }
 
 export function cwCachedAuthStatus(cached, auth) {
-    return cwObject(cached) && auth && cached.version === CW_VERSION && cached.source === "auto"
+    return cwObject(cached) && auth && cwKnownVersion(cached.version) && cached.source === "auto"
         && cached.owner === auth.owner && cached.generation === auth.generation && cached.inputHash === auth.inputHash
         && CW_AUTH_TERMINAL_STATUSES.has(cached.terminalStatus) ? cached.terminalStatus : "";
+}
+
+export function cwQueryRetCode(body) {
+    if (!cwObject(body) || !Array.isArray(body.ret) || !body.ret.length) return "NONE";
+    // 只输出固定前缀；未知值和 :: 后的服务端文本均不进入报告。
+    const codes = body.ret.map(value => typeof value === "string" ? value.split("::", 1)[0].toUpperCase() : "OTHER");
+    const code = codes.find(value => value !== "SUCCESS") || "SUCCESS";
+    return CW_QUERY_RET_CODES.has(code) && !["NONE", "OTHER"].includes(code) ? code : "OTHER";
+}
+
+export function cwQueryFields(record, now = Date.now()) {
+    if (!cwObject(record) || record.schema !== 1 || !["initial", "refresh", "revalidate"].includes(record.phase)
+        || !["identity", "count", "pds"].includes(record.stage) || !CW_QUERY_FAILURES.has(record.failure)
+        || !CW_QUERY_RET_CODES.has(record.retCode) || !CW_QUERY_HTTP_CLASSES.has(record.httpClass)
+        || typeof record.tokenPresentBefore !== "boolean" || typeof record.tokenUpdated !== "boolean"
+        || !Number.isInteger(record.sessionAttempt) || record.sessionAttempt < 1 || record.sessionAttempt > 3
+        || !Number.isInteger(record.tokenAttempt) || record.tokenAttempt < 1 || record.tokenAttempt > 3
+        || !(record.stage === "pds" ? Number.isInteger(record.page) && record.page >= 1 && record.page <= 20 : record.page === null)
+        || !Number.isSafeInteger(now) || !Number.isSafeInteger(record.at) || record.at <= 0 || record.at > now + 60000
+        || !Number.isSafeInteger(record.expiresAt) || record.expiresAt <= record.at || record.expiresAt - record.at > CW_QUERY_WINDOW
+        || now >= record.expiresAt) return null;
+    const {schema, phase, stage, failure, retCode, httpClass, tokenPresentBefore, tokenUpdated, sessionAttempt, tokenAttempt, page, at, expiresAt} = record;
+    return {schema, phase, stage, failure, retCode, httpClass, tokenPresentBefore, tokenUpdated, sessionAttempt, tokenAttempt, page, at, expiresAt};
+}
+
+export function cwQueryDiagnostic(cached, auth, now = Date.now()) {
+    const checked = cwAuthState(auth, now);
+    return checked && cwObject(cached) && cached.version === CW_VERSION && cached.source === "auto" && cached.blocked !== true
+        && cached.owner === checked.owner && cached.inputHash === checked.inputHash && cached.generation === checked.generation
+        && typeof cached.runId === "string" && /^[0-9a-f]{32}$/.test(cached.runId) ? cwQueryFields(cached.queryDiagnostic, now) : null;
 }
 
 export function cwReadAuth(ctx, now = Date.now()) {
@@ -170,31 +215,39 @@ export function captureCainiaoCredentials(ctx, clock = () => Date.now()) {
         observe(); cwCaptureResult(ctx, "conflict", now); return;
     }
     const fromCookie = cwLoginCandidate(observedCookies);
-    const fromNative = !fromCookie && route.channel === "gw" && route.apiKind !== "public_time" && native.uid && native.sid;
-    if (!fromCookie && !fromNative) { observe(); cwCaptureResult(ctx, "anonymous", now); return; }
-    const captureKind = fromCookie ? "request_cookie" : "native_session_candidate";
-    // 不从不同请求、匿名 Cookie 或旧网关缓存拼出 native 候选。
-    const cookies = fromCookie ? observedCookies : new Map([["unb", native.uid], ["cookie2", native.sid]]);
+    const hasSessionCookie = observedCookies.has("cookie2") || observedCookies.has("sgcookie");
+    const candidateRoute = route.channel === "gw" && route.apiKind !== "public_time";
+    const fromCookieCandidate = !fromCookie && !observedCookies.has("unb") && hasSessionCookie && candidateRoute && native.uid;
+    const fromNative = !fromCookie && !hasSessionCookie && candidateRoute && native.uid && native.sid;
+    if (!fromCookie && !fromCookieCandidate && !fromNative) { observe(); cwCaptureResult(ctx, "anonymous", now); return; }
+    const captureKind = fromCookie ? "request_cookie" : fromCookieCandidate ? "request_cookie_candidate" : "native_session_candidate";
+    // 真实会话只补同次 UID，不以 SID 替换 cookie2，也不借其它请求或旧缓存。
+    const cookies = fromCookie ? observedCookies : fromCookieCandidate ? new Map([...observedCookies, ["unb", native.uid]])
+        : new Map([["unb", native.uid], ["cookie2", native.sid]]);
     const owner = cwOwner(cookies), cookie = cwCookieHeader(cookies), inputHash = md5(cookie), sessionHash = cwSessionHash(cookies);
-    let previous, cachedTerminal = "";
+    let previous, cached, cachedTerminal = "";
     try {
         const raw = ctx.storage.getJSON(CW_AUTH_STORE);
         // 有效新请求可修复损坏的 JSON；读取 API 抛错则停止，不猜旧状态。
         previous = cwAuthState(raw, now);
-        const cached = ctx.storage.getJSON(CW_STORE);
+        cached = ctx.storage.getJSON(CW_STORE);
         cachedTerminal = cwCachedAuthStatus(cached, previous);
-        if (previous && previous.owner !== owner || cwObject(cached) && cached.owner !== owner) cwIsolateAccount(ctx, owner);
     } catch { cwCaptureResult(ctx, "storage", now); return; }
     const active = previous && !cachedTerminal && ["pending", "connected"].includes(previous.status);
-    const sameSession = active && previous.sessionHash === sessionHash;
-    if (fromNative && active && previous.owner === owner && (previous.captureKind === "request_cookie" || previous.status === "connected")) {
+    const sameSession = active && previous.sessionHash === sessionHash && previous.captureKind === captureKind;
+    if (previous && previous.owner === owner && (fromNative && ["request_cookie", "request_cookie_candidate"].includes(previous.captureKind)
+        || active && (fromNative && previous.status === "connected" || !fromCookie && previous.captureKind === "request_cookie"))) {
         observe(); cwCaptureResult(ctx, "unchanged", now); return;
     }
+    // 弱流量已在上方拒绝，不能用它改回另一个账号保存失败时留下的屏障。
+    try {
+        if (previous && previous.owner !== owner || cwObject(cached) && cached.owner !== owner) cwIsolateAccount(ctx, owner);
+    } catch { cwCaptureResult(ctx, "storage", now); return; }
     if (sameSession && previous.inputHash === inputHash && previous.captureKind === captureKind) {
         observe(); cwCaptureResult(ctx, "unchanged", now); return;
     }
-    if (fromNative) {
-        // 即便账号相同，未确认的新 native 会话也不得复用旧 token 或旧码。
+    if (!fromCookie && !sameSession) {
+        // 新受限候选即便账号相同也须隔离旧 token 与旧码；同类型 token 更新保留代次。
         try { cwIsolateAccount(ctx, owner); }
         catch { cwCaptureResult(ctx, "storage", now); return; }
     }
@@ -202,8 +255,8 @@ export function captureCainiaoCredentials(ctx, clock = () => Date.now()) {
         generation: sameSession ? previous.generation : md5(now + ":" + Math.random() + ":" + Math.random()),
         status: sameSession ? previous.status : "pending", capturedAt: now,
         confirmedAt: sameSession ? previous.confirmedAt : null, sourceHost: route.host, sourceChannel: route.channel,
-        captureKind, accountCheckedAt: captureKind === "native_session_candidate" && sameSession ? previous.accountCheckedAt : null,
-        accountSessionHash: captureKind === "native_session_candidate" && sameSession ? previous.accountSessionHash : ""};
+        captureKind, accountCheckedAt: cwRequiresIdentity({captureKind}) && sameSession ? previous.accountCheckedAt : null,
+        accountSessionHash: cwRequiresIdentity({captureKind}) && sameSession ? previous.accountSessionHash : ""};
     try {
         if (!cwWriteAuth(ctx, state, now)) {
             const latest = cwReadAuth(ctx, now);
@@ -217,19 +270,34 @@ export function captureCainiaoCredentials(ctx, clock = () => Date.now()) {
 
 export function diagnoseCainiaoConnection(ctx, clock = () => Date.now()) {
     const now = clock(), lines = ["菜鸟 App 连接状态 " + CW_VERSION, "连接模式：" + cwConnectionMode(ctx.env)];
-    const labels = {pending: "已捕获，尚未通过个人列表验证", connected: "个人列表查询已确认", expired: "登录过期，请重开 App 快递列表",
-        verify: "需在淘宝或菜鸟 App 完成验证", invalid: "身份失效，请重开 App 快递列表", unsupported: "已捕获 native 候选，但未确认独立查询兼容"};
+    const labels = {pending: "已捕获，尚未通过个人列表验证", connected: "个人列表查询已确认", expired: "小组件会话失效，请重开 App 快递列表",
+        verify: "需在淘宝或菜鸟 App 完成验证", invalid: "身份失效，请重开 App 快递列表", unsupported: "App 接入未确认，尚未通过完整个人查询"};
     try {
         const auth = cwReadAuth(ctx, now);
         const cached = ctx.storage.getJSON(CW_STORE);
         const blocked = cwObject(cached) && cached.blocked === true && (!auth || cached.owner !== auth.owner);
-        const cachedStatus = cwCachedAuthStatus(cached, auth), status = cachedStatus || auth?.status;
-        lines.push("自动登录态：" + (blocked ? "新账号尚未保存，旧登录态已阻断" : (auth ? labels[status] : "尚未捕获")));
+        const cachedStatus = cwCachedAuthStatus(cached, auth), recordedStatus = cachedStatus || auth?.status;
+        const firstFailure = cwRequiresIdentity(auth) && auth.confirmedAt === null && recordedStatus === "expired";
+        const status = firstFailure ? "unsupported" : recordedStatus;
+        const label = status === "unsupported" && auth?.confirmedAt !== null ? "本次独立查询未确认，已停止重试" : labels[status];
+        lines.push("自动登录态：" + (blocked ? "新账号尚未保存，旧登录态已阻断" : (auth ? label : "尚未捕获")));
         if (cachedStatus && auth.status !== cachedStatus) lines.push("登录标志写入未确认；缓存已记录停止状态，新的 App 采集才会重试。");
         if (auth && !blocked) {
-            lines.push("会话来源：" + (auth.captureKind === "native_session_candidate" ? "App native 候选，兼容性须由个人查询确认" : "App 请求 Cookie"));
+            const source = auth.captureKind === "native_session_candidate" ? "App native 候选，兼容性须由个人查询确认"
+                : auth.captureKind === "request_cookie_candidate" ? "同次 App 实际 Cookie＋native UID，须验证个人身份" : "App 请求 Cookie";
+            lines.push("会话来源：" + source);
+            lines.push("保存的 Cookie 字段名：" + [...cwCookieMap(auth.cookie).keys()].join("、"));
             lines.push("捕获时间：" + new Date(auth.capturedAt).toISOString());
             if (auth.accountCheckedAt) lines.push("账号检查时间：" + new Date(auth.accountCheckedAt).toISOString());
+            const diagnostic = cwQueryDiagnostic(cached, auth, now);
+            if (diagnostic) {
+                lines.push("个人查询：" + diagnostic.phase + " · " + diagnostic.stage + " · " + diagnostic.failure);
+                lines.push("返回分类：" + diagnostic.retCode + " · " + diagnostic.httpClass);
+                lines.push("token：请求前" + (diagnostic.tokenPresentBefore ? "存在" : "缺失") + "，本次" + (diagnostic.tokenUpdated ? "已更新" : "未更新"));
+                lines.push("验证轮次：" + diagnostic.sessionAttempt + "；token 轮次：" + diagnostic.tokenAttempt
+                    + (diagnostic.page === null ? "" : "；页码：" + diagnostic.page));
+                lines.push("记录时间：" + new Date(diagnostic.at).toISOString());
+            } else if (firstFailure) lines.push("旧版本未记录原因；保持停止状态，未重新请求。");
         }
         const result = ctx.storage.getJSON(CW_CAPTURE_STORE);
         if (cwObject(result) && Object.hasOwn(CW_CAPTURE_RESULTS, result.code)) lines.push("最近捕获：" + CW_CAPTURE_RESULTS[result.code]);
@@ -237,6 +305,7 @@ export function diagnoseCainiaoConnection(ctx, clock = () => Date.now()) {
     try {
         const app = cwAppSummary(ctx, now);
         lines.push("App 请求：" + (app.observed ? "已观察到" : "尚未观察到目标请求"));
+        if (app.observed) lines.push("以下观察字段为窗口内多请求并集，不代表同次会话；实际保存字段见上方。");
         for (const row of app.rows) {
             lines.push(row.host + " · " + row.channel + " · " + row.count + " 次");
             lines.push("字段名：" + ([...row.cookies, ...row.nativeHeaders].join("、") || "未见必要会话字段"));

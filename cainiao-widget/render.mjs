@@ -24,7 +24,7 @@ const CNW_FAMILIES = {
 const CNW_STATES = {
   ready: { label: '待取包裹', title: '没有待取包裹', detail: '包裹到站后会显示在这里' },
   setup: { label: '尚未连接', title: '先打开淘宝或菜鸟', detail: '刷新 App 快递列表后回到组件' },
-  expired: { label: '登录过期', title: '重开 App 快递列表', detail: '登录后回到 Egern 重新连接' },
+  expired: { label: '会话失效', title: '重开 App 快递列表', detail: '重新接入后回到 Egern 刷新' },
   offline: { label: '连接失败', title: '暂时无法连接', detail: '稍后会自动重试' },
   verify: { label: '需安全验证', title: '请先完成验证', detail: '在淘宝或菜鸟完成验证后重试' },
   partial: { label: '数据未取全', title: '暂未取得完整列表', detail: '仅显示已确认的待取件' },
@@ -142,7 +142,7 @@ function cnwHeader(context, small, inlineNotice = false) {
 function cnwBanner(context, small) {
   const cached = context.cached && context.status !== 'partial' && !context.partial;
   let detail = context.message.replace(/\s*·\s*上次结果\s*$/, '');
-  if (context.status === 'expired') detail = detail.replace(/^登录(?:已)?过期[，,：:\s]*/, '');
+  if (context.status === 'expired') detail = detail.replace(/^(?:登录(?:已)?过期|小组件会话失效)[，,：:\s]*/, '');
   const text = !context.warning ? context.message
     : `${context.label}${cached ? (small ? ' · 旧数据' : ' · 历史数据') : ''}${detail && !small ? ` · ${detail}` : ''}`;
   return cnwStack('row', [

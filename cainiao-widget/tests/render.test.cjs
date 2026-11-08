@@ -5,7 +5,7 @@ const NOW = new Date(2026, 10, 8, 14, 35).getTime();
 const UPDATED = new Date(2026, 10, 8, 14, 20).getTime();
 const FAMILIES = ['systemSmall', 'systemMedium', 'systemLarge', 'systemExtraLarge', 'accessoryCircular', 'accessoryRectangular', 'accessoryInline'];
 const STATES = ['setup', 'expired', 'offline', 'verify', 'partial', 'error'];
-const LABELS = ['尚未连接', '登录过期', '连接失败', '需安全验证', '数据未取全', '更新失败'];
+const LABELS = ['尚未连接', '会话失效', '连接失败', '需安全验证', '数据未取全', '更新失败'];
 const modulePromise = import('../render.mjs');
 const sample = (extra = {}) => ({
   status: 'ready', total: 11, updatedAt: UPDATED, refreshMinutes: 15,
@@ -94,7 +94,7 @@ test('失败且无缓存不会显示为零件成功态，空列表成功态明�
     const ready = joined(renderWidget(sample({ items: [], total: 0 }), family, NOW));
     assert.match(ready, /没有待取|暂无待取/);
     const failed = joined(renderWidget(sample({ status: 'expired', items: [], total: 0, updatedAt: null }), family, NOW));
-    assert.match(failed, /登录过期|重新登录/);
+    assert.match(failed, /会话失效/);
     assert.match(failed, /尚未更新/);
     assert.doesNotMatch(failed, /没有待取|暂无待取/);
   }

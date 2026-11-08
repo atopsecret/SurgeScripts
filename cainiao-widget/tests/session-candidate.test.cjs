@@ -1,4 +1,4 @@
-// 引擎：Node.js 20+ 内置测试 | 版本：1.2.1 | 语言：JavaScript CommonJS
+// 引擎：Node.js 20+ 内置测试 | 版本：1.2.2 | 语言：JavaScript CommonJS
 // 构建：node cainiao-widget/build.mjs
 // 运行：node --experimental-vm-modules --test cainiao-widget/tests/session-candidate.test.cjs
 // 依赖：本地源码与 auth-fixture.cjs；仅合成会话、模拟 HTTP 和内存存储
@@ -119,8 +119,8 @@ function assertBoundedRecord(f, expected = {}) {
     return record;
 }
 
-test("1.2.1 将实际 Cookie 加 UID 候选与纯 native 候选都置于身份门禁", () => {
-    assert.equal(core.CW_VERSION, "1.2.1");
+test("1.2.2 将实际 Cookie 加 UID 候选与纯 native 候选都置于身份门禁", () => {
+    assert.equal(core.CW_VERSION, "1.2.2");
     for (const [captureKind, expected] of [["request_cookie_candidate", true], ["native_session_candidate", true], ["request_cookie", false]]) {
         assert.equal(auth.cwRequiresIdentity({captureKind}), expected);
     }
@@ -254,24 +254,24 @@ test("新账号实际候选 AUTH 写入失败仍留下隔离屏障，不能回�
     }
 });
 
-test("合法 1.1.0 与 1.2.0 已连接 Cookie auth/cache 迁移保留账号、代次、token 和旧快照", async () => {
-    for (const version of ["1.1.0", "1.2.0"]) {
+test("合法 1.1.0、1.2.0 与 1.2.1 已连接 Cookie auth/cache 迁移保留账号、代次、token 和旧快照", async () => {
+    for (const version of ["1.1.0", "1.2.0", "1.2.1"]) {
         const f = fixture([new Error("synthetic-migration-offline")]), previous = legacyAuth({version});
         const oldCache = cacheFor(previous);
         f.memory.set(core.CW_AUTH_STORE, previous); f.memory.set(core.CW_STORE, oldCache);
         const state = auth.cwReadAuth(f.ctx, f.clock());
-        assert.equal(state.version, "1.2.1"); assert.equal(state.captureKind, "request_cookie");
+        assert.equal(state.version, "1.2.2"); assert.equal(state.captureKind, "request_cookie");
         for (const key of ["owner", "generation", "inputHash", "sessionHash", "cookie", "status", "capturedAt", "confirmedAt"]) assert.equal(state[key], previous[key], key);
         const model = await load(f); assert.equal(model.status, "offline"); assert.deepEqual(model.items, oldCache.snapshot.items);
         assert.equal(model.updatedAt, oldCache.snapshot.updatedAt); assert.equal(f.requests.length, 1);
         assert.equal(f.requests[0].url.searchParams.get("api"), API);
         assert(f.requests[0].options.headers.Cookie.includes(CAPTURED._m_h5_tk));
-        assert.equal(cached(f).version, "1.2.1"); assert.equal(saved(f).status, "connected");
+        assert.equal(cached(f).version, "1.2.2"); assert.equal(saved(f).status, "connected");
     }
 });
 
 test("旧 auth 终止态及 AUTH noop 的旧缓存终止标志在迁移后仍禁止查询", async () => {
-    for (const version of ["1.1.0", "1.2.0"]) {
+    for (const version of ["1.1.0", "1.2.0", "1.2.1"]) {
         for (const fromCache of [false, true]) {
             const previous = legacyAuth({version, status: fromCache ? "connected" : "expired", confirmed: true});
             const f = fixture(), oldCache = cacheFor(previous, {terminalStatus: "expired"});
@@ -290,11 +290,11 @@ test("1.2.0 已连接 native 及匹配缓存证明迁移后保留确认，直接
     const f = fixture([pds([parcel("new", "8-2-2222")])]), oldCache = cacheFor(previous);
     f.memory.set(core.CW_AUTH_STORE, previous); f.memory.set(core.CW_STORE, oldCache);
     const state = auth.cwReadAuth(f.ctx, f.clock());
-    assert.equal(state.version, "1.2.1"); assert.equal(state.accountSessionHash, previous.accountSessionHash);
+    assert.equal(state.version, "1.2.2"); assert.equal(state.accountSessionHash, previous.accountSessionHash);
     assert.equal(state.accountCheckedAt, previous.accountCheckedAt); assert.equal(state.generation, previous.generation);
     const model = await load(f); assert.equal(model.status, "ready"); assert.equal(model.items[0].code, "8-2-2222");
     assert.equal(f.requests.length, 1); assert.equal(f.requests[0].url.searchParams.get("api"), API);
-    assert.equal(cached(f).version, "1.2.1"); assert.equal(saved(f).version, "1.2.1");
+    assert.equal(cached(f).version, "1.2.2"); assert.equal(saved(f).version, "1.2.2");
 });
 
 test("旧首次 native expired 只纠正接入提示，不复活、猜真实 Cookie 或补造错误原因", async () => {
@@ -624,7 +624,7 @@ test("诊断过期后不延长原因、不恢复终止会话，匿名和 SID-onl
 
 async function assertSidOnlyKeepsForeignBarrier(status) {
     for (const failure of ["throw", "noop"]) {
-        for (const barrierVersion of [core.CW_VERSION, "1.2.0", "1.1.0", "1.3.0"]) {
+        for (const barrierVersion of [core.CW_VERSION, "1.2.1", "1.2.0", "1.1.0", "1.3.0"]) {
             const label = status + "/" + failure + "/" + barrierVersion;
             const f = fixture(); capture(f, {sid: null});
             const wasConfirmed = ["connected", "expired", "verify", "invalid"].includes(status);
@@ -672,7 +672,7 @@ test("强实际 Cookie terminal A 的 SID-only 不撤销 B 保存失败屏障或
 });
 
 test("完整 request_cookie 旧版及当前 expired verify invalid 不被 SID-only 替换或复活", async () => {
-    for (const version of ["1.1.0", "1.2.0", core.CW_VERSION]) {
+    for (const version of ["1.1.0", "1.2.0", "1.2.1", core.CW_VERSION]) {
         for (const status of ["expired", "verify", "invalid"]) {
             const label = version + "/" + status;
             const previous = legacyAuth({version, status, confirmed: true}), oldCache = cacheFor(previous, {terminalStatus: status});
@@ -694,10 +694,10 @@ test("完整 request_cookie 旧版及当前 expired verify invalid 不被 SID-on
 });
 
 test("完整旧版及当前 Cookie terminal A 的 SID-only 不撤销 B AUTH 保存失败屏障", async () => {
-    for (const version of ["1.1.0", "1.2.0", core.CW_VERSION]) {
+    for (const version of ["1.1.0", "1.2.0", "1.2.1", core.CW_VERSION]) {
         for (const status of ["expired", "verify", "invalid"]) {
             for (const failure of ["throw", "noop"]) {
-                for (const barrierVersion of ["1.1.0", "1.2.0", core.CW_VERSION, "1.3.0"]) {
+                for (const barrierVersion of ["1.1.0", "1.2.0", "1.2.1", core.CW_VERSION, "1.3.0"]) {
                     const label = version + "/" + status + "/" + failure + "/" + barrierVersion;
                     const previous = legacyAuth({version, status, confirmed: true}), f = fixture();
                     f.memory.set(core.CW_AUTH_STORE, previous);

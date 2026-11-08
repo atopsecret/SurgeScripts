@@ -1,4 +1,4 @@
-// Egern 原生菜鸟取件小组件 1.2.1 · 自动构建，请编辑本目录源文件。
+// Egern 原生菜鸟取件小组件 1.2.2 · 自动构建，请编辑本目录源文件。
 // 构建：node cainiao-widget/build.mjs；来源与许可见 THIRD_PARTY_NOTICES.md。
 // 来源：core.mjs
 // 引擎：Egern JavaScript | 语言：JavaScript ES module
@@ -6,7 +6,7 @@
 // 运行：由 runtime.mjs 调用；离线验证 node --test cainiao-widget/tests/core.test.cjs
 // 依赖：无；协议来源见 THIRD_PARTY_NOTICES.md
 
-const CW_VERSION = "1.2.1";
+const CW_VERSION = "1.2.2";
 const CW_API = "mtop.cainiao.lpc.packageservice.queryPdsPackageDataList";
 const CW_COUNT_API = "mtop.cainiao.lpc.packageservice.user.package.count.query";
 const CW_IDENTITY_API = "mtop.user.getUserSimple";
@@ -62,7 +62,7 @@ function cwObject(value) {
 }
 
 function cwKnownVersion(value) {
-    return ["1.1.0", "1.2.0", CW_VERSION].includes(value);
+    return ["1.1.0", "1.2.0", "1.2.1", CW_VERSION].includes(value);
 }
 
 function cwText(value, limit = 160) {
@@ -158,7 +158,9 @@ function cwRequestData(page) {
 
 function cwMtopRequestURL(cookies, api, data, now) {
     const t = String(Math.floor(now));
-    const token = (cookies.get("_m_h5_tk") || "").split("_")[0];
+    // 官方 MTOP 2.7.4 在 Cookie 缺失时拼接 undefined，不使用空串或补造 token。
+    const rawToken = cookies.get("_m_h5_tk");
+    const token = rawToken ? rawToken.split("_")[0] : undefined;
     const sign = md5(token + "&" + t + "&12574478&" + data);
     const query = {jsv: "2.7.4", appKey: "12574478", t, sign, api, v: "1.0", type: "originaljson", dataType: "json", data};
     return CW_HOST + "/h5/" + api.toLowerCase() + "/1.0/?" + Object.entries(query).map(([key, value]) => key + "=" + encodeURIComponent(value)).join("&");
@@ -255,7 +257,7 @@ function cwItems(packages) {
 }
 
 // 来源：app.mjs
-// 引擎：Egern 原生请求头 API | 版本：1.2.1 | 语言：JavaScript ES module
+// 引擎：Egern 原生请求头 API | 版本：1.2.2 | 语言：JavaScript ES module
 // 构建：node cainiao-widget/build.mjs
 // 运行：由同一小组件的请求入口调用；离线 node --test cainiao-widget/tests/app-entry.test.cjs
 // 依赖：core.mjs；不读 App 正文、不改流量、不发网络请求
@@ -314,7 +316,7 @@ function cwAppNames(value, allowed) {
 
 function cwAppState(value, now) {
     const rows = [], empty = {version: CW_VERSION, startedAt: now, rows};
-    if (!cwObject(value) || value.version !== CW_VERSION || !Array.isArray(value.rows)
+    if (!cwObject(value) || !["1.2.1", CW_VERSION].includes(value.version) || !Array.isArray(value.rows)
         || !Number.isSafeInteger(value.startedAt) || value.startedAt <= 0 || value.startedAt > now
         || now - value.startedAt > CW_APP_WINDOW) return empty;
     const seen = new Set();
@@ -504,7 +506,7 @@ function cwQueryFields(record, now = Date.now()) {
 
 function cwQueryDiagnostic(cached, auth, now = Date.now()) {
     const checked = cwAuthState(auth, now);
-    return checked && cwObject(cached) && cached.version === CW_VERSION && cached.source === "auto" && cached.blocked !== true
+    return checked && cwObject(cached) && ["1.2.1", CW_VERSION].includes(cached.version) && cached.source === "auto" && cached.blocked !== true
         && cached.owner === checked.owner && cached.inputHash === checked.inputHash && cached.generation === checked.generation
         && typeof cached.runId === "string" && /^[0-9a-f]{32}$/.test(cached.runId) ? cwQueryFields(cached.queryDiagnostic, now) : null;
 }

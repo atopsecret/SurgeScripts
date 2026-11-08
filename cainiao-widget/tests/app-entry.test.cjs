@@ -1,4 +1,4 @@
-// 引擎：Node.js 20+ 内置测试 | 版本：1.2.1 | 语言：JavaScript CommonJS
+// 引擎：Node.js 20+ 内置测试 | 版本：1.2.2 | 语言：JavaScript CommonJS
 // 构建：node cainiao-widget/build.mjs
 // 运行：node --experimental-vm-modules --test cainiao-widget/tests/app-entry.test.cjs
 // 依赖：本地源码与 auth-fixture.cjs；仅合成会话、模拟网络和模拟存储
@@ -65,8 +65,8 @@ function nativePds(packages = [parcel()], totalPage = 1, currentPage = 1) {
     return response({api: API, ret: ["SUCCESS::成功"], data: {packages, totalPage, currentPage}});
 }
 
-test("1.2.1 的 App 采集属于同一小组件，固定四网关及本机元数据键", () => {
-    assert.equal(core.CW_VERSION, "1.2.1");
+test("1.2.2 的 App 采集属于同一小组件，固定四网关及本机元数据键", () => {
+    assert.equal(core.CW_VERSION, "1.2.2");
     assert.equal(core.CW_APP_STORE, "cainiao-widget.app.v1");
     assert.deepEqual([...app.CW_APP_HOSTS].sort(), HOSTS.slice().sort());
 });
@@ -295,13 +295,13 @@ test("已校验的 1.1.0 Cookie 状态规范迁移，不要求老用户再次打
     const f = fixture([success([])]), previous = legacyState();
     f.memory.set(core.CW_AUTH_STORE, previous); f.memory.set(core.CW_STORE, cachedState(previous));
     const migrated = auth.cwReadAuth(f.ctx, f.clock());
-    assert.equal(migrated.version, "1.2.1"); assert.equal(migrated.captureKind, "request_cookie");
+    assert.equal(migrated.version, "1.2.2"); assert.equal(migrated.captureKind, "request_cookie");
     assert.equal(migrated.sourceChannel, "h5"); assert.equal(migrated.accountCheckedAt, null);
     for (const key of ["owner", "generation", "inputHash", "sessionHash", "cookie", "status", "capturedAt", "confirmedAt"]) assert.equal(migrated[key], previous[key]);
     const model = await load(f); assert.equal(model.status, "ready"); assert.equal(f.requests.length, 1);
     assert.equal(f.requests[0].url.searchParams.get("api"), API);
     assert(f.requests[0].options.headers.Cookie.includes("synthetic-h5-token_1"));
-    assert.equal(saved(f).version, "1.2.1"); assert.equal(saved(f).captureKind, "request_cookie");
+    assert.equal(saved(f).version, "1.2.2"); assert.equal(saved(f).captureKind, "request_cookie");
 });
 
 test("1.1.0 迁移仍复核旧状态完整性，损坏值或其他版本不能跳过验证", () => {
@@ -435,7 +435,8 @@ test("native 身份 token 引导会重新签名，三种个人请求都固定主
     for (const request of f.requests) {
         assert.equal(request.url.protocol, "https:"); assert.equal(request.url.hostname, "h5api.m.taobao.com");
         assert.equal(request.url.searchParams.get("appKey"), "12574478");
-        const cookies = core.cwCookieMap(request.options.headers.Cookie), token = (cookies.get("_m_h5_tk") || "").split("_")[0];
+        const cookies = core.cwCookieMap(request.options.headers.Cookie), rawToken = cookies.get("_m_h5_tk");
+        const token = rawToken ? rawToken.split("_")[0] : "undefined";
         const expected = createHash("md5").update(token + "&" + request.url.searchParams.get("t") + "&12574478&" + request.url.searchParams.get("data")).digest("hex");
         assert.equal(request.url.searchParams.get("sign"), expected);
         assert.equal(request.options.headers[core.CW_SELF_HEADER], "1");

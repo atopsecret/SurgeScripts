@@ -9,6 +9,8 @@
 
 1.2.0 的 App 入口另核对 [官方 lib-mtop 2.6.1](https://g.alicdn.com/mtb/lib-mtop/2.6.1/mtop.js)、[官方 lib-login 2.2.3](https://g.alicdn.com/mtb/lib-login/2.2.3/login.js) 与 [官方 myexpress 0.0.8](https://cn.alicdn.com/guoguo/app-myexpress-taobao/0.0.8/index.js) 的调用、身份字段消费和原生桥行为；只作协议参考，不复制或分发上述代码。
 
+1.2.2 的首次无 token 签名另核对 [官方 lib-mtop 2.7.4](https://g.alicdn.com/mtb/lib-mtop/2.7.4/mtop.js)：Cookie 缺失时保留 `undefined` 的字符串拼接语义，已有 token 只取首个下划线前缀。仅重新实现协议行为，不复制或捆绑官方 JS；原地址、字节数和 SHA-256 见 `sources.json`。这不证明 App 原生会话已能用于 H5。
+
 公开固定 SDK 副本来自 [mimicode/albcpackage@e4275a7bb8dfc226490e1f30bb90c5ba3dbb41ab](https://github.com/mimicode/albcpackage/tree/e4275a7bb8dfc226490e1f30bb90c5ba3dbb41ab/libs)。MTOP 的 SID 注册与 alibabauth 的服务端 Cookie 注入是独立路径；没有取得 SID 等价于 `cookie2` 的证明。这是第三方副本，不标为官方认证源，也不能推广为当前 iOS 行为。实现只在本人手机有限试验 native 候选；身份匹配、COUNT 和完整 PDS 都通过才确认兼容。
 
 以下保留两份上游 LICENSE 的完整原文。

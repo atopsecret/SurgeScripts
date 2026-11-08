@@ -14,10 +14,10 @@ Surge 与 Egern 去广告模块、蔚来自动签到脚本、Apple 天气增强�
   [使用说明](amap/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.egern.yaml)
 - **京东 2.0.0**：十二类接口，补全个人页、订单、新品和物流变体；同步双端匹配与正文保护。
   [使用说明](jd/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml)
-- **菜鸟 1.2.0（Surge / Egern）**：补 HTTP/3 绕过、广告 API 的 `.cn` 变体、自营开屏视频和备用封面；保留双端页面清理。
+- **菜鸟 1.2.1（Surge / Egern）**：九个精确主机限定 QUIC 或 UDP 443，补仅识别为 UDP 的连接；保留双端页面与素材规则，协议回退仍需手机验证。
   [使用说明](cainiao/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.yaml)
-- **菜鸟取件小组件 1.2.1（Egern 原生，已发布）**：保留 App 同次真实 Cookie，不用 SID 顶替；首次验证失败不误报 App 登录过期。同一远程模块含采集、独立查询与固定失败阶段，不需要 ZIP、电脑或 HAR。真实个人接入及关闭 App 后更新仍需手机验收。
-  [手机安装与升级](cainiao-widget/开始使用-1.2.1.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.2.1)
+- **菜鸟取件小组件 1.2.2（Egern 原生，正在发布）**：修正首次缺 H5 token 的签名，与官方 SDK 一致；保留同次 App Cookie、严格个人查询、旧会话和失败记录。同一远程模块，不需要 ZIP、电脑或 HAR；真实个人接入及关闭 App 后更新仍需手机验收。
+  [手机安装与升级](cainiao-widget/开始使用-1.2.2.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.2.2)
 - **闲鱼**：新旧开屏接口、缓存广告引用、悬浮策略及指定广告素材。
   [使用说明](xianyu/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-adblock.egern.yaml)
 - **拼多多**：开屏、多多视频入口、首页及订单页已知推广字段。
@@ -50,7 +50,7 @@ Egern 使用 `.egern.yaml` 和对应原生脚本，不直接运行 Surge 全局�
 
 ### 从旧地址迁移
 
-旧账号地址不会因为复制源码自动重定向。已经安装的模块需要换成上面的新链接，并刷新远程脚本缓存。高德模块描述应显示 `2.1.0`，京东应显示 `2.0.0`，菜鸟 Surge 应显示 `1.2.0`、Egern 应显示 `eg-native-20261108-1.2.0`；Surge 蔚来任务日志应显示 `脚本版本 2.1.6`，Egern 原生蔚来模块描述应显示 `3.2.0`。
+旧账号地址不会因为复制源码自动重定向。已经安装的模块需要换成上面的新链接，并刷新远程脚本缓存。高德模块描述应显示 `2.1.0`，京东应显示 `2.0.0`，菜鸟 Surge 应显示 `1.2.1`、Egern 应显示 `eg-native-20261108-1.2.1`；Surge 蔚来任务日志应显示 `脚本版本 2.1.6`，Egern 原生蔚来模块描述应显示 `3.2.0`。
 
 旧账号迁移不导出或迁移客户端登录凭据。原作者署名和原有本地诊断存储键保留，详见[迁移范围](MIGRATION.md)。Egern 原生重写使用独立存储，行为差异见 [Egern 说明](egern/README.md)。
 
@@ -100,7 +100,7 @@ node --experimental-vm-modules --test --test-reporter=tap \
   cainiao-widget/tests/*.test.cjs
 ```
 
-当前发布树脚本测试共 **737 项**：菜鸟取件小组件 193 项、京东 82 项、菜鸟 50 项、高德 87 项、Apple 天气 52 项，其余模块 273 项。相比最新公开基线 **688/688 → 737/737**，本轮新增小组件 49 项，不包含本地保留的旧诊断。测试在各模块目录，不恢复已删除的根 `tests/`。字段、匹配和来源子集另有 **40 项** Python 测试，依赖 PyYAML 6：
+本轮 1.2.2 候选源码脚本测试共 **776 项**：菜鸟取件小组件 232 项、京东 82 项、菜鸟 50 项、高德 87 项、Apple 天气 52 项，其余模块 273 项。相比最新公开基线 **737/737 → 776/776**，本轮新增小组件 39 项：十九项签名、二十项版本迁移，不包含本地保留的旧诊断。测试在各模块目录，不恢复已删除的根 `tests/`。字段、匹配和来源子集另有 **40 项** Python 测试，依赖 PyYAML 6：
 
 ```sh
 python3 egern/validate.py

@@ -137,7 +137,7 @@ export function cwQueryFields(record, now = Date.now()) {
 
 export function cwQueryDiagnostic(cached, auth, now = Date.now()) {
     const checked = cwAuthState(auth, now);
-    return checked && cwObject(cached) && cached.version === CW_VERSION && cached.source === "auto" && cached.blocked !== true
+    return checked && cwObject(cached) && ["1.2.1", CW_VERSION].includes(cached.version) && cached.source === "auto" && cached.blocked !== true
         && cached.owner === checked.owner && cached.inputHash === checked.inputHash && cached.generation === checked.generation
         && typeof cached.runId === "string" && /^[0-9a-f]{32}$/.test(cached.runId) ? cwQueryFields(cached.queryDiagnostic, now) : null;
 }

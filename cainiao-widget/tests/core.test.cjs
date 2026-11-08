@@ -52,9 +52,10 @@ test("Cookie 更新按固定域、路径、有效期约束，保留独立和合�
     assert.equal(cookies.has("gone"), false);
 });
 
-test("无 token 也生成自洽的引导请求，而非使用过期签名", () => {
+test("无 token 请求按官方 SDK 签名 undefined，而非空串或过期签名", () => {
     const url = new URL(core.cwRequestURL(new Map(), 1, 100));
-    assert.equal(url.searchParams.get("sign"), createHash("md5").update("&100&12574478&" + url.searchParams.get("data")).digest("hex"));
+    assert.equal(url.searchParams.get("sign"), createHash("md5").update("undefined&100&12574478&" + url.searchParams.get("data")).digest("hex"));
+    assert.notEqual(url.searchParams.get("sign"), createHash("md5").update("&100&12574478&" + url.searchParams.get("data")).digest("hex"));
 });
 
 test("MTOP 返回码区分 token、登录、验证、失败与未知结构", () => {

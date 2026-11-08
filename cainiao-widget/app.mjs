@@ -1,4 +1,4 @@
-// 引擎：Egern 原生请求头 API | 版本：1.2.1 | 语言：JavaScript ES module
+// 引擎：Egern 原生请求头 API | 版本：1.2.2 | 语言：JavaScript ES module
 // 构建：node cainiao-widget/build.mjs
 // 运行：由同一小组件的请求入口调用；离线 node --test cainiao-widget/tests/app-entry.test.cjs
 // 依赖：core.mjs；不读 App 正文、不改流量、不发网络请求
@@ -58,7 +58,7 @@ function cwAppNames(value, allowed) {
 
 function cwAppState(value, now) {
     const rows = [], empty = {version: CW_VERSION, startedAt: now, rows};
-    if (!cwObject(value) || value.version !== CW_VERSION || !Array.isArray(value.rows)
+    if (!cwObject(value) || !["1.2.1", CW_VERSION].includes(value.version) || !Array.isArray(value.rows)
         || !Number.isSafeInteger(value.startedAt) || value.startedAt <= 0 || value.startedAt > now
         || now - value.startedAt > CW_APP_WINDOW) return empty;
     const seen = new Set();

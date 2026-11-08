@@ -2,9 +2,9 @@
 
 取件码放大，驿站和快递信息放在下面。支持桌面四种尺寸、浅深色与锁屏三种尺寸；查询失败时保留上次结果和原更新时间。
 
-**1.2.1 保留 App 同次请求里的真实 Cookie，不再用 SID 顶替；缺少 `unb` 时只补同次有效 UID，仍需个人身份和完整列表验证。默认通过手机在线模块安装，不需要 ZIP、电脑、复制源码、HAR 或 Cookie。** 可以与[菜鸟去广告](../cainiao/README.md)一起使用，不依赖去广告模块或另装诊断。采集只读四个精确 MTOP 网关的请求头，不读取短信、App 正文或沙盒，不改写查件响应。
+**1.2.2 修正首次没有 H5 token 时的签名，与官方 SDK 一致；保留 App 同次真实 Cookie、严格个人查询和旧会话。默认通过手机在线模块安装，不需要 ZIP、电脑、复制源码、HAR 或 Cookie。** 可以与[菜鸟去广告](../cainiao/README.md)一起使用，不依赖去广告模块或另装诊断。采集只读四个精确 MTOP 网关的请求头，不读取短信、App 正文或沙盒，不改写查件响应。
 
-**1.2.1 已发布；安装模块与它引用的脚本均已按原地址回读核验版本和 SHA-256。手机实际连接尚未验收。** 实现提交 `dec68912246ee3ab728c1bf94d6c327d5a832e56` 已普通推送，十三个公开资源与本地同字节。真实 Cookie＋UID 和原生 SID/UID 都只是待验证候选，不是已经证实可用于 H5 的凭据。
+**1.2.2 正在发布；远程模块与同一份 JS 的版本和 SHA-256 待原地址回读核验。手机实际连接尚未验收。** 签名修正不等于 App 会话转换已完成；真实 Cookie＋UID 和原生 SID/UID 仍是待验证候选，不是已经证实可用于 H5 的凭据。
 
 ![浅深色与锁屏布局，合成数据离线预览](preview/overview.png)
 
@@ -12,25 +12,25 @@
 
 ## 安装
 
-已安装在线模块时更新原模块和它引用的远程 JS，不用重装自己的 CA、填写凭据或增加诊断模块。只有另建新版模块时才先停用旧模块，不要同时启用两份同名组件。远程脚本 URL 的 `?v=1.2.1` 只是缓存更新参数，不会锁定 Git 提交，也不会让未发布的版本自动上线；升级需核对模块描述和 JS 首行。手机简短步骤见[1.2.1 升级说明](开始使用-1.2.1.md)。
+已安装在线模块时更新原模块和它引用的远程 JS，不用重装自己的 CA、填写凭据或增加诊断模块。只有另建新版模块时才先停用旧模块，不要同时启用两份同名组件。远程脚本 URL 的 `?v=1.2.2` 只是缓存更新参数，不会锁定 Git 提交，也不会让未发布的版本自动上线；升级需核对模块描述和 JS 首行。手机简短步骤见[1.2.2 升级说明](开始使用-1.2.2.md)。
 
 ### 在线安装（默认）
 
 **本地模块不是必要条件。** Egern 支持远程模块和远程脚本；添加一个模块就会加载它的会话采集、组件、连接状态及所引用的同一份自包含 JS，不需要用户另建脚本文件或装依赖。
 
-[在 Egern 一次添加菜鸟取件小组件](egern:/modules/new?name=%E8%8F%9C%E9%B8%9F%E5%8F%96%E4%BB%B6%20%C2%B7%20%E5%8E%9F%E7%94%9F%E5%B0%8F%E7%BB%84%E4%BB%B6&url=https%3A%2F%2Fraw.githubusercontent.com%2Fatopsecret%2FSurgeScripts%2Fmain%2Fcainiao-widget%2Fcainiao-widget.egern.yaml%3Fv%3D1.2.1)
+[在 Egern 一次添加菜鸟取件小组件](egern:/modules/new?name=%E8%8F%9C%E9%B8%9F%E5%8F%96%E4%BB%B6%20%C2%B7%20%E5%8E%9F%E7%94%9F%E5%B0%8F%E7%BB%84%E4%BB%B6&url=https%3A%2F%2Fraw.githubusercontent.com%2Fatopsecret%2FSurgeScripts%2Fmain%2Fcainiao-widget%2Fcainiao-widget.egern.yaml%3Fv%3D1.2.2)
 
-如果当前阅读器不允许打开 `egern:`，把[远程模块地址](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.2.1)添加到 Egern 即可；不用下载本地文件。模块描述和 JS 首行均应显示 **1.2.1**。
+如果当前阅读器不允许打开 `egern:`，把[远程模块地址](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.2.2)添加到 Egern 即可；不用下载本地文件。模块描述和 JS 首行均应显示 **1.2.2**。
 
 1. 在手机点一次添加链接，确认添加 Egern 模块；客户端下载模块和脚本。保持 `CONNECTION_MODE=auto`、`CAINIAO_COOKIE` 留空，已有旧版先停用，不同时启用两份。
 2. 保持 Egern 代理运行。**已有自己的 HTTPS 解密证书且已信任时，不用重装。** 尚未配置时按客户端指引安装并信任自己的 Egern CA；这一步只需首次配置，模块不能代替系统信任。模块仅声明四个精确 MTOP 主机，不代改手机系统设置。
-3. **打开淘宝或菜鸟 App**，进入本人快递／包裹列表，刷新一次。已有登录时不需要另开网页；只有打开首页，未必产生所需会话请求。
+3. **打开淘宝或菜鸟 App**，进入本人快递／包裹列表，刷新一次。这里只尝试采集 App 会话，能否独立查询由组件确认；只有打开首页，未必产生所需请求。升级前已经完整连接的会话不要求重复此步，先前失败的候选需要这次新采集。
 4. 回到 Egern **分析 → 左上角小组件画廊**，运行“菜鸟取件”。真实 Cookie 需完整个人列表成功；原生候选还需身份匹配和账号检查，**采集完成不是连接成功**。
 5. 长按 iPhone 主屏幕添加 Egern 小组件，编辑名称选择“菜鸟取件”。确认连接后关闭淘宝／菜鸟 App，再运行组件验收新的物流结果；登录有效期间，后续由组件自行请求，不需要定时打开 App。
 
 官方安装入口与字段见 [Egern 小组件文档](https://egernapp.com/zh-CN/docs/configuration/widgets/)。客户端需支持模块 `widgets`、`generic` 脚本及原生 DSL；旧版本若没有小组件画廊，先更新 Egern。
 
-Egern 官方一次添加模块格式为 `egern:/modules/new?name=NAME&url=URL`，是单斜杠 `egern:/`，且模块必须是手机可访问的 URL。上面的名称和模块 URL 各编码一次；新版模块及其精确脚本 URL 已按原地址回读核验，不使用未文档化的内联 JS、脚本 data URL 或附件自动导入。见 [URL scheme 文档](https://egernapp.com/zh-CN/docs/url-scheme/)。
+Egern 官方一次添加模块格式为 `egern:/modules/new?name=NAME&url=URL`，是单斜杠 `egern:/`，且模块必须是手机可访问的 URL。上面的名称和模块 URL 各编码一次；新版原地址回读完成后才标为已发布，不使用未文档化的内联 JS、脚本 data URL 或附件自动导入。见 [URL scheme 文档](https://egernapp.com/zh-CN/docs/url-scheme/)。
 
 ### 分享给别人
 
@@ -58,6 +58,8 @@ Egern 官方一次添加模块格式为 `egern:/modules/new?name=NAME&url=URL`�
 手机 App 会话是否命中、原生兼容性、个人接口可用性和跨入口存储共享都尚待验收。Egern 仅文档化持久存储，没有承诺跨 VPN／组件进程的作用域或事务；同一脚本 URL 是实现策略，不是手机共享已经验证。
 
 ## 独立查询怎么运行
+
+首次没有 `_m_h5_tk` 时按官方 MTOP 2.7.4 拼接 `undefined` 再签名，取得服务端实际 token 后正常重签。token 错误和 SESSION 失败分开处理；后者不能靠拿到 token 或跳过身份检查冒充登录成功。签名来源与会话限制见[协议核对](接入协议核对-1.2.1.md)。
 
 ```text
 App 请求中的真实 Cookie → 新签名的完整 PDS → 确认连接

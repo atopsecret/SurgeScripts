@@ -113,6 +113,18 @@
       "source_url": "https://github.com/polygongfw/pickup-assistant/blob/46406c53c40c3fbd8b3ee6f5f899eda9ebb0e338/app/src/test/java/com/coldbrew/pickupassistant/QrLoginTest.kt"
     }
   ],
+  "h5_signing_review": {
+    "widget_version": "1.2.2",
+    "source_version": "2.7.4",
+    "source_url": "https://g.alicdn.com/mtb/lib-mtop/2.7.4/mtop.js",
+    "http_status": 200,
+    "redirected": false,
+    "bytes": 28654,
+    "sha256": "828024bfe8274ad4950f4c3ec0707a97c69eb17767fa9dc13941c1d4646cfe69",
+    "missing_token_string": "undefined",
+    "assessment": "公开源码静态核对；重新实现首次签名语义，不执行或捆绑官方 JS。签名一致不等于 App 会话兼容，token 更新不替代个人授权。",
+    "phone_verified": false
+  },
   "app_entry_review": {
     "version": "1.2.0",
     "assessment": "只读公开协议复核；native SID 与 H5 Cookie 等价未获证明，兼容路径为手机本地有限试验。未读取私人抓包、未调用个人接口。",

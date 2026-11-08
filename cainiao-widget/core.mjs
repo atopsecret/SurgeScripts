@@ -3,7 +3,7 @@
 // 运行：由 runtime.mjs 调用；离线验证 node --test cainiao-widget/tests/core.test.cjs
 // 依赖：无；协议来源见 THIRD_PARTY_NOTICES.md
 
-export const CW_VERSION = "1.2.1";
+export const CW_VERSION = "1.2.2";
 export const CW_API = "mtop.cainiao.lpc.packageservice.queryPdsPackageDataList";
 export const CW_COUNT_API = "mtop.cainiao.lpc.packageservice.user.package.count.query";
 export const CW_IDENTITY_API = "mtop.user.getUserSimple";
@@ -59,7 +59,7 @@ export function cwObject(value) {
 }
 
 export function cwKnownVersion(value) {
-    return ["1.1.0", "1.2.0", CW_VERSION].includes(value);
+    return ["1.1.0", "1.2.0", "1.2.1", CW_VERSION].includes(value);
 }
 
 export function cwText(value, limit = 160) {
@@ -155,7 +155,9 @@ export function cwRequestData(page) {
 
 function cwMtopRequestURL(cookies, api, data, now) {
     const t = String(Math.floor(now));
-    const token = (cookies.get("_m_h5_tk") || "").split("_")[0];
+    // 官方 MTOP 2.7.4 在 Cookie 缺失时拼接 undefined，不使用空串或补造 token。
+    const rawToken = cookies.get("_m_h5_tk");
+    const token = rawToken ? rawToken.split("_")[0] : undefined;
     const sign = md5(token + "&" + t + "&12574478&" + data);
     const query = {jsv: "2.7.4", appKey: "12574478", t, sign, api, v: "1.0", type: "originaljson", dataType: "json", data};
     return CW_HOST + "/h5/" + api.toLowerCase() + "/1.0/?" + Object.entries(query).map(([key, value]) => key + "=" + encodeURIComponent(value)).join("&");

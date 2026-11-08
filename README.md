@@ -16,7 +16,7 @@ Surge 与 Egern 去广告模块、蔚来自动签到脚本、Apple 天气增强�
   [使用说明](jd/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml)
 - **菜鸟 1.2.1（Surge / Egern）**：九个精确主机限定 QUIC 或 UDP 443，补仅识别为 UDP 的连接；保留双端页面与素材规则，协议回退仍需手机验证。
   [使用说明](cainiao/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.yaml)
-- **菜鸟取件小组件 1.2.3（Egern 原生，正在发布）**：原模块自动检查 Cookie 发送、采集合法服务端 Cookie 候选并观察已知登录结构；五入口共用同一 JS，不需要 ZIP、电脑或 HAR。仍需完整个人验证，不宣称此前登录失败已修好。
+- **菜鸟取件小组件 1.2.3（Egern 原生，已发布）**：原模块自动检查 Cookie 发送、采集合法服务端 Cookie 候选并观察已知登录结构；五入口共用同一 JS，不需要 ZIP、电脑或 HAR。仍需完整个人验证，不宣称此前登录失败已修好。
   [手机安装与升级](cainiao-widget/开始使用-1.2.3.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.2.3)
 - **闲鱼**：新旧开屏接口、缓存广告引用、悬浮策略及指定广告素材。
   [使用说明](xianyu/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-adblock.egern.yaml)
@@ -100,7 +100,7 @@ node --experimental-vm-modules --test --test-reporter=tap \
   cainiao-widget/tests/*.test.cjs
 ```
 
-1.2.3 工作区脚本 **776/776 → 928/928**，其中菜鸟取件小组件 **232/232 → 384/384**：新增发送对照 55 项、响应采集 63 项、独立接入集成 34 项；不包含旧诊断或 HAR 工具。公共静态 **40/40 → 41/41**，旧登录助手 **32/32**，58 个同源布局零问题。实际提交树和公开原地址分别核验，结果见[本版验证记录](cainiao-widget/验证记录-1.2.3.md)。字段、匹配和来源子集测试依赖 PyYAML 6：
+1.2.3 工作区与实际发布树脚本 **776/776 → 928/928**，其中菜鸟取件小组件 **232/232 → 384/384**：新增发送对照 55 项、响应采集 63 项、独立接入集成 34 项；不包含旧诊断或 HAR 工具。公共静态 **40/40 → 41/41**，旧登录助手 **32/32**，58 个同源布局零问题。实际提交树和公开原地址分别核验，结果见[本版验证记录](cainiao-widget/验证记录-1.2.3.md)。字段、匹配和来源子集测试依赖 PyYAML 6：
 
 ```sh
 python3 egern/validate.py
@@ -131,7 +131,7 @@ Egern 的 `.egern.js` 是 ES module，单文件语法检查使用 `node --input-
 
 2026-11-08 菜鸟取件小组件 1.2.2 已发布：首次无 H5 token 签名与官方 2.7.4 一致，保留旧会话、完整列表及失败停止状态；主组件 **193/193 → 232/232**、全仓 **737/737 → 776/776**、静态 **40/40**，58 个布局零问题。实际提交树独立回归通过，十四个公开原地址与实现提交同字节。手机真实接入仍未验收，见[小组件 1.2.2 记录](cainiao-widget/验证记录-1.2.2.md)。本项目同范围修复通过验证后直接发布，不重复询问。
 
-2026-11-09 菜鸟取件小组件 1.2.3 正在发布：原模块增加固定假 Cookie 发送对照、合法响应 Cookie 候选和已知登录结构观察。主组件 **232/232 → 384/384**、全仓 **776/776 → 928/928**、静态 **40/40 → 41/41**；独立接入复核 **203/203**，58 个同源布局零问题。凭据不进入回显测试，旧失败和账号屏障保留。当前手机接入仍未确认，见[1.2.3 验证记录](cainiao-widget/验证记录-1.2.3.md)。
+2026-11-09 菜鸟取件小组件 1.2.3 已发布：原模块增加固定假 Cookie 发送对照、合法响应 Cookie 候选和已知登录结构观察。主组件 **232/232 → 384/384**、全仓 **776/776 → 928/928**、静态 **40/40 → 41/41**；独立接入复核 **203/203**，58 个同源布局零问题。二十六路径实际提交树通过，十四个公开原地址同字节。凭据不进入回显测试，旧失败和账号屏障保留。当前手机接入仍未确认，见[1.2.3 验证记录](cainiao-widget/验证记录-1.2.3.md)。
 
 ## 反馈与来源
 

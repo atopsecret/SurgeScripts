@@ -8,7 +8,7 @@
 - [高德地图](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.egern.yaml)：2.1.0，RT 开屏 multipart、个人页 v3、十五类页面与内嵌配置净化。
 - [京东 2.0.0](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml)：十二类接口、已知导航、精准开屏素材尺寸与原字节回退。
 - [菜鸟 1.2.1](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.yaml?v=1.2.1)：九个精确主机改为 UDP/QUIC `443` 条件，保留原有页面和素材规则；最新抓包确认仍在展示本地缓存视频，最终开屏效果未真机确认。
-- [菜鸟取件小组件 1.2.3 · 正在发布](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.2.3)：同一模块集成合成 Cookie 发送对照、合法响应 Cookie 候选和已知登录结构；不要求本地文件；[手机更新步骤](../cainiao-widget/开始使用-1.2.3.md)。真实接入仍未确认。
+- [菜鸟取件小组件 1.2.3 · 已发布](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.2.3)：同一模块集成合成 Cookie 发送对照、合法响应 Cookie 候选和已知登录结构；不要求本地文件；[手机更新步骤](../cainiao-widget/开始使用-1.2.3.md)。真实接入仍未确认。
 - [闲鱼](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-adblock.egern.yaml)：六个网关、新旧开屏和缓存广告引用。
 - [拼多多](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/pinduoduo/pdd-adblock.egern.yaml)：双条件素材规则、单域 QUIC 与已知页面净化。
 - [红果](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/hongguo/hongguo-adblock.egern.yaml)：78 条广告/上报条件，不拒绝主配置公共 DNS。
@@ -71,7 +71,7 @@ NAS 原 Surge 网关条件不能从当前公开 Egern 条件策略字段直接�
 
 2026-11-08 菜鸟取件小组件 1.2.1 已发布：保留同次实际 Cookie，首次验证失败不误报 App 登录过期，旧终止态不被 SID-only 流量复活；新回归 **49/49**、主组件 **193/193**、全仓 **737/737**、静态 **40/40**、58 个布局零问题。十三个公开原地址的版本及哈希一致，手机接入未验收，见[小组件 1.2.1 记录](../cainiao-widget/验证记录-1.2.1.md)。
 
-2026-11-09 菜鸟取件小组件 1.2.3 正在发布：同模块发送对照、响应候选和有限登录结构已集成；主组件 **232/232 → 384/384**、全仓 **776/776 → 928/928**、静态 **40/40 → 41/41**、旧助手 **32/32**。独立接入复核 **203/203**，58 个同源布局零问题；上线不等于手机登录已接通，见[1.2.3 记录](../cainiao-widget/验证记录-1.2.3.md)。
+2026-11-09 菜鸟取件小组件 1.2.3 已发布：同模块发送对照、响应候选和有限登录结构已集成；主组件 **232/232 → 384/384**、全仓 **776/776 → 928/928**、静态 **40/40 → 41/41**、旧助手 **32/32**。独立接入复核 **203/203**，58 个同源布局零问题；十四个公开原地址同字节，上线不等于手机登录已接通，见[1.2.3 记录](../cainiao-widget/验证记录-1.2.3.md)。
 
 ## 参考
 

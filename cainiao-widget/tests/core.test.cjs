@@ -119,3 +119,39 @@ test("无可靠包裹标识时拒绝更新，不把同站多个缺码件静默�
     assert.throws(() => core.cwItems([{...raw, packageItem: [{itemTitle: "甲"}]}, {...raw, packageItem: [{itemTitle: "乙"}]}]), /schema/);
     assert.equal(core.cwItems([{...raw, packageId: "synthetic-a"}, {...raw, packageId: "synthetic-b"}]).length, 2);
 });
+
+test("身份与 COUNT 请求同样按原始 data 签名，固定接口不会接收任意目标", () => {
+    const cookies = core.cwCookieMap("unb=123456789; cookie2=synthetic-session; _m_h5_tk=synthetic-token_2");
+    for (const [build, api, data] of [[core.cwIdentityRequestURL, core.CW_IDENTITY_API, "{}"], [core.cwAccountRequestURL, core.CW_COUNT_API, '{"appName":"GUOGUO"}']]) {
+        const url = new URL(build(cookies, 1794123456789));
+        assert.equal(url.hostname, "h5api.m.taobao.com"); assert.equal(url.pathname, "/h5/" + api.toLowerCase() + "/1.0/");
+        assert.equal(url.searchParams.get("api"), api); assert.equal(url.searchParams.get("data"), data);
+        assert.equal(url.searchParams.get("sign"), createHash("md5").update("synthetic-token&1794123456789&12574478&" + data).digest("hex"));
+    }
+});
+
+test("身份 helper 本身也要求成功的对应接口与可靠 UID，不靠 caller 补判", () => {
+    const body = {api: core.CW_IDENTITY_API, v: "1.0", ret: ["SUCCESS::成功"], userNumId: "123456789"};
+    assert.equal(core.cwIdentityMatch(body, "123456789"), "match");
+    assert.equal(core.cwIdentityMatch(body, "123456788"), "mismatch");
+    for (const [input, uid] of [[{...body, ret: ["FAIL_SYS_SESSION_EXPIRED::过期"]}, "123456789"], [{...body, api: "mtop.common.getTimestamp"}, "123456789"], [{...body, v: "2.0"}, "123456789"], [body, 123456789], [body, "0"], [body, "01"]]) {
+        assert.equal(core.cwIdentityMatch(input, uid), "unverified");
+    }
+});
+
+test("Cookie 的空值同样参与重复冲突校验，不能先丢空值后接受另一会话", () => {
+    for (const header of ["cookie2=; cookie2=synthetic-session", "cookie2=synthetic-session; cookie2="])
+        assert.throws(() => core.cwCookieMap(header), /cookie-duplicate/);
+    assert.equal(core.cwCookieMap("empty=; cookie2=synthetic-session").has("empty"), false);
+    assert.equal(core.cwCookieMap("empty=; cookie2=synthetic-session", true).get("empty"), "");
+});
+
+test("账号检查 Cookie 默认路径不摊平进 PDS，公共根路径 token 仍可更新", () => {
+    const cookies = core.cwCookieMap("unb=123456789; cookie2=synthetic-session; _m_h5_tk=synthetic-old_1");
+    core.cwUpdateCookies(cookies, {getAll: () => ["_m_h5_tk=synthetic-wrong-default_2"]}, 1000, core.CW_COUNT_PATH);
+    assert.equal(cookies.get("_m_h5_tk"), "synthetic-old_1");
+    core.cwUpdateCookies(cookies, {getAll: () => ["_m_h5_tk=synthetic-wrong-pds_2; Path=" + core.CW_PATH]}, 1000, core.CW_COUNT_PATH);
+    assert.equal(cookies.get("_m_h5_tk"), "synthetic-old_1");
+    core.cwUpdateCookies(cookies, {getAll: () => ["_m_h5_tk=synthetic-root_3; Domain=.taobao.com; Path=/"]}, 1000, core.CW_COUNT_PATH);
+    assert.equal(cookies.get("_m_h5_tk"), "synthetic-root_3");
+});

@@ -1,10 +1,8 @@
 // 引擎：Egern 原生小组件 DSL | 语言：JavaScript ES module
 // 构建：node cainiao-widget/build.mjs
 // 运行：由 runtime.mjs 调用 renderWidget；离线 node --test cainiao-widget/tests/render.test.cjs
-// 依赖：core.mjs 的官方页面常量；不依赖浏览器或第三方运行库
-import {CW_LOGIN_URL} from "./core.mjs";
+// 依赖：无；不依赖浏览器或第三方运行库，不伪造 App 点击链接
 
-const CNW_URL = CW_LOGIN_URL;
 const CNW_COLORS = {
   background: { light: '#F4F7FE', dark: '#0C1527' },
   backgroundEnd: { light: '#EAF1FF', dark: '#13233C' },
@@ -25,8 +23,8 @@ const CNW_FAMILIES = {
 };
 const CNW_STATES = {
   ready: { label: '待取包裹', title: '没有待取包裹', detail: '包裹到站后会显示在这里' },
-  setup: { label: '尚未连接', title: '先打开手机查件页', detail: '登录后回到 Egern 刷新组件' },
-  expired: { label: '登录过期', title: '重开手机查件页', detail: '登录后回到 Egern 重新连接' },
+  setup: { label: '尚未连接', title: '先打开淘宝或菜鸟', detail: '刷新 App 快递列表后回到组件' },
+  expired: { label: '登录过期', title: '重开 App 快递列表', detail: '登录后回到 Egern 重新连接' },
   offline: { label: '连接失败', title: '暂时无法连接', detail: '稍后会自动重试' },
   verify: { label: '需安全验证', title: '请先完成验证', detail: '在淘宝或菜鸟完成验证后重试' },
   partial: { label: '数据未取全', title: '暂未取得完整列表', detail: '仅显示已确认的待取件' },
@@ -220,7 +218,7 @@ function cnwDesktop(context, family) {
     body = cnwStack('column', rows, { flex: 1, gap: 8 });
   }
   return {
-    type: 'widget', url: CNW_URL, refreshAfter: context.refreshAfter,
+    type: 'widget', refreshAfter: context.refreshAfter,
     backgroundColor: CNW_COLORS.background,
     backgroundGradient: {
       type: 'linear', colors: [CNW_COLORS.background, CNW_COLORS.backgroundEnd],
@@ -283,7 +281,7 @@ function cnwLock(context, family) {
     ];
   }
   return {
-    type: 'widget', url: CNW_URL, refreshAfter: context.refreshAfter,
+    type: 'widget', refreshAfter: context.refreshAfter,
     padding: family === 'accessoryCircular' ? 1 : 0, gap: family === 'accessoryCircular' ? 0 : 3,
     children,
   };

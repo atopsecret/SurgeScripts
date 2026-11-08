@@ -3,15 +3,19 @@
 // 运行：由 runtime.mjs 调用；离线验证 node --test cainiao-widget/tests/core.test.cjs
 // 依赖：无；协议来源见 THIRD_PARTY_NOTICES.md
 
-export const CW_VERSION = "1.1.0";
+export const CW_VERSION = "1.2.0";
 export const CW_API = "mtop.cainiao.lpc.packageservice.queryPdsPackageDataList";
+export const CW_COUNT_API = "mtop.cainiao.lpc.packageservice.user.package.count.query";
+export const CW_IDENTITY_API = "mtop.user.getUserSimple";
 export const CW_HOST = "https://h5api.m.taobao.com";
 export const CW_PATH = "/h5/" + CW_API.toLowerCase() + "/1.0/";
+export const CW_COUNT_PATH = "/h5/" + CW_COUNT_API.toLowerCase() + "/1.0/";
+export const CW_IDENTITY_PATH = "/h5/" + CW_IDENTITY_API.toLowerCase() + "/1.0/";
 export const CW_UA = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36";
 export const CW_STORE = "cainiao-widget.local.v1";
 export const CW_AUTH_STORE = "cainiao-widget.auth.v1";
 export const CW_CAPTURE_STORE = "cainiao-widget.capture.v1";
-export const CW_LOGIN_URL = "https://page.cainiao.com/guoguo/app-myexpress-taobao/";
+export const CW_APP_STORE = "cainiao-widget.app.v1";
 export const CW_SELF_HEADER = "X-Cainiao-Widget-Request";
 
 // MD5 只用于 MTOP 协议签名与本地身份摘要，不用于加密存储。
@@ -75,7 +79,7 @@ function cwFirstObject(object, keys) {
     return {};
 }
 
-export function cwCookieMap(header) {
+export function cwCookieMap(header, includeEmpty = false) {
     if (typeof header !== "string" || header.length > 32768 || /[\r\n\x00]/.test(header)) throw new Error("cookie-format");
     const cookies = new Map();
     for (const part of header.replace(/^cookie:\s*/i, "").split(";")) {
@@ -85,9 +89,9 @@ export function cwCookieMap(header) {
         if (at < 1 || !/^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/.test(name) || !/^[\x21-\x3a\x3c-\x7e]*$/.test(value) || value.length > 8192) throw new Error("cookie-format");
         if (/^(?:path|domain|expires|max-age|secure|httponly|samesite)$/i.test(name)) throw new Error("cookie-format");
         if (cookies.has(name) && cookies.get(name) !== value) throw new Error("cookie-duplicate");
-        if (value) cookies.set(name, value);
+        cookies.set(name, value);
     }
-    return cookies;
+    return includeEmpty ? cookies : new Map([...cookies].filter(([, value]) => value));
 }
 
 export function cwCookieHeader(cookies) {
@@ -102,14 +106,15 @@ export function cwOwner(cookies) {
 }
 
 // 只接受当前固定业务 URL 可用的 Set-Cookie，不把其他域或路径的值摊进请求头。
-export function cwUpdateCookies(cookies, headers, now = Date.now()) {
+export function cwUpdateCookies(cookies, headers, now = Date.now(), requestPath = CW_PATH) {
     let lines = [];
     if (headers && typeof headers.getAll === "function") lines = headers.getAll("set-cookie");
     else if (headers) {
         const value = headers["set-cookie"] ?? headers["Set-Cookie"];
         lines = Array.isArray(value) ? value : value ? [value] : [];
     }
-    if (!Array.isArray(lines)) return;
+    if (!Array.isArray(lines) || lines.length > 64 || lines.some(line => typeof line !== "string")
+        || lines.reduce((size, line) => size + line.length, 0) > 65536) return;
     for (const line of lines) {
         if (typeof line !== "string" || /[\r\n\x00]/.test(line)) continue;
         // 合并头只在下一个 cookie 名称前分割，保留 Expires 的逗号。
@@ -128,8 +133,10 @@ export function cwUpdateCookies(cookies, headers, now = Date.now()) {
                 const domain = attrs.domain.replace(/^\./, "").toLowerCase();
                 if (!["taobao.com", "m.taobao.com", "h5api.m.taobao.com"].includes(domain)) continue;
             }
-            const path = attrs.path || "/h5/" + CW_API.toLowerCase() + "/1.0";
-            if (!(CW_PATH === path || CW_PATH.startsWith(path.endsWith("/") ? path : path + "/"))) continue;
+            const path = attrs.path || requestPath.slice(0, requestPath.lastIndexOf("/")) || "/";
+            const matches = target => target === path || target.startsWith(path.endsWith("/") ? path : path + "/");
+            // 新的账号检查同样只收可用于个人列表的 Cookie，不能摊平不相交的路径。
+            if (!matches(CW_PATH) || !matches(requestPath)) continue;
             const age = attrs["max-age"];
             const expired = age !== undefined && /^-?\d+$/.test(age) ? Number(age) <= 0 : attrs.expires !== undefined && Date.parse(attrs.expires) <= now;
             if (!value || expired) cookies.delete(name);
@@ -142,12 +149,40 @@ export function cwRequestData(page) {
     return JSON.stringify({pageSize: 50, currentPage: page, needTemporality: false, needDynInfo: "{'needFindTemporality':true,'needAppointment':true}"});
 }
 
-export function cwRequestURL(cookies, page, now) {
-    const data = cwRequestData(page), t = String(Math.floor(now));
+function cwMtopRequestURL(cookies, api, data, now) {
+    const t = String(Math.floor(now));
     const token = (cookies.get("_m_h5_tk") || "").split("_")[0];
     const sign = md5(token + "&" + t + "&12574478&" + data);
-    const query = {jsv: "2.7.4", appKey: "12574478", t, sign, api: CW_API, v: "1.0", type: "originaljson", dataType: "json", data};
-    return CW_HOST + CW_PATH + "?" + Object.entries(query).map(([key, value]) => key + "=" + encodeURIComponent(value)).join("&");
+    const query = {jsv: "2.7.4", appKey: "12574478", t, sign, api, v: "1.0", type: "originaljson", dataType: "json", data};
+    return CW_HOST + "/h5/" + api.toLowerCase() + "/1.0/?" + Object.entries(query).map(([key, value]) => key + "=" + encodeURIComponent(value)).join("&");
+}
+
+export function cwRequestURL(cookies, page, now) {
+    return cwMtopRequestURL(cookies, CW_API, cwRequestData(page), now);
+}
+
+export function cwAccountRequestURL(cookies, now) {
+    return cwMtopRequestURL(cookies, CW_COUNT_API, JSON.stringify({appName: "GUOGUO"}), now);
+}
+
+export function cwIdentityRequestURL(cookies, now) {
+    // 直接请求 H5，不运行 WindVane、SDK 自动登录或网页交互。
+    return cwMtopRequestURL(cookies, CW_IDENTITY_API, "{}", now);
+}
+
+export function cwResponseAPI(body, api) {
+    return cwObject(body) && typeof body.api === "string" && body.api.toLowerCase() === api.toLowerCase()
+        && (body.v === undefined || body.v === "1.0");
+}
+
+export function cwIdentityMatch(body, expectedUid) {
+    // 官方页面消费的是顶层 userNumId；未知别名或昵称不能补判身份。
+    if (!cwResponseAPI(body, CW_IDENTITY_API) || cwReturnKind(body) !== "success"
+        || typeof expectedUid !== "string" || !/^[1-9][0-9]{0,19}$/.test(expectedUid)) return "unverified";
+    const value = body.userNumId;
+    const uid = typeof value === "string" && /^[1-9][0-9]{0,19}$/.test(value) ? value
+        : typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? String(value) : "";
+    return !uid ? "unverified" : uid === expectedUid ? "match" : "mismatch";
 }
 
 export function cwReturnKind(body) {

@@ -6,6 +6,9 @@
     "https://egernapp.com/zh-CN/docs/javascript-api/",
     "https://egernapp.com/zh-CN/docs/configuration/scriptings/",
     "https://egernapp.com/zh-CN/docs/configuration/modules/",
+    "https://egernapp.com/zh-CN/docs/url-scheme/",
+    "https://g.alicdn.com/mtb/lib-mtop/2.6.1/mtop.js",
+    "https://g.alicdn.com/mtb/lib-login/2.2.3/login.js",
     "https://page.cainiao.com/guoguo/app-myexpress-taobao/",
     "https://cn.alicdn.com/guoguo/app-myexpress-taobao/0.0.8/index.js"
   ],
@@ -109,5 +112,45 @@
       "sha256": "f1596b0f33a6159e1f6acd452f8ae3a72151ec147b23d7d53f7d91c5868149b9",
       "source_url": "https://github.com/polygongfw/pickup-assistant/blob/46406c53c40c3fbd8b3ee6f5f899eda9ebb0e338/app/src/test/java/com/coldbrew/pickupassistant/QrLoginTest.kt"
     }
-  ]
+  ],
+  "app_entry_review": {
+    "version": "1.2.0",
+    "assessment": "只读公开协议复核；native SID 与 H5 Cookie 等价未获证明，兼容路径为手机本地有限试验。未读取私人抓包、未调用个人接口。",
+    "phone_verified": false,
+    "storage_scope_verified": false,
+    "identity_schema_verified": false,
+    "identity_source": {
+      "request_url": "https://g.alicdn.com/mtb/lib-login/2.2.3/login.js",
+      "request_sha256": "df3c1355376ebda9048389fb2dffa0ab972a2ddaeaf63f36f5fc87322a38a095",
+      "request_character_offset": 1927,
+      "consumer_url": "https://cn.alicdn.com/guoguo/app-myexpress-taobao/0.0.8/index.js",
+      "consumer_sha256": "e97442925ca8734abe1ee6824e61ff4c44ff6b2cd168a84dc6f035366f10107b",
+      "request_character_offset_in_consumer": 177411,
+      "field_character_offset_in_consumer": 177470,
+      "consumed_field": "userNumId",
+      "assessment": "页面 wrapper 返回完整 SDK 结果后读取顶层 userNumId；这不是当前 H5 响应 schema 保证。实现严格比对，不通过未知别名补判。"
+    },
+    "sdk_mirror": {
+      "repository": "mimicode/albcpackage",
+      "commit": "e4275a7bb8dfc226490e1f30bb90c5ba3dbb41ab",
+      "classification": "第三方固定 SDK 副本，非官方认证发布源；不捆绑 SDK、不复制代码、不推广为当前 iOS 保证。",
+      "files": [
+        {
+          "path": "libs/mtopsdk_allinone_open-3.1.22-opt.jar",
+          "sha256": "d6c3ced48270fa479ca8680f9472a6cd43c2fa1619bd2bc895153bef8db1c7a5",
+          "evidence": "registerSessionInfo 委托 registerMultiAccountSession 写 sid/uid；OpenNetworkConverter 将 x-sid/x-uid 关联到这两个 native 字段，未证明 cookie2/unb 别名。"
+        },
+        {
+          "path": "libs/alibabauth_core-2.2.1-sg.aar",
+          "sha256": "af1d0814f5ab93d0c2c68f19e4fe03ba573d0f7e7b864f69a44fca9e1c79bff6",
+          "evidence": "CredentialManager.refreshWhenLogin 分别注册 sid/userId 并注入服务端 cookies，两个路径独立。"
+        },
+        {
+          "path": "libs/alibabauth_ext_baichuan-2.2.1-sg.aar",
+          "sha256": "4a687515bbf8e8d3119dde251e7b23c933964e3155b265d7d9c5db6439e0a025",
+          "evidence": "MtopRpcServiceImpl.registerSessionInfo 直接委托 MTOP，未找到兑换请求或 Cookie 构造。"
+        }
+      ]
+    }
+  }
 }

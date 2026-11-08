@@ -1,9 +1,9 @@
 # 引擎：Egern 原生小组件 | 语言：YAML
 # 构建：node cainiao-widget/build.mjs
-# 运行：导入模块并信任本人 Egern CA；在手机官方查件页登录，再刷新组件
-# 依赖：同目录自包含 JS；自动捕获仅解密两个淘宝 H5 主机，不依赖去广告模块
+# 运行：导入模块并信任本人 Egern CA；打开淘宝／菜鸟 App 快递列表，再运行组件
+# 依赖：同目录自包含 JS；仅声明四个精确 MTOP 主机，不依赖去广告或独立诊断模块
 name: 菜鸟取件 · 原生小组件
-description: 1.1.0；手机查件页登录态自动保存，个人查询成功才确认连接。大号取件码、浅深色及锁屏；失败保留上次结果，无需电脑扫码。
+description: 1.2.0；App 会话采集与独立查询集成在同一组件。真实 Cookie 优先，native 候选为需手机验证的兼容试验；个人查询完整成功才连接。无需电脑扫码或 HAR。
 author: atopsecret
 homepage: https://github.com/atopsecret/SurgeScripts/tree/main/cainiao-widget
 manual: https://github.com/atopsecret/SurgeScripts/blob/main/cainiao-widget/README.md
@@ -34,20 +34,20 @@ env_schema:
       - 'true'
 scriptings:
   - http_request:
-      name: 菜鸟登录态捕获
-      match: '^https://(?:h5api\.m|acs\.m)\.taobao\.com(?::443)?/h5/mtop(?:\.[A-Za-z0-9_-]+)+/[0-9]+(?:\.[0-9]+)*/?(?:\?[^#\s]*)?$'
-      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.js?v=1.1.0
+      name: 菜鸟 App 会话采集
+      match: '^https://(?:h5api\.m\.taobao\.com|acs\.m\.taobao\.com|cn-acs\.m\.cainiao\.com|e2e-mtop\.cainiao\.com)(?::443)?/(?:h5/mtop(?:\.[A-Za-z0-9_-]+)+/[0-9]+(?:\.[0-9]+)*|gw/mtop(?:\.[A-Za-z0-9_-]+)+(?:/(?:[0-9]+(?:\.[0-9]+)*|\*))?)/?(?:\?[^#\s]*)?$'
+      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.js?v=1.2.0
       body_required: false
       update_interval: 3600
       timeout: 5
   - generic:
       name: 菜鸟取件 · 原生脚本
-      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.js?v=1.1.0
+      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.js?v=1.2.0
       update_interval: 3600
       timeout: 25
   - generic:
-      name: 菜鸟连接诊断
-      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.js?v=1.1.0
+      name: 菜鸟连接状态
+      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.js?v=1.2.0
       env:
         CAINIAO_DIAGNOSTIC: 'true'
       update_interval: 3600
@@ -60,3 +60,5 @@ mitm:
     includes:
       - h5api.m.taobao.com
       - acs.m.taobao.com
+      - cn-acs.m.cainiao.com
+      - e2e-mtop.cainiao.com

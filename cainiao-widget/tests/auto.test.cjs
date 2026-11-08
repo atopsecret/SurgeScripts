@@ -16,7 +16,7 @@ const saved = f => f.memory.get(core.CW_AUTH_STORE);
 test("默认未捕获只显示手机接入提示，无参数、无扫码、无个人请求", async () => {
     const f = fixture(), model = await load(f);
     assert.equal(model.status, "setup"); assert.equal(model.total, 0); assert.equal(model.updatedAt, null);
-    assert.match(model.message, /手机查件页/); assert(!/扫码|电脑/.test(model.message)); assert.equal(f.requests.length, 0);
+    assert.match(model.message, /淘宝或菜鸟 App/); assert(!/扫码|电脑|查件页|HAR/.test(model.message)); assert.equal(f.requests.length, 0);
 });
 
 test("自动凭据优先手动参数，完整个人列表成功才确认连接", async () => {
@@ -55,11 +55,11 @@ test("自动 token 引导更新缓存，新手机 token 优先旧网关值且保
     assert(f.requests[3].options.headers.Cookie.includes("synthetic-phone-token_9")); assert.deepEqual(model.items, before.items);
 });
 
-test("过期后不反复请求，重新打开手机页捕获后才重试", async () => {
+test("过期后不反复请求，重新打开 App 捕获后才重试", async () => {
     const f = fixture([success(), response({ret: ["FAIL_SYS_SESSION_EXPIRED::过期"]}), success([])]); capture(f);
     const first = await load(f); f.advance(60000);
     const expired = await load(f); assert.equal(expired.status, "expired"); assert.deepEqual(expired.items, first.items);
-    assert.equal(expired.updatedAt, first.updatedAt); assert.match(expired.message, /重开手机查件页/); assert.equal(saved(f).status, "expired");
+    assert.equal(expired.updatedAt, first.updatedAt); assert.match(expired.message, /重开 App 快递列表/); assert.equal(saved(f).status, "expired");
     const again = await load(f); assert.equal(again.status, "expired"); assert.equal(f.requests.length, 2);
     capture(f); assert.equal(saved(f).status, "pending"); assert.equal((await load(f)).status, "ready"); assert.equal(f.requests.length, 3);
 });
@@ -175,7 +175,7 @@ test("同一自包含脚本在无 Node 全局环境跨入口捕获、渲染和�
     assert.equal(await mod.namespace.default(f.incoming()), undefined);
     assert.equal(saved(f).status, "pending");
     const output = await mod.namespace.default(f.ctx); assert.equal(output.type, "widget");
-    assert.equal(output.url, core.CW_LOGIN_URL); assert(JSON.stringify(output).includes("8-1-1111")); assert.equal(saved(f).status, "connected");
+    assert.equal(Object.hasOwn(output, "url"), false); assert(JSON.stringify(output).includes("8-1-1111")); assert.equal(saved(f).status, "connected");
     const before = f.requests.length;
     const diagnostic = await mod.namespace.default({...f.ctx, env: {CAINIAO_DIAGNOSTIC: "true"}});
     assert.match(JSON.stringify(diagnostic), /查询已确认/); assert.equal(f.requests.length, before);

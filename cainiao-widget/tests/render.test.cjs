@@ -18,7 +18,7 @@ const walk = (node) => [node, ...(node.children || []).flatMap(walk)];
 const texts = (node) => walk(node).filter((item) => item.type === 'text').map((item) => item.text);
 const joined = (node) => texts(node).join('|');
 
-test('七种尺寸仅生成官方支持的 DSL 字段，且点击统一进入官方网页', async () => {
+test('七种尺寸仅生成官方支持的 DSL 字段，不再把查件网页或猜测 App scheme 作为点击入口', async () => {
   const { renderWidget } = await modulePromise;
   const allowed = {
     widget: ['type', 'children', 'url', 'refreshAfter', 'padding', 'gap', 'backgroundColor', 'backgroundGradient'],
@@ -30,7 +30,7 @@ test('七种尺寸仅生成官方支持的 DSL 字段，且点击统一进入官
   for (const family of FAMILIES) {
     const tree = renderWidget(sample(), family, NOW);
     assert.equal(tree.type, 'widget');
-    assert.equal(tree.url, 'https://page.cainiao.com/guoguo/app-myexpress-taobao/');
+    assert.equal(Object.hasOwn(tree, 'url'), false);
     assert.equal(tree.refreshAfter, new Date(NOW + 15 * 60000).toISOString());
     for (const node of walk(tree)) {
       assert.ok(allowed[node.type], `不支持的元素 ${node.type}`);
@@ -190,7 +190,7 @@ test('关闭连接与本机存储异常的标题不再引导用户重新登录',
     for (const setupTitle of ['连接已关闭', '检查 Egern 存储', '填写手动登录参数', '刷新小组件']) {
       const text = joined(renderWidget(sample({ status: 'setup', items: [], total: 0, updatedAt: null, setupTitle, message: '合成状态说明' }), family, NOW));
       assert(text.includes(setupTitle), `${family}: ${setupTitle}`);
-      assert(!text.includes('先打开手机查件页'));
+      assert(!text.includes('先打开淘宝或菜鸟'));
     }
   }
 });

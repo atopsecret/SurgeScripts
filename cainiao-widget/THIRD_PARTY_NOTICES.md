@@ -1,11 +1,15 @@
 # 来源与许可
 
-本组件的 MTOP、PDS 字段，以及保留的独立扫码登录助手参考下列公开实现。1.1.0 默认按 [Egern 官方 API](https://egernapp.com/zh-CN/docs/javascript-api/)只读捕获手机官方查件页的 H5 请求头，保存待验证登录态，不依赖扫码助手。旧助手使用 Python 标准库重写请求、TLS、Cookie 域路径选择、登录收尾及私有文件输出。没有捆绑或执行上游 skill，也没有捆绑 Android 应用或 qrcode.js。
+本组件的 MTOP、PDS 字段，以及保留的独立扫码登录助手参考下列公开实现。1.2.0 按 [Egern 官方 API](https://egernapp.com/zh-CN/docs/javascript-api/)只读采集 App 请求头，候选经过独立个人查询后才确认，不依赖扫码助手。旧助手使用 Python 标准库重写请求、TLS、Cookie 域路径、登录收尾与私有文件输出。没有捆绑或执行上游 skill、Android 应用、SDK 二进制或 qrcode.js。
 
 - mykohuang/kuaidi-skill，固定提交 da8e16247cd83d7f0b0772f383fda011bb4b89bf：[kuaidi.py](https://github.com/mykohuang/kuaidi-skill/blob/da8e16247cd83d7f0b0772f383fda011bb4b89bf/kuaidi.py)、[LICENSE](https://github.com/mykohuang/kuaidi-skill/blob/da8e16247cd83d7f0b0772f383fda011bb4b89bf/LICENSE)。
 - polygongfw/pickup-assistant，固定提交 46406c53c40c3fbd8b3ee6f5f899eda9ebb0e338：[Api.kt](https://github.com/polygongfw/pickup-assistant/blob/46406c53c40c3fbd8b3ee6f5f899eda9ebb0e338/app/src/main/java/com/coldbrew/pickupassistant/data/Api.kt)、[Mtop.kt](https://github.com/polygongfw/pickup-assistant/blob/46406c53c40c3fbd8b3ee6f5f899eda9ebb0e338/app/src/main/java/com/coldbrew/pickupassistant/data/Mtop.kt)、[Models.kt](https://github.com/polygongfw/pickup-assistant/blob/46406c53c40c3fbd8b3ee6f5f899eda9ebb0e338/app/src/main/java/com/coldbrew/pickupassistant/data/Models.kt)、[QrLogin.kt](https://github.com/polygongfw/pickup-assistant/blob/46406c53c40c3fbd8b3ee6f5f899eda9ebb0e338/app/src/main/java/com/coldbrew/pickupassistant/data/QrLogin.kt)、[LICENSE](https://github.com/polygongfw/pickup-assistant/blob/46406c53c40c3fbd8b3ee6f5f899eda9ebb0e338/LICENSE)。Cookie 行为也核对同一提交中的 CookieStore.kt、Cookies.kt、SessionStore.kt；二维码状态与收尾测试核对 QrLoginTest.kt。
 
 二维码依赖通过 requirements-login.txt 单独安装，仅供独立助手使用；默认手机流程无需安装。二维码内容只在本机编码，不使用第三方在线二维码服务。接口互操作性来源不等于当前服务端可用性保证；自动捕获的候选必须经个人列表查询成功确认，离线验证不能代替用户手机验收。
+
+1.2.0 的 App 入口另核对 [官方 lib-mtop 2.6.1](https://g.alicdn.com/mtb/lib-mtop/2.6.1/mtop.js)、[官方 lib-login 2.2.3](https://g.alicdn.com/mtb/lib-login/2.2.3/login.js) 与 [官方 myexpress 0.0.8](https://cn.alicdn.com/guoguo/app-myexpress-taobao/0.0.8/index.js) 的调用、身份字段消费和原生桥行为；只作协议参考，不复制或分发上述代码。
+
+公开固定 SDK 副本来自 [mimicode/albcpackage@e4275a7bb8dfc226490e1f30bb90c5ba3dbb41ab](https://github.com/mimicode/albcpackage/tree/e4275a7bb8dfc226490e1f30bb90c5ba3dbb41ab/libs)。MTOP 的 SID 注册与 alibabauth 的服务端 Cookie 注入是独立路径；没有取得 SID 等价于 `cookie2` 的证明。这是第三方副本，不标为官方认证源，也不能推广为当前 iOS 行为。实现只在本人手机有限试验 native 候选；身份匹配、COUNT 和完整 PDS 都通过才确认兼容。
 
 以下保留两份上游 LICENSE 的完整原文。
 

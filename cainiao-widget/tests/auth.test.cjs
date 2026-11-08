@@ -11,17 +11,18 @@ const capture = f => auth.captureCainiaoCredentials(f.incoming(), f.clock);
 const saved = f => f.memory.get(core.CW_AUTH_STORE);
 const result = f => f.memory.get(core.CW_CAPTURE_STORE)?.code;
 
-test("捕获范围只接受两个精确 HTTPS H5 网关和数字版本", () => {
-    for (const host of ["h5api.m.taobao.com", "acs.m.taobao.com"]) {
+test("捕获范围接受四个精确 HTTPS 网关，H5 数字版本与受约束 GW", () => {
+    for (const host of ["h5api.m.taobao.com", "acs.m.taobao.com", "cn-acs.m.cainiao.com", "e2e-mtop.cainiao.com"]) {
         for (const suffix of ["/1.0/", "/1.0", "/2.1.3/?x=1"]) {
             assert.equal(auth.cwCaptureURL(`https://${host}/h5/mtop.example.test${suffix}`), host);
             assert.equal(auth.cwCaptureURL(`https://${host}:443/h5/mtop.example.test${suffix}`), host);
         }
+        for (const suffix of ["/1.0/", "/*/", "/", ""]) assert.equal(auth.cwCaptureURL(`https://${host}/gw/mtop.example.test${suffix}`), host);
     }
     for (const url of [
         "http://h5api.m.taobao.com/h5/mtop.example/1.0/", "https://h5api.m.taobao.com.evil.invalid/h5/mtop.example/1.0/",
         "https://evil.invalid/h5api.m.taobao.com/h5/mtop.example/1.0/", "https://user@h5api.m.taobao.com/h5/mtop.example/1.0/",
-        "https://h5api.m.taobao.com:444/h5/mtop.example/1.0/", "https://acs.m.taobao.com/gw/mtop.example/1.0/",
+        "https://h5api.m.taobao.com:444/h5/mtop.example/1.0/", "https://acs.m.taobao.com/gw/mtop.example/latest/",
         "https://h5api.m.taobao.com/h5/mtop/1.0/", "https://h5api.m.taobao.com/h5/mtop.example/latest/",
         "https://h5api.m.taobao.com/h5/mtop.example/1.0/extra", CAPTURE_URL + "#fragment", CAPTURE_URL + "\n",
         "https://h5api.m.taobao.com/h5/mtop.example%2fother/1.0/", null,
@@ -150,13 +151,13 @@ test("写后出现另一捕获代次不回写旧值，也不声称此次保存�
     capture(f); assert.equal(result(f), "superseded"); assert(saved(f).cookie.includes("synthetic-user-b"));
 });
 
-test("手动、关闭或无效模式不捕获，关闭操作仅清本组件三个键", () => {
+test("手动、关闭或无效模式不捕获，关闭操作仅清本组件四个键", () => {
     for (const mode of ["manual", "off", "invalid"]) {
         const f = fixture(); f.ctx.env.CONNECTION_MODE = mode; capture(f); assert.equal(f.writes.length, 0);
     }
     const f = fixture(); capture(f); f.memory.set(core.CW_STORE, {synthetic: true}); f.memory.set("other-module", {keep: true});
     auth.cwClearLocal(f.ctx);
-    for (const key of [core.CW_STORE, core.CW_AUTH_STORE, core.CW_CAPTURE_STORE]) assert.equal(f.memory.get(key), null);
+    for (const key of [core.CW_STORE, core.CW_AUTH_STORE, core.CW_CAPTURE_STORE, core.CW_APP_STORE]) assert.equal(f.memory.get(key), null);
     assert.deepEqual(f.memory.get("other-module"), {keep: true});
 });
 

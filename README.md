@@ -16,8 +16,8 @@ Surge 与 Egern 去广告模块、蔚来自动签到脚本、Apple 天气增强�
   [使用说明](jd/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml)
 - **菜鸟 1.2.0（Surge / Egern）**：补 HTTP/3 绕过、广告 API 的 `.cn` 变体、自营开屏视频和备用封面；保留双端页面清理。
   [使用说明](cainiao/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.yaml)
-- **菜鸟取件小组件 1.2.0（Egern 原生，发布进行中）**：App 会话采集与独立查询集成同一组件，默认手机在线添加远程模块，不需要 ZIP、电脑、复制源码或 HAR；支持浅深色与锁屏。原生候选兼容及关闭 App 后的真实更新仍需手机验证。
-  [手机安装与连接](cainiao-widget/README.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml)
+- **菜鸟取件小组件 1.2.0（Egern 原生，已发布）**：App 会话采集与独立查询集成同一组件，默认手机在线添加远程模块，不需要 ZIP、电脑、复制源码或 HAR；支持浅深色与锁屏。原生候选兼容及关闭 App 后的真实更新仍需手机验证。
+  [手机安装与连接](cainiao-widget/开始使用-1.2.0.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.2.0)
 - **闲鱼**：新旧开屏接口、缓存广告引用、悬浮策略及指定广告素材。
   [使用说明](xianyu/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-adblock.egern.yaml)
 - **拼多多**：开屏、多多视频入口、首页及订单页已知推广字段。
@@ -125,7 +125,7 @@ Egern 的 `.egern.js` 是 ES module，单文件语法检查使用 `node --input-
 
 2026-11-08 菜鸟去广告 1.2.0：HAR、PCAP 与压缩应用日志确认 HTTP/3 和自营视频路径；补 QUIC 条件、广告 `.cn` API 与视频备用封面。菜鸟 **47/47**、全仓 **624/624**、静态 **40/40**。客户端协议识别、TCP 回退和缓存仍待手机验收，见[1.2.0 验证记录](cainiao/验证记录-1.2.0.md)。
 
-2026-11-08 菜鸟取件小组件 1.2.0 发布进行中：App 会话采集和独立查询已集成同一组件，新增 App 回归 **57/57**、主组件 **83/83 → 144/144**、全仓 **624/624 → 685/685**、静态 **40/40**，58 个同源布局零问题。原生会话兼容与关闭 App 后的新查询尚未手机验收，见[小组件 1.2.0 验证记录](cainiao-widget/验证记录-1.2.0.md)。公开资源回读另行记录。
+2026-11-08 菜鸟取件小组件 1.2.0 已发布：App 会话采集和独立查询已集成同一组件，新增 App 回归 **57/57**、主组件 **83/83 → 144/144**、全仓 **624/624 → 685/685**、静态 **40/40**，58 个同源布局零问题。十三个公开资源 HTTP 200，版本和哈希一致。原生会话兼容与关闭 App 后的新查询尚未手机验收，见[小组件 1.2.0 验证记录](cainiao-widget/验证记录-1.2.0.md)。
 
 ## 反馈与来源
 

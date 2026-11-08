@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import tempfile
 import unittest
+from urllib.parse import parse_qs, urlsplit
 
 file = Path(__file__).with_name("validate.py")
 spec = importlib.util.spec_from_file_location("egern_validator", file)
@@ -305,9 +306,20 @@ class ValidationTests(unittest.TestCase):
         script = (ROOT / "cainiao-widget/cainiao-widget.egern.js").read_text()
         self.assertIn("打开淘宝或菜鸟 App", guide)
         self.assertIn("不需要 ZIP、电脑、复制源码、HAR 或 Cookie", guide)
-        self.assertIn("发布进行中", guide)
+        self.assertIn("1.2.0 已发布", guide)
         self.assertIn("手机实际连接尚未验收", guide)
         self.assertIn("egern:/modules/new?name=NAME&url=URL", guide)
+        module_url = "https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.2.0"
+        quick_guide = (ROOT / "cainiao-widget/开始使用-1.2.0.md").read_text()
+        for text in [guide, quick_guide]:
+            self.assertIn(module_url, text)
+            match = re.search(r"\]\((egern:/modules/new\?[^\s)]+)\)", text)
+            self.assertIsNotNone(match)
+            parsed = urlsplit(match.group(1))
+            self.assertEqual((parsed.scheme, parsed.netloc, parsed.path), ("egern", "", "/modules/new"))
+            self.assertEqual(parse_qs(parsed.query, strict_parsing=True), {
+                "name": ["菜鸟取件 · 原生小组件"], "url": [module_url],
+            })
         self.assertIn("CW_AUTH_STORE", script)
         self.assertIn("CW_SELF_HEADER", script)
         self.assertIn("CW_IDENTITY_API", script)

@@ -8,7 +8,7 @@
 - [高德地图](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.egern.yaml)：2.1.0，RT 开屏 multipart、个人页 v3、十五类页面与内嵌配置净化。
 - [京东 2.0.0](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml)：十二类接口、已知导航、精准开屏素材尺寸与原字节回退。
 - [菜鸟 1.2.0](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.yaml)：补 HTTP/3 绕过、广告 API 的 `.cn` 变体与自营开屏视频和备用封面，保留原有页面清理。
-- [菜鸟取件小组件 1.2.0 · 发布进行中](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml)：App 会话采集与独立查询集成同一组件，默认手机在线添加远程模块，不要求本地文件；[手机连接与添加到桌面](../cainiao-widget/README.md)。
+- [菜鸟取件小组件 1.2.0 · 已发布](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.2.0)：App 会话采集与独立查询集成同一组件，默认手机在线添加远程模块，不要求本地文件；[手机连接与添加到桌面](../cainiao-widget/开始使用-1.2.0.md)。
 - [闲鱼](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-adblock.egern.yaml)：六个网关、新旧开屏和缓存广告引用。
 - [拼多多](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/pinduoduo/pdd-adblock.egern.yaml)：双条件素材规则、单域 QUIC 与已知页面净化。
 - [红果](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/hongguo/hongguo-adblock.egern.yaml)：78 条广告/上报条件，不拒绝主配置公共 DNS。
@@ -65,7 +65,7 @@ NAS 原 Surge 网关条件不能从当前公开 Egern 条件策略字段直接�
 
 2026-11-08 菜鸟去广告 1.2.0：根据第三份 HAR、PCAP 和解压应用日志补 HTTP/3、广告 `.cn` 变体及自营开屏素材；菜鸟 **47/47**、全仓 **624/624**、静态 **40/40**。规则覆盖三份 HAR 无回退，客户端协议识别、TCP 回退和缓存仍待验收，见[验证记录](../cainiao/验证记录-1.2.0.md)。
 
-2026-11-08 菜鸟取件小组件 1.2.0 发布进行中：新增 App 回归 **57/57**、主组件 **83/83 → 144/144**、全仓 **624/624 → 685/685**、静态 **40/40**、旧登录助手 **32/32**，58 个同源布局零问题。公开资源回读另记；原生候选兼容和关闭 App 后的新查询尚未手机验收，见[小组件 1.2.0 记录](../cainiao-widget/验证记录-1.2.0.md)。
+2026-11-08 菜鸟取件小组件 1.2.0 已发布：新增 App 回归 **57/57**、主组件 **83/83 → 144/144**、全仓 **624/624 → 685/685**、静态 **40/40**、旧登录助手 **32/32**，58 个同源布局零问题；十三个公开资源的原地址回读、版本和哈希均通过。原生候选兼容和关闭 App 后的新查询尚未手机验收，见[小组件 1.2.0 记录](../cainiao-widget/验证记录-1.2.0.md)。
 
 ## 参考
 

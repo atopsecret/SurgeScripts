@@ -4,7 +4,7 @@
 
 **1.2.0 把 App 会话采集和独立查询放进同一个小组件。默认通过手机在线模块安装，不需要 ZIP、电脑、复制源码、HAR 或 Cookie。** 可以与[菜鸟去广告](../cainiao/README.md)一起使用，不依赖去广告模块或另装诊断。采集只读四个精确 MTOP 网关的请求头，不读取短信、App 正文或沙盒，不改写查件响应。
 
-**1.2.0 发布进行中；公开资源回读通过后补一次添加链接。手机实际连接尚未验收。** 本版通过离线模拟。真实请求 Cookie 优先；原生 SID/UID 的兼容接入是有失败门限的试验，不是已经证实的 Cookie 别名。
+**1.2.0 已发布；安装模块与它引用的脚本均已回读核验。手机实际连接尚未验收。** 本版通过离线模拟。真实请求 Cookie 优先；原生 SID/UID 的兼容接入是有失败门限的试验，不是已经证实的 Cookie 别名。
 
 ![浅深色与锁屏布局，合成数据离线预览](preview/overview.png)
 
@@ -18,7 +18,9 @@
 
 **本地模块不是必要条件。** Egern 支持远程模块和远程脚本；添加一个模块就会加载它的会话采集、组件、连接状态及所引用的同一份自包含 JS，不需要用户另建脚本文件或装依赖。
 
-下面是新版的默认流程。**公开资源核验进行中，核验完成后提供一次添加链接。** 不会让用户靠 `?v=1.2.0` 猜是否升级。
+[在 Egern 一次添加菜鸟取件小组件](egern:/modules/new?name=%E8%8F%9C%E9%B8%9F%E5%8F%96%E4%BB%B6%20%C2%B7%20%E5%8E%9F%E7%94%9F%E5%B0%8F%E7%BB%84%E4%BB%B6&url=https%3A%2F%2Fraw.githubusercontent.com%2Fatopsecret%2FSurgeScripts%2Fmain%2Fcainiao-widget%2Fcainiao-widget.egern.yaml%3Fv%3D1.2.0)
+
+如果当前阅读器不允许打开 `egern:`，把[远程模块地址](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.2.0)添加到 Egern 即可；不用下载本地文件。模块描述和 JS 首行均应显示 **1.2.0**。
 
 1. 在手机点一次添加链接，确认添加 Egern 模块；客户端下载模块和脚本。保持 `CONNECTION_MODE=auto`、`CAINIAO_COOKIE` 留空，已有旧版先停用，不同时启用两份。
 2. 保持 Egern 代理运行。**已有自己的 HTTPS 解密证书且已信任时，不用重装。** 尚未配置时按客户端指引安装并信任自己的 Egern CA；这一步只需首次配置，模块不能代替系统信任。模块仅声明四个精确 MTOP 主机，不代改手机系统设置。
@@ -28,7 +30,7 @@
 
 官方安装入口与字段见 [Egern 小组件文档](https://egernapp.com/zh-CN/docs/configuration/widgets/)。客户端需支持模块 `widgets`、`generic` 脚本及原生 DSL；旧版本若没有小组件画廊，先更新 Egern。
 
-Egern 官方一次添加模块格式为 `egern:/modules/new?name=NAME&url=URL`，是单斜杠 `egern:/`，且模块必须是手机可访问的 URL。发布后才能提供可用的新链接；不使用未文档化的内联 JS、脚本 data URL 或附件自动导入。见 [URL scheme 文档](https://egernapp.com/zh-CN/docs/url-scheme/)。
+Egern 官方一次添加模块格式为 `egern:/modules/new?name=NAME&url=URL`，是单斜杠 `egern:/`，且模块必须是手机可访问的 URL。上面的名称和模块 URL 各编码一次，公开模块及其精确脚本 URL 已核对同字节；不使用未文档化的内联 JS、脚本 data URL 或附件自动导入。见 [URL scheme 文档](https://egernapp.com/zh-CN/docs/url-scheme/)。
 
 ### 分享给别人
 

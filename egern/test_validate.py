@@ -274,7 +274,7 @@ class ValidationTests(unittest.TestCase):
         self.assertLessEqual(capture["timeout"], 5)
         urls = {body["script_url"] for row in rows for body in row.values()}
         self.assertEqual(len(urls), 1)
-        self.assertTrue(next(iter(urls)).endswith("cainiao-widget.egern.js?v=1.2.3"))
+        self.assertTrue(next(iter(urls)).endswith("cainiao-widget.egern.js?v=1.2.4"))
         self.assertEqual(rows[4]["generic"]["env"], {"CAINIAO_DIAGNOSTIC": "true", "CW_TRANSPORT_CHECK": "true"})
         self.assertGreaterEqual(rows[4]["generic"]["timeout"], 15)
         response = rows[1]["http_response"]
@@ -342,13 +342,13 @@ class ValidationTests(unittest.TestCase):
         script = (ROOT / "cainiao-widget/cainiao-widget.egern.js").read_text()
         self.assertIn("打开淘宝或菜鸟 App", guide)
         self.assertIn("不需要 ZIP、电脑、复制源码、HAR 或 Cookie", guide)
-        self.assertRegex(guide, r"1\.2\.3 (?:正在发布|已发布)")
+        self.assertRegex(guide, r"1\.2\.4 (?:正在发布|已发布)")
         self.assertIn("手机实际连接尚未验收", guide)
         self.assertIn("egern:/modules/new?name=NAME&url=URL", guide)
-        module_url = "https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.2.3"
-        quick_guide = (ROOT / "cainiao-widget/开始使用-1.2.3.md").read_text()
+        module_url = "https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.2.4"
+        quick_guide = (ROOT / "cainiao-widget/开始使用-1.2.4.md").read_text()
         for text in [guide, quick_guide]:
-            self.assertRegex(text, r"1\.2\.3 (?:正在发布|已发布)")
+            self.assertRegex(text, r"1\.2\.4 (?:正在发布|已发布)")
             self.assertIn("手机实际连接尚未验收", text)
             self.assertIn(module_url, text)
             match = re.search(r"\]\((egern:/modules/new\?[^\s)]+)\)", text)

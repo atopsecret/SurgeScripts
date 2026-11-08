@@ -1,4 +1,4 @@
-// 引擎：Node.js 20+ 内置测试 | 版本：1.2.3 | 语言：JavaScript CommonJS
+// 引擎：Node.js 20+ 内置测试 | 版本：1.2.4 | 语言：JavaScript CommonJS
 // 构建：node cainiao-widget/build.mjs
 // 运行：node --experimental-vm-modules --test cainiao-widget/tests/response.test.cjs
 // 依赖：内置库；仅合成头、原始字节、内存存储与 mock auth helper，禁止真实网络
@@ -193,7 +193,7 @@ function seed(f, rows, startedAt = NOW) {
 }
 
 test("响应模块仅导入已有本地 helper，版本和取证键独立", () => {
-    assert.equal(core.CW_VERSION, "1.2.3");
+    assert.equal(core.CW_VERSION, "1.2.4");
     assert.equal(core.CW_RESPONSE_STORE, "cainiao-widget.response.v1");
     for (const name of ["captureCainiaoResponse", "cwResponseLines", "cwResponseCookies", "cwResponseSchema"])
         assert.equal(typeof response[name], "function");

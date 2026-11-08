@@ -85,7 +85,7 @@ export function cwAuthState(value, now = Date.now()) {
     const accountSessionHash = legacy ? "" : value.accountSessionHash;
     const restricted = cwRequiresIdentity({captureKind});
     if (!["request_cookie", "native_session_candidate", "request_cookie_candidate", "response_cookie_candidate"].includes(captureKind)
-        || captureKind === "response_cookie_candidate" && value.version !== CW_VERSION
+        || captureKind === "response_cookie_candidate" && !["1.2.3", CW_VERSION].includes(value.version)
         || value.version === "1.2.0" && captureKind === "request_cookie_candidate" || !["h5", "gw"].includes(sourceChannel)
         || !(accountCheckedAt === null || Number.isFinite(accountCheckedAt) && accountCheckedAt > 0 && accountCheckedAt <= now + 60000)
         || typeof accountSessionHash !== "string" || accountSessionHash !== "" && !/^[0-9a-f]{32}$/.test(accountSessionHash)
@@ -138,7 +138,7 @@ export function cwQueryFields(record, now = Date.now()) {
 
 export function cwQueryDiagnostic(cached, auth, now = Date.now()) {
     const checked = cwAuthState(auth, now);
-    return checked && cwObject(cached) && ["1.2.1", "1.2.2", CW_VERSION].includes(cached.version) && cached.source === "auto" && cached.blocked !== true
+    return checked && cwObject(cached) && ["1.2.1", "1.2.2", "1.2.3", CW_VERSION].includes(cached.version) && cached.source === "auto" && cached.blocked !== true
         && cached.owner === checked.owner && cached.inputHash === checked.inputHash && cached.generation === checked.generation
         && typeof cached.runId === "string" && /^[0-9a-f]{32}$/.test(cached.runId) ? cwQueryFields(cached.queryDiagnostic, now) : null;
 }
@@ -215,10 +215,12 @@ export function captureCainiaoCredentials(ctx, clock = () => Date.now()) {
         catch { cwCaptureResult(ctx, "storage", now); return; }
         observe(); cwCaptureResult(ctx, "conflict", now); return;
     }
-    if (route.apiKind === "logout") { observe(); cwCaptureResult(ctx, "anonymous", now); return; }
+    // 公共时间不是新的接入来源；完整 Cookie 也不能替换候选或撤销另一账号屏障。
+    // 明确同次身份冲突仍由上方隔离，正常非公共采集沿用原流程。
+    if (["public_time", "logout"].includes(route.apiKind)) { observe(); cwCaptureResult(ctx, "anonymous", now); return; }
     const fromCookie = cwLoginCandidate(observedCookies);
     const hasSessionCookie = observedCookies.has("cookie2") || observedCookies.has("sgcookie");
-    const candidateRoute = route.channel === "gw" && !["public_time", "logout"].includes(route.apiKind);
+    const candidateRoute = route.channel === "gw";
     const fromCookieCandidate = !fromCookie && !observedCookies.has("unb") && hasSessionCookie && candidateRoute && native.uid;
     const fromNative = !fromCookie && !hasSessionCookie && candidateRoute && native.uid && native.sid;
     if (!fromCookie && !fromCookieCandidate && !fromNative) { observe(); cwCaptureResult(ctx, "anonymous", now); return; }
@@ -341,7 +343,7 @@ export function diagnoseCainiaoConnection(ctx, clock = () => Date.now()) {
         const cached = ctx.storage.getJSON(CW_STORE);
         const blocked = cwObject(cached) && cached.blocked === true && (!auth || cached.owner !== auth.owner);
         const cachedStatus = cwCachedAuthStatus(cached, auth), recordedStatus = cachedStatus || auth?.status;
-        const firstFailure = cwRequiresIdentity(auth) && auth.confirmedAt === null && recordedStatus === "expired";
+        const firstFailure = !!auth && auth.confirmedAt === null && recordedStatus === "expired";
         const status = firstFailure ? "unsupported" : recordedStatus;
         const label = status === "unsupported" && auth?.confirmedAt !== null ? "本次独立查询未确认，已停止重试" : labels[status];
         lines.push("自动登录态：" + (blocked ? "新账号尚未保存，旧登录态已阻断" : (auth ? label : "尚未捕获")));

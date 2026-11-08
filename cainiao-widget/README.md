@@ -2,9 +2,9 @@
 
 取件码放大，驿站和快递信息放在下面。支持桌面四种尺寸、浅深色与锁屏三种尺寸；查询失败时保留上次结果和原更新时间。
 
-**1.2.3 将 Cookie 发送对照、合法服务端 Cookie 候选和已知登录结构观察接进原模块。默认通过手机在线模块安装，不需要 ZIP、电脑、复制源码、HAR 或 Cookie。** 可以与[菜鸟去广告](../cainiao/README.md)一起使用，不依赖去广告模块或另装诊断。仅处理四个精确 HTTPS 网关；普通请求／响应只读头，三个已知登录接口只记录有限正文结构并原字节透传，不读取短信或 App 沙盒，不改写查件结果。
+**1.2.4 修复公共时间请求覆盖会话／账号屏障，以及首次没有接通却显示会话失效的问题。默认通过手机在线模块安装，不需要 ZIP、电脑、复制源码、HAR 或 Cookie。** 可以与[菜鸟去广告](../cainiao/README.md)一起使用，不依赖去广告模块或另装诊断。保留原模块的合法响应候选、有限登录结构和固定合成发送对照；四个精确 HTTPS 主机与五入口不扩展，不读取短信或 App 沙盒，不改写查件结果。
 
-**1.2.3 已发布；模块、同一份 JS 和说明十四个公开原地址均为 HTTP 200，与实现提交同字节。手机实际连接尚未验收。** 本版取得接入证据，不宣称此前 `FAIL_SYS_SESSION_EXPIRED` 已解决。候选保存、发送对照或任意公共成功，都不等于个人登录成功。实现发布核验于 2026-11-09 07:05:20 完成，提交 `ea13de3e5853aaa8c33ae36f2ff6b7acd45d788e`；本次已发布说明更新后仍核验最终原地址。
+**1.2.4 正在发布。手机实际连接尚未验收。** 本版是确证的来源／隔离修复，没有实现 App→H5 会话兑换，不宣称此次 `FAIL_SYS_SESSION_EXPIRED` 已解决。此前手机的固定 echo 两种模式已通过，但这不证明淘宝接受个人会话。完整个人列表及关闭 App 后的新查询仍未成功，见[本轮核对](接入核对-1.2.4.md)。
 
 ![浅深色与锁屏布局，合成数据离线预览](preview/overview.png)
 
@@ -12,15 +12,15 @@
 
 ## 安装
 
-已安装在线模块时更新原模块和它引用的远程 JS，不用重装自己的 CA、填写凭据或增加诊断模块。只有另建新版模块时才先停用旧模块，不要同时启用两份同名组件。远程脚本 URL 的 `?v=1.2.3` 只是缓存更新参数，不会锁定 Git 提交，也不会让未发布的版本自动上线；升级需核对模块描述和 JS 首行。手机简短步骤见[1.2.3 升级说明](开始使用-1.2.3.md)。
+已安装在线模块时更新原模块和它引用的远程 JS，不用重装自己的 CA、填写凭据或增加诊断模块。只有另建新版模块时才先停用旧模块，不要同时启用两份同名组件。远程脚本 URL 的 `?v=1.2.4` 只是缓存更新参数，不会锁定 Git 提交；升级需核对模块描述和 JS 首行。手机简短步骤见[1.2.4 升级说明](开始使用-1.2.4.md)。针对已提交的这次失败反馈，不要求重复开关 App、切换发送模式或重新抓包；升级不复活原失败代次。
 
 ### 在线安装（默认）
 
 **本地模块不是必要条件。** Egern 支持远程模块和远程脚本；添加一个模块就会加载请求采集、响应采集、已知登录观察、组件和连接状态五个入口及同一份自包含 JS，不需要另建文件或装依赖。两个响应匹配互不重叠，每个响应最多采集一次。
 
-[在 Egern 一次添加菜鸟取件小组件](egern:/modules/new?name=%E8%8F%9C%E9%B8%9F%E5%8F%96%E4%BB%B6%20%C2%B7%20%E5%8E%9F%E7%94%9F%E5%B0%8F%E7%BB%84%E4%BB%B6&url=https%3A%2F%2Fraw.githubusercontent.com%2Fatopsecret%2FSurgeScripts%2Fmain%2Fcainiao-widget%2Fcainiao-widget.egern.yaml%3Fv%3D1.2.3)
+[在 Egern 一次添加菜鸟取件小组件](egern:/modules/new?name=%E8%8F%9C%E9%B8%9F%E5%8F%96%E4%BB%B6%20%C2%B7%20%E5%8E%9F%E7%94%9F%E5%B0%8F%E7%BB%84%E4%BB%B6&url=https%3A%2F%2Fraw.githubusercontent.com%2Fatopsecret%2FSurgeScripts%2Fmain%2Fcainiao-widget%2Fcainiao-widget.egern.yaml%3Fv%3D1.2.4)
 
-如果当前阅读器不允许打开 `egern:`，把[远程模块地址](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.2.3)添加到 Egern 即可；不用下载本地文件。模块描述和 JS 首行均应显示 **1.2.3**。
+如果当前阅读器不允许打开 `egern:`，把[远程模块地址](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.2.4)添加到 Egern 即可；不用下载本地文件。模块描述和 JS 首行均应显示 **1.2.4**。
 
 1. 在手机点一次添加链接，确认添加 Egern 模块；客户端下载模块和脚本。保持 `CONNECTION_MODE=auto`、`CAINIAO_COOKIE` 留空，已有旧版先停用，不同时启用两份。
 2. 保持 Egern 代理运行。**已有自己的 HTTPS 解密证书且已信任时，不用重装。** 尚未配置时按客户端指引安装并信任自己的 Egern CA；这一步只需首次配置，模块不能代替系统信任。模块仅声明四个精确 MTOP 主机，不代改手机系统设置。
@@ -64,7 +64,7 @@ Egern 官方一次添加模块格式为 `egern:/modules/new?name=NAME&url=URL`�
 首次没有 `_m_h5_tk` 时按官方 MTOP 2.7.4 拼接 `undefined` 再签名，取得服务端实际 token 后正常重签。token 错误和 SESSION 失败分开处理；后者不能靠拿到 token 或跳过身份检查冒充登录成功。签名来源与会话限制见[协议核对](接入协议核对-1.2.1.md)。
 
 ```text
-App 请求中的真实 Cookie → 新签名的完整 PDS → 确认连接
+App 非公共请求中的真实 Cookie → 新签名的完整 PDS → 确认连接
 App 同次真实 cookie2/sgcookie＋有效 native UID → 只补 unb → 身份匹配 → COUNT → 完整 PDS
 App 同次 native SID/UID → 身份匹配 → COUNT → 完整 PDS → 确认兼容
 App 同次合法 Set-Cookie＋同次有效 UID → 响应候选 → 身份匹配 → COUNT → 完整 PDS
@@ -80,6 +80,8 @@ App 同次合法 Set-Cookie＋同次有效 UID → 响应候选 → 身份匹配
 三类受限候选的身份验证同时绑定本机稳定会话摘要。业务查询中的短期 H5 token 更新不要求重验；稳定会话 Cookie 轮换则丢弃当次响应，重新检查身份和 COUNT，并从 PDS 第一页取数，最多三轮、共用十八秒预算。缓存、凭据代次及当前会话的验证记录都一致时，下一轮才直接查 PDS；缓存缺失或写入未确认会重新验证。服务端删除最后一个登录会话 Cookie 时立即停止，不会用剩余 UID 继续查询或确认空列表。
 
 服务端响应候选只能由同次实际 `Set-Cookie` 形成，`cookie2/sgcookie` 不能借旧缓存；UID 只取同次响应 `unb` 或同次请求的实际 UID。Domain 必须同时合法于响应来源和目标 `h5api.m.taobao.com`，Path 必须同时覆盖身份、COUNT、PDS；其它主机的 host-only Cookie、菜鸟来源伪称 `.taobao.com` 和单个 API Path 均拒绝。候选不等于可用登录。相同稳定响应会话失败后，重复响应或 token 变化不复活；新稳定响应会话才新建代次。
+
+公共时间请求只记录字段，完整 Cookie 也不建立／替换候选、不恢复失败或撤销另一账号屏障。它同次明确 UID 冲突仍会隔离；正常非公共新账号采集及写失败后的有效再采集不受阻。首次未确认的完整 Cookie 被拒绝时只纠正显示，保存的 `expired`、诊断和停止状态不改；已确认后的会话失效保留旧结果与原时间。
 
 三个已知 `com.taobao.mtop.mLoginUnitService.login/autoLogin/logout` 的正文只看固定结构路径及字段类型，不提取登录 token，不递归搜值。解析最多 256 KiB，已读字节始终透传；`arrayBuffer()` 没有流式硬截断能力，未知长度实际超限时不解析。压缩或二进制只记录分类，不猜测当前 iOS 协议，也不要求反复登录触发旧 SDK 接口。
 

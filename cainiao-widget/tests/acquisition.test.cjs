@@ -1,4 +1,4 @@
-// 引擎：Node.js 20+ 内置测试 | 版本：1.2.3 | 语言：JavaScript CommonJS
+// 引擎：Node.js 20+ 内置测试 | 版本：1.2.4 | 语言：JavaScript CommonJS
 // 构建：node cainiao-widget/build.mjs
 // 运行：node --experimental-vm-modules --test cainiao-widget/tests/acquisition.test.cjs
 // 依赖：内置库与 auth-fixture.cjs；仅合成 Cookie、内存 HTTP 和内存存储
@@ -161,8 +161,8 @@ function seedOld(f, state, cache = oldCache(state)) {
     return cache;
 }
 
-test("1.2.3 响应头候选保持待验证，七项原值只存本组件认证键", async () => {
-    assert.equal(core.CW_VERSION, "1.2.3");
+test("1.2.4 响应头候选保持待验证，七项原值只存本组件认证键", async () => {
+    assert.equal(core.CW_VERSION, "1.2.4");
     assert.equal(typeof core.CW_RESPONSE_STORE, "string");
     assert.equal(typeof core.CW_TRANSPORT_STORE, "string");
     const f = fixture();
@@ -552,7 +552,7 @@ test("App 观察第 33 个新类别先淘汰最旧行，原七天窗口与真实
         assert.equal(stored.rows.length, 32, "实际存储不能先写 33 行再由 reader 丢掉");
         assert.equal(summary.rows.length, 32);
         assert.equal(stored.startedAt, startedAt, "新增类别不能续期原观察窗口");
-        assert.equal(stored.version, "1.2.3");
+        assert.equal(stored.version, "1.2.4");
         assert.equal(new Set(stored.rows.map(key)).size, 32);
         const newKey = "acs.m.taobao.com|gw|session_refresh";
         assert(stored.rows.some(row => key(row) === newKey));
@@ -609,7 +609,7 @@ for (const kind of ["request_cookie", "request_cookie_candidate", "native_sessio
         const cache = seedOld(f, previous, oldCache(previous, {terminalStatus: ["pending", "connected"].includes(status) ? "" : status}));
         const memory = structuredClone([...f.memory]), writes = f.writes.length;
         const migrated = auth.cwReadAuth(f.ctx, f.clock());
-        assert.equal(migrated.version, "1.2.3");
+        assert.equal(migrated.version, "1.2.4");
         for (const key of AUTH_FIELDS) assert.equal(migrated[key], previous[key], key + " / " + status);
         const lines = auth.diagnoseCainiaoConnection(f.ctx, f.clock);
         assert.equal(lines.type, "widget");

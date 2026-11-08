@@ -1,4 +1,4 @@
-// 引擎：Node.js 20+ 内置测试 | 版本：1.2.3 | 语言：JavaScript CommonJS
+// 引擎：Node.js 20+ 内置测试 | 版本：1.2.4 | 语言：JavaScript CommonJS
 // 构建：node cainiao-widget/build.mjs
 // 运行：node --experimental-vm-modules --test cainiao-widget/tests/app-entry.test.cjs
 // 依赖：本地源码与 auth-fixture.cjs；仅合成会话、模拟网络和模拟存储
@@ -65,8 +65,8 @@ function nativePds(packages = [parcel()], totalPage = 1, currentPage = 1) {
     return response({api: API, ret: ["SUCCESS::成功"], data: {packages, totalPage, currentPage}});
 }
 
-test("1.2.3 的 App 采集属于同一小组件，固定四网关及本机元数据键", () => {
-    assert.equal(core.CW_VERSION, "1.2.3");
+test("1.2.4 的 App 采集属于同一小组件，固定四网关及本机元数据键", () => {
+    assert.equal(core.CW_VERSION, "1.2.4");
     assert.equal(core.CW_APP_STORE, "cainiao-widget.app.v1");
     assert.deepEqual([...app.CW_APP_HOSTS].sort(), HOSTS.slice().sort());
 });

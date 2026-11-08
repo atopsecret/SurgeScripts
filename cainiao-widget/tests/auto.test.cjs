@@ -70,7 +70,8 @@ test("风控提示保留同账号缓存，未连接的访客候选不能写成�
     assert.equal(verify.status, "verify"); assert.deepEqual(verify.items, first.items); assert.equal(saved(f).status, "verify");
     await load(f); assert.equal(f.requests.length, 2);
     const g = fixture([response({ret: ["FAIL_SYS_USER_NOT_LOGIN::未登录"]})]); capture(g);
-    const model = await load(g); assert.equal(model.status, "expired"); assert.equal(model.items.length, 0);
+    const model = await load(g); assert.equal(model.status, "setup"); assert.equal(model.setupTitle, "App 接入未确认"); assert.equal(model.items.length, 0);
+    assert.equal(saved(g).status, "expired");
     assert.equal(saved(g).confirmedAt, null); assert.notEqual(saved(g).status, "connected");
 });
 

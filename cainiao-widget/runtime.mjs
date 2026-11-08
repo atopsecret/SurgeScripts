@@ -159,7 +159,7 @@ export async function loadCainiaoModel(ctx, clock = () => Date.now()) {
     const stopped = kind => ({...base, status: "setup", setupTitle: kind === "local" ? "检查 Egern 存储" : "刷新小组件", message: kind === "local"
         ? "本机登录态无法读取，请检查 Egern 后重开 App 快递列表" : "登录态已更新，请刷新小组件"});
     const restricted = cwRequiresIdentity(automatic);
-    const initialCandidate = restricted && automatic.confirmedAt === null;
+    const initialCandidate = !!automatic && automatic.confirmedAt === null;
     const cachedTerminal = cwCachedAuthStatus(old, automatic), recordedStatus = cachedTerminal || automatic?.status;
     // 迁移旧首次失败时只纠正显示；保留原终止状态，不发请求或补造原因。
     const authStatus = initialCandidate && recordedStatus === "expired" ? "unsupported" : recordedStatus;
@@ -357,10 +357,12 @@ export async function loadCainiaoModel(ctx, clock = () => Date.now()) {
     } catch (error) {
         const originalKind = error instanceof CwFailure ? error.kind : "error";
         const kind = initialCandidate && originalKind === "expired" ? "unsupported" : originalKind;
+        // 首次完整 Cookie 仅纠正显示；保留合法 expired 终止，不写不支持的来源／状态组合。
+        const storedKind = initialCandidate && !restricted && originalKind === "expired" ? "expired" : kind;
         if (["superseded", "local"].includes(kind)) return stopped(kind);
         try {
             if (state.queryDiagnostic) updateQuery({failure: error instanceof CwFailure ? error.failure : "UNKNOWN"});
-            if (["expired", "verify", "account", "unsupported"].includes(kind)) markAuth(kind === "account" ? "invalid" : kind);
+            if (["expired", "verify", "account", "unsupported"].includes(storedKind)) markAuth(storedKind === "account" ? "invalid" : storedKind);
             persist();
             guard();
         } catch (failure) { return stopped(failure.kind); }

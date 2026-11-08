@@ -114,7 +114,7 @@
     }
   ],
   "h5_signing_review": {
-    "widget_version": "1.2.3",
+    "widget_version": "1.2.4",
     "source_version": "2.7.4",
     "source_url": "https://g.alicdn.com/mtb/lib-mtop/2.7.4/mtop.js",
     "http_status": 200,
@@ -124,6 +124,32 @@
     "missing_token_string": "undefined",
     "assessment": "公开源码静态核对；重新实现首次签名语义，不执行或捆绑官方 JS。签名一致不等于 App 会话兼容，token 更新不替代个人授权。",
     "phone_verified": false
+  },
+  "capture_integrity_review": {
+    "version": "1.2.4",
+    "review_date": "2026-11-09",
+    "assessment": "独立合成复现后的公共请求来源／账号屏障修复；首次未确认显示与真实终止状态分开。没有新的 App→H5 会话兑换，旧发布及手机验收结果不回写。",
+    "public_time_request_observe_only": true,
+    "same_request_identity_conflict_still_isolated": true,
+    "nonpublic_new_account_capture_preserved": true,
+    "unconfirmed_request_cookie_keeps_expired_terminal": true,
+    "legacy_1_2_3_windows_preserved": true,
+    "cookie_allowlist_expanded": false,
+    "personal_request_credentials": "omit",
+    "phone_feedback_widget_version": "1.2.3",
+    "synthetic_cookie_echo_verified_from_user_feedback": true,
+    "personal_cookie_delivery_to_mtop_verified": false,
+    "phone_verified": false,
+    "app_to_h5_conversion_verified": false,
+    "independent_refresh_verified": false,
+    "protocol_review": "接入核对-1.2.4.md",
+    "new_public_login_source": {
+      "source_url": "https://g.alicdn.com/vip/havana-nlogin/0.10.38/index.js",
+      "http_status": 200,
+      "bytes": 722601,
+      "sha256": "1603531d8fba5d11d7b7641c6f4f9c95b8a225b5ab37c28a27f91f2f918e4a92",
+      "assessment": "公开源码静态读取，不执行或捆绑。native 分支依赖 WindVane／aluWVJSBridge.sdkLogin；未证明桥内部 H5 Cookie 注入，不能以裸 HTTP 参数代替。"
+    }
   },
   "acquisition_review": {
     "version": "1.2.3",

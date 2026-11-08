@@ -1,4 +1,4 @@
-// 引擎：Node.js 20+ 内置测试 | 版本：1.2.3 | 语言：JavaScript CommonJS
+// 引擎：Node.js 20+ 内置测试 | 版本：1.2.4 | 语言：JavaScript CommonJS
 // 构建：node cainiao-widget/build.mjs
 // 运行：node --experimental-vm-modules --test cainiao-widget/tests/session-candidate.test.cjs
 // 依赖：本地源码与 auth-fixture.cjs；仅合成会话、模拟 HTTP 和内存存储
@@ -119,8 +119,8 @@ function assertBoundedRecord(f, expected = {}) {
     return record;
 }
 
-test("1.2.3 保留实际 Cookie 加 UID 候选与纯 native 候选的身份门禁", () => {
-    assert.equal(core.CW_VERSION, "1.2.3");
+test("1.2.4 保留实际 Cookie 加 UID 候选与纯 native 候选的身份门禁", () => {
+    assert.equal(core.CW_VERSION, "1.2.4");
     for (const [captureKind, expected] of [["request_cookie_candidate", true], ["native_session_candidate", true], ["request_cookie", false]]) {
         assert.equal(auth.cwRequiresIdentity({captureKind}), expected);
     }

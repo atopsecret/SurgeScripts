@@ -1,4 +1,4 @@
-// 引擎：Node.js 20+ 内置测试 | 版本：1.2.3 | 语言：JavaScript CommonJS
+// 引擎：Node.js 20+ 内置测试 | 版本：1.2.4 | 语言：JavaScript CommonJS
 // 构建：node cainiao-widget/build.mjs
 // 运行：node --experimental-vm-modules --test cainiao-widget/tests/version-migration.test.cjs
 // 依赖：内置库与 auth-fixture.cjs；仅合成会话、内存存储与模拟 HTTP
@@ -131,10 +131,10 @@ function oldAppState() {
     ]};
 }
 
-test("1.2.3 明确认识四个已发布历史版本，未知版本不进入迁移", () => {
-    assert.equal(core.CW_VERSION, "1.2.3");
-    for (const version of ["1.1.0", "1.2.0", "1.2.1", "1.2.2", "1.2.3"]) assert.equal(core.cwKnownVersion(version), true, version);
-    for (const version of ["1.2.4", "1.3.0", "1.2", "1.2.1 ", null, true]) assert.equal(core.cwKnownVersion(version), false);
+test("1.2.4 明确认识五个已发布历史版本，未知版本不进入迁移", () => {
+    assert.equal(core.CW_VERSION, "1.2.4");
+    for (const version of ["1.1.0", "1.2.0", "1.2.1", "1.2.2", "1.2.3", "1.2.4"]) assert.equal(core.cwKnownVersion(version), true, version);
+    for (const version of ["1.2.5", "1.3.0", "1.2", "1.2.1 ", null, true]) assert.equal(core.cwKnownVersion(version), false);
 });
 
 test("1.2.1 完整 request_cookie 的 pending 与 connected 只读迁移保留所有账号会话字段", () => {
@@ -309,12 +309,12 @@ test("迁移诊断拒绝旧 1.2.0、未知版本及归属冲突，不能跨账�
     const state = auth.cwReadAuth(f.ctx, f.clock()), before = readSnapshot(f);
     assert(diagnostic(f));
     for (const changes of [
-        {version: "1.1.0"}, {version: "1.2.0"}, {version: "1.2.4"}, {owner: digest("synthetic-foreign-owner")},
+        {version: "1.1.0"}, {version: "1.2.0"}, {version: "1.2.5"}, {owner: digest("synthetic-foreign-owner")},
         {inputHash: digest("synthetic-foreign-input")}, {generation: digest("synthetic-foreign-generation")},
         {source: "manual"}, {source: "capture"}, {blocked: true}, {runId: "synthetic-invalid-run"},
     ]) assert.equal(auth.cwQueryDiagnostic({...cache, ...changes}, state, f.clock()), null, JSON.stringify(changes));
     for (const version of ["1.2.2", core.CW_VERSION]) assert.deepEqual(auth.cwQueryDiagnostic({...cache, version}, state, f.clock()), queryRecord());
-    for (const changes of [{version: "1.2.4"}, {owner: digest("synthetic-foreign-owner")}]) {
+    for (const changes of [{version: "1.2.5"}, {owner: digest("synthetic-foreign-owner")}]) {
         assert.equal(auth.cwAuthState({...previous, ...changes}, f.clock()), null);
         assert.equal(auth.cwQueryDiagnostic(cache, {...state, ...changes}, f.clock()), null);
     }
@@ -322,7 +322,7 @@ test("迁移诊断拒绝旧 1.2.0、未知版本及归属冲突，不能跨账�
 });
 
 test("未知缓存版本或另一账号缓存不继承 token、快照或证明，首先重新验证身份", async () => {
-    for (const changes of [{version: "1.2.4"}, {owner: digest("account:" + OTHER_UID)}]) {
+    for (const changes of [{version: "1.2.5"}, {owner: digest("account:" + OTHER_UID)}]) {
         const f = fixture([new Error("synthetic-migration-untrusted-cache-offline")]), previous = oldAuth();
         seed(f, previous, {...oldCache(previous), ...changes});
         const model = await load(f);
@@ -339,7 +339,7 @@ test("未知缓存版本或另一账号缓存不继承 token、快照或证明�
 });
 
 test("另一账号阻断屏障在已知或未知版本升级后仍优先，旧账号不查询也不显示快照", async () => {
-    for (const version of ["1.2.1", "1.2.2", "1.2.3", "1.2.4"]) {
+    for (const version of ["1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.2.5"]) {
         const f = fixture(), previous = oldAuth();
         seed(f, previous, {version, owner: digest("account:" + OTHER_UID), source: "capture", blocked: true, cookie: "", snapshot: null});
         const before = readSnapshot(f), model = await load(f);
@@ -387,8 +387,8 @@ test("升级后新匿名观察保留 App startedAt，不续期旧同次证据或
     assertReadOnly(f, before);
 });
 
-test("App 行接受 1.2.1、1.2.2 与当前版本，旧 1.2.0 和未知版本不得借合法字段复用", () => {
-    for (const version of ["1.1.0", "1.2.0", "1.2.4", null]) {
+test("App 行接受 1.2.1、1.2.2、1.2.3 与当前版本，旧 1.2.0 和未知版本不得借合法字段复用", () => {
+    for (const version of ["1.1.0", "1.2.0", "1.2.5", null]) {
         const f = fixture();
         f.memory.set(core.CW_APP_STORE, {...oldAppState(), version});
         const before = readSnapshot(f), result = app.cwAppSummary(f.ctx, f.clock());
@@ -399,7 +399,7 @@ test("App 行接受 1.2.1、1.2.2 与当前版本，旧 1.2.0 和未知版本不
         assert.deepEqual(result.rows, []);
         assertReadOnly(f, before);
     }
-    for (const version of ["1.2.2", core.CW_VERSION]) {
+    for (const version of ["1.2.2", "1.2.3", core.CW_VERSION]) {
         const f = fixture(), original = {...oldAppState(), version};
         f.memory.set(core.CW_APP_STORE, original);
         assert.deepEqual(app.cwAppSummary(f.ctx, f.clock()).rows, original.rows);

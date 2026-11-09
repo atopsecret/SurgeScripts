@@ -1,4 +1,4 @@
-// 引擎：Egern 原生响应 API | 版本：1.2.4 | 语言：JavaScript ES module
+// 引擎：Egern 原生响应 API | 版本：1.3.0 | 语言：JavaScript ES module
 // 构建：node cainiao-widget/build.mjs
 // 运行：同模块响应入口；node --experimental-vm-modules --test cainiao-widget/tests/response.test.cjs
 // 依赖：core.mjs、app.mjs、auth.mjs；不发网络请求，不保存正文或凭据到取证键
@@ -309,7 +309,7 @@ function cwResponseCleanSchema(value) {
 
 function cwResponseState(value, now) {
     const empty = {version: CW_VERSION, startedAt: now, rows: []};
-    if (!cwResponseTime(now) || !cwObject(value) || !["1.2.3", CW_VERSION].includes(value.version)
+    if (!cwResponseTime(now) || !cwObject(value) || !["1.2.3", "1.2.4", CW_VERSION].includes(value.version)
         || !cwResponseTime(value.startedAt) || value.startedAt > now || now - value.startedAt >= CW_RESPONSE_WINDOW
         || !Array.isArray(value.rows) || value.rows.length > 32) return empty;
     const rows = [], seen = new Set();

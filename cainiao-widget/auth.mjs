@@ -2,7 +2,7 @@
 // 构建：node cainiao-widget/build.mjs
 // 运行：模块自动捕获；离线 node --test cainiao-widget/tests/auth.test.cjs
 // 依赖：core.mjs；只读请求头，原样放行，不发送网络请求
-import {CW_VERSION, CW_STORE, CW_AUTH_STORE, CW_CAPTURE_STORE, CW_APP_STORE, CW_RESPONSE_STORE, CW_TRANSPORT_STORE, CW_SELF_HEADER, cwObject, cwKnownVersion, cwCookieMap, cwCookieHeader, cwOwner, md5} from "./core.mjs";
+import {CW_VERSION, CW_STORE, CW_AUTH_STORE, CW_CAPTURE_STORE, CW_APP_STORE, CW_RESPONSE_STORE, CW_TRANSPORT_STORE, CW_OFFICIAL_STORE, CW_SELF_HEADER, cwObject, cwKnownVersion, cwCookieMap, cwCookieHeader, cwOwner, md5} from "./core.mjs";
 import {CW_APP_HOSTS, cwAppRoute, cwAppHeaderValues, cwAppNativeFields, cwObserveApp, cwAppSummary} from "./app.mjs";
 
 const CW_AUTH_NAMES = new Set(["unb", "cookie2", "sgcookie", "munb", "_m_h5_tk", "_m_h5_tk_enc", "_tb_token_"]);
@@ -85,7 +85,7 @@ export function cwAuthState(value, now = Date.now()) {
     const accountSessionHash = legacy ? "" : value.accountSessionHash;
     const restricted = cwRequiresIdentity({captureKind});
     if (!["request_cookie", "native_session_candidate", "request_cookie_candidate", "response_cookie_candidate"].includes(captureKind)
-        || captureKind === "response_cookie_candidate" && !["1.2.3", CW_VERSION].includes(value.version)
+        || captureKind === "response_cookie_candidate" && !["1.2.3", "1.2.4", CW_VERSION].includes(value.version)
         || value.version === "1.2.0" && captureKind === "request_cookie_candidate" || !["h5", "gw"].includes(sourceChannel)
         || !(accountCheckedAt === null || Number.isFinite(accountCheckedAt) && accountCheckedAt > 0 && accountCheckedAt <= now + 60000)
         || typeof accountSessionHash !== "string" || accountSessionHash !== "" && !/^[0-9a-f]{32}$/.test(accountSessionHash)
@@ -138,7 +138,7 @@ export function cwQueryFields(record, now = Date.now()) {
 
 export function cwQueryDiagnostic(cached, auth, now = Date.now()) {
     const checked = cwAuthState(auth, now);
-    return checked && cwObject(cached) && ["1.2.1", "1.2.2", "1.2.3", CW_VERSION].includes(cached.version) && cached.source === "auto" && cached.blocked !== true
+    return checked && cwObject(cached) && ["1.2.1", "1.2.2", "1.2.3", "1.2.4", CW_VERSION].includes(cached.version) && cached.source === "auto" && cached.blocked !== true
         && cached.owner === checked.owner && cached.inputHash === checked.inputHash && cached.generation === checked.generation
         && typeof cached.runId === "string" && /^[0-9a-f]{32}$/.test(cached.runId) ? cwQueryFields(cached.queryDiagnostic, now) : null;
 }
@@ -168,7 +168,7 @@ export function cwWriteAuth(ctx, state, now = Date.now()) {
 
 export function cwClearLocal(ctx) {
     // off 模式只清本组件键，不改系统代理、CA 或其他模块。
-    const keys = [CW_AUTH_STORE, CW_STORE, CW_CAPTURE_STORE, CW_APP_STORE, CW_RESPONSE_STORE, CW_TRANSPORT_STORE];
+    const keys = [CW_AUTH_STORE, CW_STORE, CW_CAPTURE_STORE, CW_APP_STORE, CW_RESPONSE_STORE, CW_TRANSPORT_STORE, CW_OFFICIAL_STORE];
     for (const key of keys) ctx.storage.setJSON(key, null);
     if (keys.some(key => ctx.storage.getJSON(key) !== null)) throw new Error("storage-not-confirmed");
 }
@@ -194,6 +194,12 @@ function cwIsolateAccount(ctx, owner) {
         || saved.source !== "capture" || saved.snapshot !== null || saved.cookie !== "") throw new Error("cache-not-isolated");
 }
 
+function cwOfficialOwnsCapture(ctx) {
+    // 新路径存在即独占会话写入；损坏或终止的状态也不能借旧 H5 撤回账号屏障。
+    const state = ctx.storage.getJSON(CW_OFFICIAL_STORE);
+    return state !== null && state !== undefined;
+}
+
 export function captureCainiaoCredentials(ctx, clock = () => Date.now()) {
     if (cwConnectionMode(ctx.env) !== "auto" || !ctx.request || ctx.response) return;
     const route = cwAppRoute(ctx.request.url, ctx.request.headers);
@@ -210,6 +216,9 @@ export function captureCainiaoCredentials(ctx, clock = () => Date.now()) {
         try { cwObserveApp(ctx, route, observedCookies, native, now); }
         catch { console.log("[菜鸟连接] App 请求状态无法保存，未记录敏感内容。"); }
     };
+    try {
+        if (cwOfficialOwnsCapture(ctx)) { observe(); cwCaptureResult(ctx, "unchanged", now); return; }
+    } catch { cwCaptureResult(ctx, "storage", now); return; }
     if (observedCookies.get("unb") && native.uid && observedCookies.get("unb") !== native.uid) {
         try { cwIsolateAccount(ctx, md5("capture-conflicting-identities")); }
         catch { cwCaptureResult(ctx, "storage", now); return; }
@@ -283,6 +292,9 @@ export function captureCainiaoResponseCandidate(ctx, candidate, clock = () => Da
     if (!route || !cwObject(candidate) || !cwObject(candidate.route)
         || ["host", "channel", "apiKind"].some(key => candidate.route[key] !== route[key])
         || ctx.response.status !== 200 || ["public_time", "logout"].includes(route.apiKind)) return "invalid";
+    try {
+        if (cwOfficialOwnsCapture(ctx)) return finish("unchanged");
+    } catch { return finish("storage"); }
     let cookies, requestCookies, requestUids;
     try {
         if (cwHeaderValues(ctx.request.headers, CW_SELF_HEADER).length) return "invalid";

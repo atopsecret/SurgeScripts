@@ -8,9 +8,9 @@ import {fileURLToPath} from "node:url";
 import vm from "node:vm";
 
 const cwBuildRoot = path.dirname(fileURLToPath(import.meta.url));
-const cwBuildParts = ["core.mjs", "app.mjs", "auth.mjs", "transport.mjs", "response.mjs", "render.mjs", "runtime.mjs"].map(name => {
+const cwBuildParts = ["core.mjs", "app.mjs", "auth.mjs", "transport.mjs", "response.mjs", "official.mjs", "render.mjs", "runtime.mjs"].map(name => {
     const source = fs.readFileSync(path.join(cwBuildRoot, name), "utf8");
-    return "// 来源：" + name + "\n" + source.replace(/^import .* from ["']\.\/(?:core|app|auth|transport|response|render)\.mjs["'];\r?\n/gm, "").replace(/^export (?=(?:const|function|async function|class)\b)/gm, "").trim();
+    return "// 来源：" + name + "\n" + source.replace(/^import .* from ["']\.\/(?:core|app|auth|transport|response|official|render)\.mjs["'];\r?\n/gm, "").replace(/^export (?=(?:const|function|async function|class)\b)/gm, "").trim();
 });
 const cwBuildVersion = /export const CW_VERSION = "([0-9.]+)";/.exec(fs.readFileSync(path.join(cwBuildRoot, "core.mjs"), "utf8"))?.[1];
 if (!cwBuildVersion) throw new Error("源码缺少版本号");

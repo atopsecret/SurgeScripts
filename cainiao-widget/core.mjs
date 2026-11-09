@@ -3,7 +3,7 @@
 // 运行：由 runtime.mjs 调用；离线验证 node --test cainiao-widget/tests/core.test.cjs
 // 依赖：无；协议来源见 THIRD_PARTY_NOTICES.md
 
-export const CW_VERSION = "1.2.4";
+export const CW_VERSION = "1.3.0";
 export const CW_API = "mtop.cainiao.lpc.packageservice.queryPdsPackageDataList";
 export const CW_COUNT_API = "mtop.cainiao.lpc.packageservice.user.package.count.query";
 export const CW_IDENTITY_API = "mtop.user.getUserSimple";
@@ -18,6 +18,7 @@ export const CW_CAPTURE_STORE = "cainiao-widget.capture.v1";
 export const CW_APP_STORE = "cainiao-widget.app.v1";
 export const CW_RESPONSE_STORE = "cainiao-widget.response.v1";
 export const CW_TRANSPORT_STORE = "cainiao-widget.transport.v1";
+export const CW_OFFICIAL_STORE = "cainiao-widget.official.v1";
 export const CW_SELF_HEADER = "X-Cainiao-Widget-Request";
 
 // MD5 只用于 MTOP 协议签名与本地身份摘要，不用于加密存储。
@@ -61,7 +62,7 @@ export function cwObject(value) {
 }
 
 export function cwKnownVersion(value) {
-    return ["1.1.0", "1.2.0", "1.2.1", "1.2.2", "1.2.3", CW_VERSION].includes(value);
+    return ["1.1.0", "1.2.0", "1.2.1", "1.2.2", "1.2.3", "1.2.4", CW_VERSION].includes(value);
 }
 
 export function cwText(value, limit = 160) {

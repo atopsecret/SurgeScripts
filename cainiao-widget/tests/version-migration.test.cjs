@@ -131,10 +131,10 @@ function oldAppState() {
     ]};
 }
 
-test("1.2.4 明确认识五个已发布历史版本，未知版本不进入迁移", () => {
-    assert.equal(core.CW_VERSION, "1.2.4");
-    for (const version of ["1.1.0", "1.2.0", "1.2.1", "1.2.2", "1.2.3", "1.2.4"]) assert.equal(core.cwKnownVersion(version), true, version);
-    for (const version of ["1.2.5", "1.3.0", "1.2", "1.2.1 ", null, true]) assert.equal(core.cwKnownVersion(version), false);
+test("1.3.0 明确认识六个已发布历史版本，未知版本不进入迁移", () => {
+    assert.equal(core.CW_VERSION, "1.3.0");
+    for (const version of ["1.1.0", "1.2.0", "1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.3.0"]) assert.equal(core.cwKnownVersion(version), true, version);
+    for (const version of ["1.2.5", "1.3.1", "1.2", "1.2.1 ", null, true]) assert.equal(core.cwKnownVersion(version), false);
 });
 
 test("1.2.1 完整 request_cookie 的 pending 与 connected 只读迁移保留所有账号会话字段", () => {

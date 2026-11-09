@@ -73,7 +73,7 @@ function cwTransportCleanSample(value, startedAt, at) {
 export function cwTransportState(value, now = Date.now()) {
     try {
         if (!cwTransportObject(value) || !cwTransportExactKeys(value, ["schema", "version", "runId", "kind", "startedAt", "leaseUntil", "at", "expiresAt", "omit", "include"])
-            || value.schema !== 1 || !["1.2.3", CW_VERSION].includes(value.version) || !["RUNNING", "COMPLETE"].includes(value.kind)
+            || value.schema !== 1 || !["1.2.3", "1.2.4", CW_VERSION].includes(value.version) || !["RUNNING", "COMPLETE"].includes(value.kind)
             || typeof value.runId !== "string" || !/^[0-9a-f]{32}$/.test(value.runId) || !cwTransportTime(now)
             || !cwTransportTime(value.startedAt) || value.startedAt > now + 60000 || !cwTransportTime(value.at)
             || value.at < value.startedAt || value.at > now + 60000 || !cwTransportTime(value.leaseUntil)

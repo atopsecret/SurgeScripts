@@ -17,6 +17,8 @@
 
 1.2.4 根据本项目独立合成复现修复公共请求采集和首次失败显示，不复制上游实现。新官方 Havana 前端 0.10.38、固定 cddjr/check 登录模型及 PickTool 仅作静态协议／导航核对，没有执行或捆绑其源码；来源、哈希、接口前置条件和未确认的手机行为见 `sources.json` 及[本轮接入核对](接入核对-1.2.4.md)。来源／隔离修复不等于原生会话兑换完成。
 
+1.3.0 的专用小组件通信合同来自[菜鸟官方网站](https://www.cainiao.com/technology-cainiao-app.html)下载入口实际指向的第一方 Android APK（8.11.1105）。只做本机静态分析，重新实现精确 token／JSON RPC 协议、请求归属和摘要过滤；不复制、执行或分发官方 App、反汇编代码或 SDK 二进制。具体来源链、文件 SHA-256 和平台限制见[官方协议核对](官方小组件协议核对.md)及 `sources.json`。Egern `ctx.http.post`、单次读体及原字节透传按[官方 JavaScript API](https://egernapp.com/zh-CN/docs/javascript-api/)实现。Android 的实现不被标为 iOS 实测，也不保证当前服务端接受；专用凭据和个人结果不离开本人手机。
+
 以下保留两份上游 LICENSE 的完整原文。
 
 ## mykohuang/kuaidi-skill

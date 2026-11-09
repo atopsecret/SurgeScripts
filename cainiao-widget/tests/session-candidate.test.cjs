@@ -119,8 +119,8 @@ function assertBoundedRecord(f, expected = {}) {
     return record;
 }
 
-test("1.2.4 保留实际 Cookie 加 UID 候选与纯 native 候选的身份门禁", () => {
-    assert.equal(core.CW_VERSION, "1.2.4");
+test("1.3.0 保留实际 Cookie 加 UID 候选与纯 native 候选的身份门禁", () => {
+    assert.equal(core.CW_VERSION, "1.3.0");
     for (const [captureKind, expected] of [["request_cookie_candidate", true], ["native_session_candidate", true], ["request_cookie", false]]) {
         assert.equal(auth.cwRequiresIdentity({captureKind}), expected);
     }
@@ -311,12 +311,12 @@ test("旧首次 native expired 只纠正接入提示，不复活、猜真实 Coo
 
 test("损坏旧 auth 和未知缓存版本不能绕过身份门禁或继承旧证明", async () => {
     const previous = legacyAuth();
-    for (const changes of [{version: "1.3.0"}, {owner: "synthetic-wrong-owner"}, {sessionHash: core.md5("synthetic-wrong")}, {inputHash: core.md5("synthetic-wrong")}, {cookie: previous.cookie + "; cna=synthetic-tracker"}]) {
+    for (const changes of [{version: "1.4.0"}, {owner: "synthetic-wrong-owner"}, {sessionHash: core.md5("synthetic-wrong")}, {inputHash: core.md5("synthetic-wrong")}, {cookie: previous.cookie + "; cna=synthetic-tracker"}]) {
         assert.equal(auth.cwAuthState({...previous, ...changes}, NOW), null);
     }
     const f = fixture([identity(), count(), pds([parcel("new", "8-2-2222")])]); capture(f);
     const connected = confirmedState(saved(f)); f.memory.set(core.CW_AUTH_STORE, connected);
-    f.memory.set(core.CW_STORE, cacheFor(connected, {version: "1.3.0"}));
+    f.memory.set(core.CW_STORE, cacheFor(connected, {version: "1.4.0"}));
     const model = await load(f); assert.equal(model.status, "ready"); assert.equal(model.items[0].code, "8-2-2222");
     assert.deepEqual(f.requests.map(request => request.url.searchParams.get("api")), [IDENTITY_API, COUNT_API, API]);
 });
@@ -589,7 +589,7 @@ test("queryDiagnostic 必须绑定当前自动 auth 的版本账号输入和代�
     const state = auth.cwReadAuth(f.ctx, NOW), valid = {...cacheFor(state, {snapshot: false}), queryDiagnostic: queryRecord()};
     assert.deepEqual(auth.cwQueryDiagnostic(valid, state, NOW), queryRecord());
     for (const changes of [
-        {version: "1.3.0"}, {source: "manual"}, {source: "capture"}, {owner: core.md5("synthetic-other-owner")},
+        {version: "1.4.0"}, {source: "manual"}, {source: "capture"}, {owner: core.md5("synthetic-other-owner")},
         {inputHash: core.md5("synthetic-other-input")}, {generation: core.md5("synthetic-other-generation")},
     ]) assert.equal(auth.cwQueryDiagnostic({...valid, ...changes}, state, NOW), null);
     assert.equal(auth.cwQueryDiagnostic(valid, null, NOW), null);
@@ -624,7 +624,7 @@ test("诊断过期后不延长原因、不恢复终止会话，匿名和 SID-onl
 
 async function assertSidOnlyKeepsForeignBarrier(status) {
     for (const failure of ["throw", "noop"]) {
-        for (const barrierVersion of [core.CW_VERSION, "1.2.1", "1.2.0", "1.1.0", "1.3.0"]) {
+        for (const barrierVersion of [core.CW_VERSION, "1.2.1", "1.2.0", "1.1.0", "1.4.0"]) {
             const label = status + "/" + failure + "/" + barrierVersion;
             const f = fixture(); capture(f, {sid: null});
             const wasConfirmed = ["connected", "expired", "verify", "invalid"].includes(status);
@@ -697,7 +697,7 @@ test("完整旧版及当前 Cookie terminal A 的 SID-only 不撤销 B AUTH 保�
     for (const version of ["1.1.0", "1.2.0", "1.2.1", core.CW_VERSION]) {
         for (const status of ["expired", "verify", "invalid"]) {
             for (const failure of ["throw", "noop"]) {
-                for (const barrierVersion of ["1.1.0", "1.2.0", "1.2.1", core.CW_VERSION, "1.3.0"]) {
+                for (const barrierVersion of ["1.1.0", "1.2.0", "1.2.1", core.CW_VERSION, "1.4.0"]) {
                     const label = version + "/" + status + "/" + failure + "/" + barrierVersion;
                     const previous = legacyAuth({version, status, confirmed: true}), f = fixture();
                     f.memory.set(core.CW_AUTH_STORE, previous);

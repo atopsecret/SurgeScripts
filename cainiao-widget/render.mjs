@@ -77,21 +77,27 @@ function cnwContext(model, family, now) {
   const time = Number.isFinite(now) ? now : Date.now();
   const stale = status === 'ready' && updatedAt !== null && time - updatedAt > Math.max(60, refreshMinutes * 3) * 60000;
   const partial = status === 'partial' || input.partial === true;
+  const officialSummary = input.coverage === 'official_summary';
   const warning = status !== 'ready' || partial || stale;
   const state = partial && status === 'ready' ? CNW_STATES.partial : CNW_STATES[status];
-  const label = stale ? '数据较旧' : state.label;
+  const label = stale ? '数据较旧' : (officialSummary && status === 'ready' && !partial ? '官方待取摘要' : state.label);
   const lock = family.startsWith('accessory');
   const hideCode = input.privacy === true || (lock && input.privacy !== false);
   return {
-    status, items, total, updatedAt, refreshMinutes, time, stale, partial, warning, state, label,
+    status, items, total, updatedAt, refreshMinutes, time, stale, partial, officialSummary, warning, state, label,
     hideCode, message: cnwString(input.message), setupTitle: cnwString(input.setupTitle).slice(0, 32),
-    cached: warning && items.length > 0,
+    cached: warning && (items.length > 0 || officialSummary && updatedAt !== null),
     count: `${partial ? '至少' : ''}${total}`,
     refreshAfter: new Date(time + refreshMinutes * 60000).toISOString(),
   };
 }
 
-function cnwCode(item, hideCode) {
+function cnwCode(item, hideCode, officialSummary = false) {
+  // 官方返回的是描述，不从数字猜码；锁屏默认连描述一起隐藏。
+  if (officialSummary) return {
+    text: hideCode ? '取件信息已隐藏' : (cnwString(item.summary) || '摘要未提供'),
+    usable: false, summary: true, private: hideCode,
+  };
   if (hideCode) return { text: '取件码已隐藏', usable: false, private: true };
   const code = cnwString(item.code);
   const placeholder = /^(?:needsms|need_sms|-1|0|null|none|true|false)$/i.test(code);
@@ -110,7 +116,10 @@ function cnwWrapCode(code) {
 }
 
 function cnwCodeNode(item, context, size, compact = false) {
-  const code = cnwCode(item, context.hideCode);
+  const code = cnwCode(item, context.hideCode, context.officialSummary);
+  if (code.summary) return cnwText(code.text, compact ? 13 : 15, code.private ? CNW_COLORS.secondary : CNW_COLORS.primary, {
+    font: { size: compact ? 13 : 15, weight: 'medium' }, maxLines: compact ? 2 : 3, minScale: 0.8,
+  });
   const wrapped = code.usable ? cnwWrapCode(code.text) : code.text;
   const long = wrapped.includes('\n');
   const longest = Math.max(...wrapped.split('\n').map((part) => part.length));
@@ -124,7 +133,7 @@ function cnwCodeNode(item, context, size, compact = false) {
 }
 
 function cnwHeader(context, small, inlineNotice = false) {
-  const count = context.warning && context.items.length === 0 ? '待更新' : `${context.count}${small ? '件' : '件待取'}`;
+  const count = context.warning && context.items.length === 0 && !context.cached ? '待更新' : `${context.count}${small ? '件' : '件待取'}`;
   const notice = inlineNotice && (context.warning || context.message);
   const title = notice ? (context.warning ? `${context.label}${context.cached ? ' · 旧数据' : ''}` : context.message) : '菜鸟取件';
   return cnwStack('row', [
@@ -177,11 +186,14 @@ function cnwItemCard(item, context, options, small) {
 function cnwEmpty(context, small, tight = false) {
   const ready = context.status === 'ready' && !context.partial;
   const compact = tight || (small && context.warning);
-  const title = ready ? CNW_STATES.ready.title : (context.status === 'setup' && context.setupTitle ? context.setupTitle : context.state.title);
-  const detail = context.message || context.state.detail;
+  const title = ready && context.officialSummary ? (context.total > 0 ? `${context.total}件待取` : '官方摘要暂无待取')
+    : ready ? CNW_STATES.ready.title : (context.status === 'setup' && context.setupTitle ? context.setupTitle : context.state.title);
+  const detail = ready && context.officialSummary && context.total > 0 ? '有待取包裹，官方摘要未提供'
+    : context.message || context.state.detail;
   return cnwStack('column', [
     { type: 'spacer' },
-    cnwIcon(ready ? 'checkmark.circle' : (context.status === 'setup' ? 'lock.fill' : 'exclamationmark.triangle.fill'), compact ? 18 : (small ? 23 : 28),
+    cnwIcon(ready ? (context.officialSummary && context.total > 0 ? 'shippingbox.fill' : 'checkmark.circle')
+      : (context.status === 'setup' ? 'lock.fill' : 'exclamationmark.triangle.fill'), compact ? 18 : (small ? 23 : 28),
       ready || context.status === 'setup' ? CNW_COLORS.accent : CNW_COLORS.warning),
     cnwText(title, compact ? 14 : (small ? 15 : 18), CNW_COLORS.primary, { font: { size: compact ? 14 : (small ? 15 : 18), weight: 'semibold' }, minScale: 0.8 }),
     cnwText(detail, compact ? 9 : (small ? 10 : 12), CNW_COLORS.secondary, { maxLines: compact ? 1 : 2, minScale: 0.85 }),
@@ -245,17 +257,18 @@ function cnwLockTimestamp(context, compact = false) {
 
 function cnwLock(context, family) {
   const hasItems = context.items.length > 0;
-  const first = hasItems ? cnwCode(context.items[0], context.hideCode) : null;
-  const count = context.warning && !hasItems ? '—' : context.count;
+  const first = hasItems ? cnwCode(context.items[0], context.hideCode, context.officialSummary) : null;
+  const count = context.warning && !hasItems && !context.cached ? '—' : context.count;
   const status = cnwLockStatus(context);
   let children;
   if (family === 'accessoryInline') {
-    const code = first ? (context.hideCode ? '码已隐藏' : first.text) : (context.status === 'ready' ? '暂无待取' : '待更新');
+    const code = first ? (context.hideCode ? (context.officialSummary ? '摘要已隐藏' : '码已隐藏') : first.text)
+      : (context.status === 'ready' ? (context.officialSummary && context.total > 0 ? '摘要未提供' : '暂无待取') : '待更新');
     children = [cnwText(`${context.warning || context.message ? status : '菜鸟'} · ${count}件 · ${code} · ${cnwLockTimestamp(context, true)}`,
       12, CNW_COLORS.primary, { minScale: 0.45, font: { size: 12, weight: 'medium', ...(first?.usable && !context.hideCode ? { family: 'Menlo' } : {}) } })];
   } else if (family === 'accessoryCircular') {
-    const codeText = first ? (context.hideCode ? '码已隐藏' : (first.usable ? cnwWrapCode(first.text) : first.text))
-      : (context.status === 'ready' ? '暂无待取' : '待更新');
+    const codeText = first ? (context.hideCode ? (context.officialSummary ? '摘要已隐藏' : '码已隐藏') : (first.usable ? cnwWrapCode(first.text) : first.text))
+      : (context.status === 'ready' ? (context.officialSummary && context.total > 0 ? '摘要未提供' : '暂无待取') : '待更新');
     children = [
       cnwText(status, 8, CNW_COLORS.primary, { textAlign: 'center', minScale: 0.7, font: { size: 8, weight: 'semibold' } }),
       cnwText(context.partial && hasItems ? `≥${context.total}` : count, first && !context.hideCode ? 18 : 22, CNW_COLORS.primary, {
@@ -274,9 +287,11 @@ function cnwLock(context, family) {
         cnwText(`${count}件待取`, 11, CNW_COLORS.primary, { font: { size: 11, weight: 'bold' }, minScale: 0.75 }),
       ], { alignItems: 'center', gap: 4 }),
       ...(context.warning || context.message ? [cnwText(status, 9, CNW_COLORS.primary, { minScale: 0.75, font: { size: 9, weight: 'semibold' } })] : []),
-      ...(first ? [cnwText(context.hideCode ? '取件码已隐藏' : first.text, context.hideCode || !first.usable ? 12 : 18, CNW_COLORS.primary, {
+      ...(first ? [cnwText(context.hideCode ? (context.officialSummary ? '取件信息已隐藏' : '取件码已隐藏') : first.text, context.hideCode || !first.usable ? 12 : 18, CNW_COLORS.primary, {
         font: { size: context.hideCode || !first.usable ? 12 : 18, weight: first.usable && !context.hideCode ? 'bold' : 'medium', ...(first.usable && !context.hideCode ? { family: 'Menlo' } : {}) }, minScale: 0.45,
-      })] : [cnwText(context.status === 'ready' ? '没有待取包裹' : (context.setupTitle || context.state.title), 12, CNW_COLORS.primary, { minScale: 0.8 })]),
+        ...(context.officialSummary ? { maxLines: 2 } : {}),
+      })] : [cnwText(context.status === 'ready' ? (context.officialSummary ? (context.total > 0 ? '有待取，摘要未提供' : '官方摘要暂无待取') : '没有待取包裹')
+        : (context.setupTitle || context.state.title), 12, CNW_COLORS.primary, { minScale: 0.8 })]),
       cnwText(cnwLockTimestamp(context), 8, CNW_COLORS.secondary, { minScale: 0.75 }),
     ];
   }

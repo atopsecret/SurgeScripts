@@ -1,12 +1,13 @@
 // 引擎：Egern 原生 generic 脚本 | 语言：JavaScript ES module
 // 构建：node cainiao-widget/build.mjs
 // 运行：导入模块，打开本人淘宝／菜鸟 App 快递列表，再运行组件
-// 依赖：core.mjs、app.mjs、auth.mjs、response.mjs、transport.mjs、render.mjs；发布文件内联
-import {CW_VERSION, CW_API, CW_COUNT_API, CW_IDENTITY_API, CW_PATH, CW_COUNT_PATH, CW_IDENTITY_PATH, CW_UA, CW_STORE, CW_SELF_HEADER, cwObject, cwKnownVersion, cwCookieMap, cwCookieHeader, cwOwner, cwUpdateCookies, cwRequestURL, cwAccountRequestURL, cwIdentityRequestURL, cwResponseAPI, cwIdentityMatch, cwReturnKind, cwReadPage, cwItems, md5} from "./core.mjs";
+// 依赖：core.mjs、app.mjs、auth.mjs、response.mjs、transport.mjs、official.mjs、render.mjs；发布文件内联
+import {CW_VERSION, CW_API, CW_COUNT_API, CW_IDENTITY_API, CW_PATH, CW_COUNT_PATH, CW_IDENTITY_PATH, CW_UA, CW_STORE, CW_OFFICIAL_STORE, CW_SELF_HEADER, cwObject, cwKnownVersion, cwCookieMap, cwCookieHeader, cwOwner, cwUpdateCookies, cwRequestURL, cwAccountRequestURL, cwIdentityRequestURL, cwResponseAPI, cwIdentityMatch, cwReturnKind, cwReadPage, cwItems, md5} from "./core.mjs";
 import {cwConnectionMode, cwReadAuth, cwSameAuth, cwWriteAuth, cwAuthCookies, cwLoginCandidate, cwSessionHash, cwRequiresIdentity, cwCachedAuthStatus, cwQueryFields, cwQueryRetCode, cwClearLocal, captureCainiaoCredentials, diagnoseCainiaoConnection} from "./auth.mjs";
 import {cwAppSummary} from "./app.mjs";
 import {captureCainiaoResponse, cwResponseLines} from "./response.mjs";
 import {runCainiaoTransportCheck, cwTransportLines, cwTransportResultLines} from "./transport.mjs";
+import {cwOfficialRoute, captureCainiaoOfficialRequest, captureCainiaoOfficialResponse, loadCainiaoOfficialModel, cwOfficialLines} from "./official.mjs";
 import {renderWidget} from "./render.mjs";
 
 class CwFailure extends Error {
@@ -77,6 +78,16 @@ export async function loadCainiaoModel(ctx, clock = () => Date.now()) {
         catch { return {...base, status: "setup", setupTitle: "连接已关闭", message: "本机登录态清除未确认，请检查 Egern"}; }
         return {...base, status: "setup", setupTitle: "连接已关闭", message: "本机登录态已清除，切回 auto 可重新连接"};
     }
+    if (mode === "auto") {
+        // 官方专用 token 使用独立合同，成功只确认摘要，不冒充旧 H5 完整 PDS。
+        // 新状态存在但未就绪、失效或换号时不能退回旧 Cookie 显示另一账号。
+        try {
+            const official = await loadCainiaoOfficialModel(ctx, clock, base, cwBounded);
+            if (official !== null) return official;
+        } catch {
+            return {...base, status: "setup", setupTitle: "检查 Egern 存储", message: "官方小组件会话无法确认，未发送旧会话查询"};
+        }
+    }
     let automatic = null;
     if (mode === "auto") {
         try { automatic = cwReadAuth(ctx, now); }
@@ -130,8 +141,15 @@ export async function loadCainiaoModel(ctx, clock = () => Date.now()) {
     const currentAuth = () => {
         if (mode !== "auto") return null;
         let current;
-        try { current = cwReadAuth(ctx, clock()); }
-        catch { throw new CwFailure("local"); }
+        try {
+            const official = ctx.storage.getJSON(CW_OFFICIAL_STORE);
+            if (official !== null && official !== undefined) throw new CwFailure("superseded");
+            current = cwReadAuth(ctx, clock());
+        }
+        catch (error) {
+            if (error instanceof CwFailure) throw error;
+            throw new CwFailure("local");
+        }
         if (automatic ? !cwSameAuth(current, automatic) : current !== null) throw new CwFailure("superseded");
         return current;
     };
@@ -378,19 +396,27 @@ export async function loadCainiaoModel(ctx, clock = () => Date.now()) {
 }
 
 export default async function(ctx) {
-    if (ctx.response) return captureCainiaoResponse(ctx);
+    if (ctx.response) {
+        if (cwOfficialRoute(ctx.request?.url, ctx.request?.headers)?.kind === "token") return captureCainiaoOfficialResponse(ctx);
+        return captureCainiaoResponse(ctx);
+    }
     if (ctx.request) {
+        let originalBody;
+        try { originalBody = await captureCainiaoOfficialRequest(ctx); }
+        catch { console.log("[菜鸟连接] 官方会话采集未完成，原请求继续透传。"); }
         try { captureCainiaoCredentials(ctx); }
         catch { console.log("[菜鸟连接] 捕获未完成，原请求继续透传。"); }
-        return;
+        return originalBody;
     }
     if (ctx.env?.CAINIAO_DIAGNOSTIC === "true") {
         let result;
         if (ctx.env.CW_TRANSPORT_CHECK === "true") result = await runCainiaoTransportCheck(ctx);
         const now = Date.now(), widget = diagnoseCainiaoConnection(ctx, () => now);
         const transportLines = result ? cwTransportResultLines(result, now) : cwTransportLines(ctx, now);
-        const lines = [...transportLines, ...cwResponseLines(ctx, now)];
-        widget.children[0].text += "\n" + lines.join("\n");
+        const currentLines = widget.children[0].text.split("\n");
+        widget.children[0].text = [currentLines.shift(), ...cwOfficialLines(ctx, now),
+            "以下为旧 H5 备用状态，不代表官方专用查询结果：", ...currentLines,
+            ...transportLines, ...cwResponseLines(ctx, now)].join("\n");
         return widget;
     }
     const model = await loadCainiaoModel(ctx);

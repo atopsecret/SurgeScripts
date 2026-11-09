@@ -65,8 +65,8 @@ function nativePds(packages = [parcel()], totalPage = 1, currentPage = 1) {
     return response({api: API, ret: ["SUCCESS::成功"], data: {packages, totalPage, currentPage}});
 }
 
-test("1.2.4 的 App 采集属于同一小组件，固定四网关及本机元数据键", () => {
-    assert.equal(core.CW_VERSION, "1.2.4");
+test("1.3.0 保留 App 采集的四网关及本机元数据键", () => {
+    assert.equal(core.CW_VERSION, "1.3.0");
     assert.equal(core.CW_APP_STORE, "cainiao-widget.app.v1");
     assert.deepEqual([...app.CW_APP_HOSTS].sort(), HOSTS.slice().sort());
 });
@@ -308,7 +308,7 @@ test("1.1.0 迁移仍复核旧状态完整性，损坏值或其他版本不能�
     const previous = legacyState();
     for (const changes of [{owner: "wrong"}, {inputHash: core.md5("wrong")}, {sessionHash: core.md5("wrong")},
         {cookie: previous.cookie + "; tracking=synthetic-extra"}, {sourceHost: "cn-acs.m.cainiao.com"},
-        {confirmedAt: null}, {capturedAt: NOW + 120000}, {version: "1.0.0"}, {version: "1.3.0"}]) {
+        {confirmedAt: null}, {capturedAt: NOW + 120000}, {version: "1.0.0"}, {version: "1.4.0"}]) {
         assert.equal(auth.cwAuthState({...previous, ...changes}, NOW), null, JSON.stringify(changes));
     }
 });

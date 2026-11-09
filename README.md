@@ -16,7 +16,7 @@ Surge 与 Egern 去广告模块、蔚来自动签到脚本、Apple 天气增强�
   [使用说明](jd/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml)
 - **菜鸟 1.2.1（Surge / Egern）**：九个精确主机限定 QUIC 或 UDP 443，补仅识别为 UDP 的连接；保留双端页面与素材规则，协议回退仍需手机验证。
   [使用说明](cainiao/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.yaml)
-- **菜鸟取件小组件 1.2.4（Egern 原生，正在发布）**：修复公共时间请求覆盖登录候选、复活失败和撤销账号屏障的问题；首次未接通不再显示会话失效。原五入口共用同一 JS，不需要 ZIP、电脑或 HAR。这是来源／隔离补丁，App 独立接入尚未完成。
+- **菜鸟取件小组件 1.2.4（Egern 原生，已发布）**：修复公共时间请求覆盖登录候选、复活失败和撤销账号屏障的问题；首次未接通不再显示会话失效。原五入口共用同一 JS，不需要 ZIP、电脑或 HAR。这是来源／隔离补丁，App 独立接入尚未完成。
   [手机安装与升级](cainiao-widget/开始使用-1.2.4.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.2.4)
 - **闲鱼**：新旧开屏接口、缓存广告引用、悬浮策略及指定广告素材。
   [使用说明](xianyu/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-adblock.egern.yaml)
@@ -100,7 +100,7 @@ node --experimental-vm-modules --test --test-reporter=tap \
   cainiao-widget/tests/*.test.cjs
 ```
 
-1.2.4 完整工作区脚本 **928/928 → 940/940**，其中菜鸟取件小组件 **384/384 → 396/396**：新增来源／隔离回归 12 项；不包含旧诊断或 HAR 工具。公共静态 **41/41**，旧登录助手 **32/32**，58 个同源布局零问题。实际提交树和公开原地址还需分别核验，结果见[本版验证记录](cainiao-widget/验证记录-1.2.4.md)；[1.2.3 历史记录](cainiao-widget/验证记录-1.2.3.md)保留原数字。字段、匹配和来源子集测试依赖 PyYAML 6：
+1.2.4 工作区及实际发布树脚本 **928/928 → 940/940**，其中菜鸟取件小组件 **384/384 → 396/396**：新增来源／隔离回归 12 项；不包含旧诊断或 HAR 工具。公共静态 **41/41**，旧登录助手 **32/32**，58 个同源布局零问题。十四个公开原地址与实现提交同字节，结果见[本版验证记录](cainiao-widget/验证记录-1.2.4.md)；[1.2.3 历史记录](cainiao-widget/验证记录-1.2.3.md)保留原数字。字段、匹配和来源子集测试依赖 PyYAML 6：
 
 ```sh
 python3 egern/validate.py
@@ -133,7 +133,7 @@ Egern 的 `.egern.js` 是 ES module，单文件语法检查使用 `node --input-
 
 2026-11-09 菜鸟取件小组件 1.2.3 已发布：原模块增加固定假 Cookie 发送对照、合法响应 Cookie 候选和已知登录结构观察。主组件 **232/232 → 384/384**、全仓 **776/776 → 928/928**、静态 **40/40 → 41/41**；独立接入复核 **203/203**，58 个同源布局零问题。二十六路径实际提交树通过，十四个公开原地址同字节。凭据不进入回显测试，旧失败和账号屏障保留。当前手机接入仍未确认，见[1.2.3 验证记录](cainiao-widget/验证记录-1.2.3.md)。
 
-2026-11-09 菜鸟取件小组件 1.2.4 正在发布：已复现并修复公共请求来源／账号隔离错误。新增回归在旧版 **7/12**、本版 **12/12**；完整工作区回归主组件 **396/396**、全仓 **940/940**、静态 **41/41**、旧助手 **32/32**，独立源码复核 **76/76**，58 个同源布局零问题。实际提交树和公开原地址尚待核验；这不证明此次 SESSION 拒绝已解决，见[1.2.4 验证记录](cainiao-widget/验证记录-1.2.4.md)。
+2026-11-09 菜鸟取件小组件 1.2.4 已发布：已复现并修复公共请求来源／账号隔离错误。新增回归在旧版 **7/12**、本版 **12/12**；工作区及实际树主组件 **396/396**、全仓 **940/940**、静态 **41/41**、旧助手 **32/32**，独立源码复核 **76/76**、实际范围 **58/58**，58 个同源布局零问题。实现提交 `2a80663` 普通推送，十四个公开原地址同字节；这不证明此次 SESSION 拒绝已解决，见[1.2.4 验证记录](cainiao-widget/验证记录-1.2.4.md)。
 
 ## 反馈与来源
 

@@ -8,7 +8,7 @@
 - [高德地图](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.egern.yaml)：2.1.0，RT 开屏 multipart、个人页 v3、十五类页面与内嵌配置净化。
 - [京东 2.0.0](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml)：十二类接口、已知导航、精准开屏素材尺寸与原字节回退。
 - [菜鸟 1.2.1](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.yaml?v=1.2.1)：九个精确主机改为 UDP/QUIC `443` 条件，保留原有页面和素材规则；最新抓包确认仍在展示本地缓存视频，最终开屏效果未真机确认。
-- [菜鸟取件小组件 1.2.4 · 正在发布](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.2.4)：修复公共时间请求覆盖候选与账号隔离、首次未接通误报失效；沿用原模块，不要求本地文件；[手机更新步骤](../cainiao-widget/开始使用-1.2.4.md)。独立接入仍未完成。
+- [菜鸟取件小组件 1.2.4 · 已发布](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.2.4)：修复公共时间请求覆盖候选与账号隔离、首次未接通误报失效；沿用原模块，不要求本地文件；[手机更新步骤](../cainiao-widget/开始使用-1.2.4.md)。独立接入仍未完成。
 - [闲鱼](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-adblock.egern.yaml)：六个网关、新旧开屏和缓存广告引用。
 - [拼多多](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/pinduoduo/pdd-adblock.egern.yaml)：双条件素材规则、单域 QUIC 与已知页面净化。
 - [红果](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/hongguo/hongguo-adblock.egern.yaml)：78 条广告/上报条件，不拒绝主配置公共 DNS。
@@ -73,7 +73,7 @@ NAS 原 Surge 网关条件不能从当前公开 Egern 条件策略字段直接�
 
 2026-11-09 菜鸟取件小组件 1.2.3 已发布：同模块发送对照、响应候选和有限登录结构已集成；主组件 **232/232 → 384/384**、全仓 **776/776 → 928/928**、静态 **40/40 → 41/41**、旧助手 **32/32**。独立接入复核 **203/203**，58 个同源布局零问题；十四个公开原地址同字节，上线不等于手机登录已接通，见[1.2.3 记录](../cainiao-widget/验证记录-1.2.3.md)。
 
-2026-11-09 菜鸟取件小组件 1.2.4 正在发布：新增来源／隔离回归旧版 **7/12**、本版 **12/12**，完整工作区回归主组件 **396/396**、全仓 **940/940**、静态 **41/41**、旧助手 **32/32**；独立源码复核 **76/76**，58 个同源布局零问题。实际发布树及公开原地址尚待核验；独立个人查询仍未接通，见[1.2.4 记录](../cainiao-widget/验证记录-1.2.4.md)。
+2026-11-09 菜鸟取件小组件 1.2.4 已发布：新增来源／隔离回归旧版 **7/12**、本版 **12/12**，工作区及实际树主组件 **396/396**、全仓 **940/940**、静态 **41/41**、旧助手 **32/32**；独立源码复核 **76/76**、实际范围 **58/58**，58 个同源布局零问题。实现提交 `2a80663` 普通推送，十四个公开原地址同字节；独立个人查询仍未接通，见[1.2.4 记录](../cainiao-widget/验证记录-1.2.4.md)。
 
 ## 参考
 

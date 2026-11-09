@@ -16,8 +16,8 @@ Surge 与 Egern 去广告模块、蔚来自动签到脚本、Apple 天气增强�
   [使用说明](jd/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml)
 - **菜鸟 1.2.1（Surge / Egern）**：九个精确主机限定 QUIC 或 UDP 443，补仅识别为 UDP 的连接；保留双端页面与素材规则，协议回退仍需手机验证。
   [使用说明](cainiao/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.yaml)
-- **菜鸟取件小组件 1.3.2（Egern 原生，正在发布）**：修复旧 H5 隔离标记挡住官方组件首次迁移的问题，合法实际查询建立全新专用会话。七入口共用同一 JS，不需要 ZIP、电脑或 HAR。已在 iPhone 确认官方查询入口，实际正文兼容及独立摘要查询仍待验收；完整列表和结构化取件码尚未确认。
-  [手机安装与升级](cainiao-widget/开始使用-1.3.2.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.3.2)
+- **菜鸟取件小组件 1.3.3（Egern 原生，正在发布）**：按实际 iOS 官方查询支持省略品牌字段，新 POST 保持省略；保留旧 H5 首次迁移及专用会话隔离。七入口共用同一 JS，不需要 ZIP、电脑或 HAR。已取得 iPhone 脱敏请求形状，手机独立摘要查询仍待验收；完整列表和结构化取件码尚未确认。
+  [手机安装与升级](cainiao-widget/开始使用-1.3.3.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.3.3)
 - **闲鱼**：新旧开屏接口、缓存广告引用、悬浮策略及指定广告素材。
   [使用说明](xianyu/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-adblock.egern.yaml)
 - **拼多多**：开屏、多多视频入口、首页及订单页已知推广字段。

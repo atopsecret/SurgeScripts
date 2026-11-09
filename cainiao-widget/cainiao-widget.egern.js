@@ -1,4 +1,4 @@
-// Egern 原生菜鸟取件小组件 1.3.2 · 自动构建，请编辑本目录源文件。
+// Egern 原生菜鸟取件小组件 1.3.3 · 自动构建，请编辑本目录源文件。
 // 构建：node cainiao-widget/build.mjs；来源与许可见 THIRD_PARTY_NOTICES.md。
 // 来源：core.mjs
 // 引擎：Egern JavaScript | 语言：JavaScript ES module
@@ -6,7 +6,7 @@
 // 运行：由 runtime.mjs 调用；离线验证 node --test cainiao-widget/tests/core.test.cjs
 // 依赖：无；协议来源见 THIRD_PARTY_NOTICES.md
 
-const CW_VERSION = "1.3.2";
+const CW_VERSION = "1.3.3";
 const CW_API = "mtop.cainiao.lpc.packageservice.queryPdsPackageDataList";
 const CW_COUNT_API = "mtop.cainiao.lpc.packageservice.user.package.count.query";
 const CW_IDENTITY_API = "mtop.user.getUserSimple";
@@ -65,7 +65,7 @@ function cwObject(value) {
 }
 
 function cwKnownVersion(value) {
-    return ["1.1.0", "1.2.0", "1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.3.0", "1.3.1", CW_VERSION].includes(value);
+    return ["1.1.0", "1.2.0", "1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", CW_VERSION].includes(value);
 }
 
 function cwText(value, limit = 160) {
@@ -330,7 +330,7 @@ function cwAppNames(value, allowed) {
 
 function cwAppState(value, now) {
     const rows = [], empty = {version: CW_VERSION, startedAt: now, rows};
-    if (!cwObject(value) || !["1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.3.0", "1.3.1", CW_VERSION].includes(value.version) || !Array.isArray(value.rows)
+    if (!cwObject(value) || !["1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", CW_VERSION].includes(value.version) || !Array.isArray(value.rows)
         || !Number.isSafeInteger(value.startedAt) || value.startedAt <= 0 || value.startedAt > now
         || now - value.startedAt > CW_APP_WINDOW) return empty;
     const seen = new Set();
@@ -469,7 +469,7 @@ function cwAuthState(value, now = Date.now()) {
     const accountSessionHash = legacy ? "" : value.accountSessionHash;
     const restricted = cwRequiresIdentity({captureKind});
     if (!["request_cookie", "native_session_candidate", "request_cookie_candidate", "response_cookie_candidate"].includes(captureKind)
-        || captureKind === "response_cookie_candidate" && !["1.2.3", "1.2.4", "1.3.0", "1.3.1", CW_VERSION].includes(value.version)
+        || captureKind === "response_cookie_candidate" && !["1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", CW_VERSION].includes(value.version)
         || value.version === "1.2.0" && captureKind === "request_cookie_candidate" || !["h5", "gw"].includes(sourceChannel)
         || !(accountCheckedAt === null || Number.isFinite(accountCheckedAt) && accountCheckedAt > 0 && accountCheckedAt <= now + 60000)
         || typeof accountSessionHash !== "string" || accountSessionHash !== "" && !/^[0-9a-f]{32}$/.test(accountSessionHash)
@@ -522,7 +522,7 @@ function cwQueryFields(record, now = Date.now()) {
 
 function cwQueryDiagnostic(cached, auth, now = Date.now()) {
     const checked = cwAuthState(auth, now);
-    return checked && cwObject(cached) && ["1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.3.0", "1.3.1", CW_VERSION].includes(cached.version) && cached.source === "auto" && cached.blocked !== true
+    return checked && cwObject(cached) && ["1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", CW_VERSION].includes(cached.version) && cached.source === "auto" && cached.blocked !== true
         && cached.owner === checked.owner && cached.inputHash === checked.inputHash && cached.generation === checked.generation
         && typeof cached.runId === "string" && /^[0-9a-f]{32}$/.test(cached.runId) ? cwQueryFields(cached.queryDiagnostic, now) : null;
 }
@@ -855,7 +855,7 @@ function cwTransportCleanSample(value, startedAt, at) {
 function cwTransportState(value, now = Date.now()) {
     try {
         if (!cwTransportObject(value) || !cwTransportExactKeys(value, ["schema", "version", "runId", "kind", "startedAt", "leaseUntil", "at", "expiresAt", "omit", "include"])
-            || value.schema !== 1 || !["1.2.3", "1.2.4", "1.3.0", "1.3.1", CW_VERSION].includes(value.version) || !["RUNNING", "COMPLETE"].includes(value.kind)
+            || value.schema !== 1 || !["1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", CW_VERSION].includes(value.version) || !["RUNNING", "COMPLETE"].includes(value.kind)
             || typeof value.runId !== "string" || !/^[0-9a-f]{32}$/.test(value.runId) || !cwTransportTime(now)
             || !cwTransportTime(value.startedAt) || value.startedAt > now + 60000 || !cwTransportTime(value.at)
             || value.at < value.startedAt || value.at > now + 60000 || !cwTransportTime(value.leaseUntil)
@@ -1464,7 +1464,7 @@ function cwResponseCleanSchema(value) {
 
 function cwResponseState(value, now) {
     const empty = {version: CW_VERSION, startedAt: now, rows: []};
-    if (!cwResponseTime(now) || !cwObject(value) || !["1.2.3", "1.2.4", "1.3.0", "1.3.1", CW_VERSION].includes(value.version)
+    if (!cwResponseTime(now) || !cwObject(value) || !["1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", CW_VERSION].includes(value.version)
         || !cwResponseTime(value.startedAt) || value.startedAt > now || now - value.startedAt >= CW_RESPONSE_WINDOW
         || !Array.isArray(value.rows) || value.rows.length > 32) return empty;
     const rows = [], seen = new Set();
@@ -1612,7 +1612,7 @@ function cwResponseLines(ctx, now = Date.now()) {
 }
 
 // 来源：official.mjs
-// 引擎：Egern JavaScript | 版本：1.3.2 | 语言：JavaScript ES module
+// 引擎：Egern JavaScript | 版本：1.3.3 | 语言：JavaScript ES module
 // 构建：node cainiao-widget/build.mjs
 // 运行：同一模块捕获实际 RPC bearer 或本人签发 token，再由 generic 独立查询
 // 依赖：core.mjs、app.mjs；不执行 APK、不调用原生签名、不在 hook 发送个人查询
@@ -1869,25 +1869,25 @@ function cwOfficialParseText(text, headers) {
 }
 
 function cwOfficialTemplateFields(value) {
-    const keys = ["appName", "source", "channel", "brand", "installStatus", "version", "ext"];
+    const hasBrand = cwObject(value) && Object.hasOwn(value, "brand");
+    const keys = ["appName", "source", "channel", ...(hasBrand ? ["brand"] : []), "installStatus", "version", "ext"];
     if (!cwOfficialSameKeys(value, keys) || value.appName !== "GUOGUO_APP" || ![1, 2].includes(value.version)
-        || !cwOfficialString(value.source, 128, false) || !cwOfficialString(value.channel, 256) || !cwOfficialString(value.brand, 256)
+        || !cwOfficialString(value.source, 128, false) || !cwOfficialString(value.channel, 256) || hasBrand && !cwOfficialString(value.brand, 256)
         || !cwOfficialString(value.installStatus, 4096, false) || !cwOfficialString(value.ext, 4096, false)) throw cwOfficialFail();
     const install = cwOfficialJSON(value.installStatus), ext = cwOfficialJSON(value.ext);
     if (!cwOfficialSameKeys(install, CW_OFFICIAL_INSTALL_KEYS) || CW_OFFICIAL_INSTALL_KEYS.some(key => typeof install[key] !== "boolean")
         || !cwOfficialSameKeys(ext, ["apiVersion"]) || ext.apiVersion !== "V3") throw cwOfficialFail();
-    return {appName: value.appName, source: value.source, channel: value.channel, brand: value.brand,
-        installStatus: value.installStatus, version: value.version, ext: value.ext};
+    return Object.fromEntries(keys.map(key => [key, value[key]]));
 }
 
 function cwOfficialTemplate(body) {
     if (!cwOfficialSameKeys(body, ["argsTypes", "argsObjs"]) || !Array.isArray(body.argsTypes) || body.argsTypes.length !== 1
         || body.argsTypes[0] !== CW_OFFICIAL_ARGS_TYPE || !Array.isArray(body.argsObjs) || body.argsObjs.length !== 1) throw cwOfficialFail();
     const object = body.argsObjs[0], keys = ["appName", "source", "channel", "brand", "installStatus", "version", "ext", "token", "timestamp"];
-    if (!cwObject(object) || !keys.every(key => Object.hasOwn(object, key)) || Object.keys(object).some(key => ![...keys, "lbs"].includes(key))
+    if (!cwObject(object) || !keys.every(key => key === "brand" || Object.hasOwn(object, key)) || Object.keys(object).some(key => ![...keys, "lbs"].includes(key))
         || !cwOfficialOpaque(object.token) || !cwOfficialTime(object.timestamp)
         || Object.hasOwn(object, "lbs") && !cwOfficialString(object.lbs, 1024)) throw cwOfficialFail();
-    const fields = Object.fromEntries(keys.slice(0, 7).map(key => [key, object[key]]));
+    const fields = Object.fromEntries(keys.slice(0, 7).filter(key => Object.hasOwn(object, key)).map(key => [key, object[key]]));
     return {token: object.token, template: cwOfficialTemplateFields(fields)};
 }
 
@@ -1945,7 +1945,7 @@ function cwOfficialState(value, now = Date.now()) {
     try {
         const legacy = value?.version === "1.3.0", binding = value?.binding === undefined ? "uid" : value.binding;
         const retiredTokenHashes = value?.retiredTokenHashes === undefined ? [] : value.retiredTokenHashes;
-        if (!cwOfficialTime(now) || !cwObject(value) || ![CW_VERSION, "1.3.0", "1.3.1"].includes(value.version) || !cwOfficialHash(value.owner)
+        if (!cwOfficialTime(now) || !cwObject(value) || ![CW_VERSION, "1.3.0", "1.3.1", "1.3.2"].includes(value.version) || !cwOfficialHash(value.owner)
             || !["uid", "bearer", "unbound"].includes(binding) || legacy && binding !== "uid" || !cwOfficialHashes(retiredTokenHashes)
             || !cwOfficialHash(value.generation) || !cwOfficialHash(value.revision) || !CW_OFFICIAL_STATUSES.includes(value.status)
             || !cwOfficialTime(value.at) || value.at > now || !CW_OFFICIAL_FAILURES.includes(value.failure) || !CW_OFFICIAL_CAPTURES.includes(value.captureResult)

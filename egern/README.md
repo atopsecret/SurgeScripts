@@ -8,7 +8,7 @@
 - [高德地图](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.egern.yaml)：2.1.0，RT 开屏 multipart、个人页 v3、十五类页面与内嵌配置净化。
 - [京东 2.0.0](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml)：十二类接口、已知导航、精准开屏素材尺寸与原字节回退。
 - [菜鸟 1.2.1](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.yaml?v=1.2.1)：九个精确主机改为 UDP/QUIC `443` 条件，保留原有页面和素材规则；最新抓包确认仍在展示本地缓存视频，最终开屏效果未真机确认。
-- [菜鸟取件小组件 1.3.3 · 正在发布](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.3.3)：按实际 iOS 查询支持省略品牌，保留旧 H5 首次迁移及专用会话隔离；[手机接入步骤](../cainiao-widget/开始使用-1.3.3.md)。手机独立摘要查询、完整列表与结构化取件码仍待验收。
+- [菜鸟取件小组件 1.3.4 · 正在发布](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.3.4)：显示已保存 RPC 的时间和十个字段类型，查询合同不变；[手机接入步骤](../cainiao-widget/开始使用-1.3.4.md)。1.3.3 已发布但手机仍未接通；手机实际连接尚未验收，独立摘要、完整列表与结构化取件码继续分别验证。
 - [闲鱼](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-adblock.egern.yaml)：六个网关、新旧开屏和缓存广告引用。
 - [拼多多](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/pinduoduo/pdd-adblock.egern.yaml)：双条件素材规则、单域 QUIC 与已知页面净化。
 - [红果](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/hongguo/hongguo-adblock.egern.yaml)：78 条广告/上报条件，不拒绝主配置公共 DNS。
@@ -24,7 +24,7 @@
 - 高德 RT 的 multipart 字节、CRLF、边界和响应头与现有版本对应；Map Local 不依赖脚本下载。
 - 京东不清空整个 `start`；陌生导航结构保留，普通商品图片不匹配开屏专用尺寸。
 - 菜鸟包含五类广告空体 404、三组页面清理及 20 条拒绝条件；1.2.1 将九个精确解密主机的协议条件扩展至 UDP/QUIC `443`。提供 [Surge 模块](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.sgmodule?v=1.2.1)，Surge 为目标域名另启 `extended-matching`；两端页面脚本由共用纯策略构建。未识别域名的 IP 直连仍可能绕过，模块也不能删除 App 缓存。省去 netflow 整包清空规则，保留未知业务结构。
-- 菜鸟取件是独立模块，可和菜鸟去广告一起使用，不依赖去广告或另装诊断。1.3.3 沿用原四网关和 `guoguouser.cainiao.com`，不扩大解密范围；按实际 iOS 证据允许省略 `brand`，不填造品牌。精确 RPC 可在未见重新签发时建立 bearer 凭据会话；严格已知的旧 H5 屏障可首次迁移，官方 UID、冲突及撤销屏障继续保护。新 token 不继承旧摘要或成功证明，原 UID 签发路径保留。主组件以新时间戳独立 POST，不携带 Cookie 或原生签名，不缓存 App 响应冒充更新。返回只作为官方待取摘要，不混 V2 计数、不猜取件码；未知合同、明确换号或失效时停止。合法旧状态及失败记录保留，已有本人 CA 不用重装。手机独立查询仍单独验收。
+- 菜鸟取件是独立模块，可和菜鸟去广告一起使用，不依赖去广告或另装诊断。1.3.4 只让既有 RPC 形状时间和十个字段类型可见，不新增采集；沿用原四网关和 `guoguouser.cainiao.com`，不扩大解密范围。保留按实际 iOS 证据省略 `brand`、精确 RPC 首次 bearer 接入、严格旧 H5 迁移及官方 UID／冲突／撤销保护。新 token 不继承旧摘要或成功证明。主组件以新时间戳独立 POST，不携带 Cookie 或原生签名，不缓存 App 响应冒充更新。返回只作为官方待取摘要，不混 V2 计数、不猜取件码；未知合同、明确换号或失效时停止。合法旧状态及失败记录保留，已有本人 CA 不用重装。手机独立查询仍单独验收。
 - 闲鱼默认静默，不把服务端登录错误或错误 `ret` 伪造成成功。
 - 拼多多保留 UA 双条件和单域 QUIC；裸 IP 页面响应必须有精确 API Host，不凭域名子串或 UA 直接认领。保留商品评价图片。已识别的三核心导航仍沿用原来源白名单，可能同时精简其它入口。
 - 红果不复制 `dns.alidns.com`、`doh.pub` 拒绝，不解密整个 `snssdk.com`；金币或看广告解锁入口仍可能受阻。

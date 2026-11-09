@@ -1,4 +1,4 @@
-// 引擎：Egern JavaScript | 版本：1.3.3 | 语言：JavaScript ES module
+// 引擎：Egern JavaScript | 版本：1.3.4 | 语言：JavaScript ES module
 // 构建：node cainiao-widget/build.mjs
 // 运行：同一模块捕获实际 RPC bearer 或本人签发 token，再由 generic 独立查询
 // 依赖：core.mjs、app.mjs；不执行 APK、不调用原生签名、不在 hook 发送个人查询
@@ -333,7 +333,7 @@ export function cwOfficialState(value, now = Date.now()) {
     try {
         const legacy = value?.version === "1.3.0", binding = value?.binding === undefined ? "uid" : value.binding;
         const retiredTokenHashes = value?.retiredTokenHashes === undefined ? [] : value.retiredTokenHashes;
-        if (!cwOfficialTime(now) || !cwObject(value) || ![CW_VERSION, "1.3.0", "1.3.1", "1.3.2"].includes(value.version) || !cwOfficialHash(value.owner)
+        if (!cwOfficialTime(now) || !cwObject(value) || ![CW_VERSION, "1.3.0", "1.3.1", "1.3.2", "1.3.3"].includes(value.version) || !cwOfficialHash(value.owner)
             || !["uid", "bearer", "unbound"].includes(binding) || legacy && binding !== "uid" || !cwOfficialHashes(retiredTokenHashes)
             || !cwOfficialHash(value.generation) || !cwOfficialHash(value.revision) || !CW_OFFICIAL_STATUSES.includes(value.status)
             || !cwOfficialTime(value.at) || value.at > now || !CW_OFFICIAL_FAILURES.includes(value.failure) || !CW_OFFICIAL_CAPTURES.includes(value.captureResult)
@@ -772,11 +772,16 @@ export function cwOfficialLines(ctx, now = Date.now()) {
 function cwOfficialShapeLines(shape) {
     const missing = CW_OFFICIAL_RPC_KEYS.slice(0, 9).filter((_, index) => shape.fieldTypes[index] === "missing");
     const yes = value => value ? "是" : "否", names = values => values.length ? values.join("、") : "无";
+    const types = (start, end) => CW_OFFICIAL_RPC_KEYS.slice(start, end).map((key, index) => key + "=" + shape.fieldTypes[start + index]).join("；");
     return ["RPC 固定形状：正文=" + shape.body + "；argsTypes=" + shape.argsTypes + "；已知唯一类型=" + yes(shape.argsTypeKnown)
         + "；argsObjs=" + shape.argsObjs + "；对象数量=" + (shape.argsObjsCount === null ? "未知" : shape.argsObjsCount),
     "RPC 已知字段缺失：" + names(missing) + "；根额外字段=" + shape.rootExtraCount + "；对象额外字段=" + shape.objectExtraCount,
     "RPC version 类型=" + shape.fieldTypes[5] + "；是否数值 1/2=" + yes(shape.versionKnown) + "；appName 是否已知=" + yes(shape.appNameKnown),
     "RPC installStatus 类型=" + shape.fieldTypes[4] + "；JSON=" + shape.installJSON + "；缺失=" + names(shape.installMissing)
         + "；多余=" + shape.installExtraCount + "；非布尔已知键=" + names(shape.installWrongTypes),
-    "RPC ext 类型=" + shape.fieldTypes[6] + "；JSON=" + shape.extJSON + "；apiVersion 类型=" + shape.extAPI + "；是否 V3=" + yes(shape.extV3) + "；多余=" + shape.extExtraCount];
+    "RPC ext 类型=" + shape.fieldTypes[6] + "；JSON=" + shape.extJSON + "；apiVersion 类型=" + shape.extAPI + "；是否 V3=" + yes(shape.extV3) + "；多余=" + shape.extExtraCount,
+    "RPC 形状观察时间：" + new Date(shape.at).toISOString(),
+    "RPC 字段类型：" + types(0, 4) + "（brand 可省略）",
+    "RPC 字段类型：" + types(4, 7),
+    "RPC 字段类型：" + types(7, 10)];
 }

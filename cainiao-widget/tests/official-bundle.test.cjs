@@ -1,4 +1,4 @@
-// 引擎：Node.js 20+ 内置测试 | 版本：1.3.3 | 语言：JavaScript CommonJS
+// 引擎：Node.js 20+ 内置测试 | 版本：1.3.4 | 语言：JavaScript CommonJS
 // 构建：node cainiao-widget/build.mjs
 // 运行：node --experimental-vm-modules --test cainiao-widget/tests/official-bundle.test.cjs
 // 依赖：内置库；执行实际自包含发布入口，只有合成会话、内存 HTTP 和内存存储
@@ -158,6 +158,11 @@ test("实际发布入口未知合成 RPC 只保存固定形状，不将字段值
     assert.equal(f.state().binding, "unbound"); assert.equal(f.state().token, ""); assert.equal(f.requests.length, 0);
     const widget = await f.entry({...f.ctx, env: {...f.ctx.env, CAINIAO_DIAGNOSTIC: "true"}});
     const text = JSON.stringify(widget); assert.match(text, /RPC.*已观察/); assert.match(text, /version 类型=string/);
+    assert(text.includes("RPC 形状观察时间：" + new Date(NOW).toISOString()));
+    const types = {appName: "string", source: "string", channel: "string", brand: "string", installStatus: "string",
+        version: "string", ext: "string", token: "string", timestamp: "number", lbs: "string"};
+    for (const [key, type] of Object.entries(types)) assert(text.includes(key + "=" + type), key);
+    assert(text.includes("brand 可省略"));
     for (const value of [TOKEN, "synthetic-private", "secretUnknown"]) assert(!JSON.stringify([widget, [...f.memory]]).includes(value));
 });
 

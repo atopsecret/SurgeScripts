@@ -1,4 +1,4 @@
-// Egern 原生菜鸟取件小组件 1.3.3 · 自动构建，请编辑本目录源文件。
+// Egern 原生菜鸟取件小组件 1.3.4 · 自动构建，请编辑本目录源文件。
 // 构建：node cainiao-widget/build.mjs；来源与许可见 THIRD_PARTY_NOTICES.md。
 // 来源：core.mjs
 // 引擎：Egern JavaScript | 语言：JavaScript ES module
@@ -6,7 +6,7 @@
 // 运行：由 runtime.mjs 调用；离线验证 node --test cainiao-widget/tests/core.test.cjs
 // 依赖：无；协议来源见 THIRD_PARTY_NOTICES.md
 
-const CW_VERSION = "1.3.3";
+const CW_VERSION = "1.3.4";
 const CW_API = "mtop.cainiao.lpc.packageservice.queryPdsPackageDataList";
 const CW_COUNT_API = "mtop.cainiao.lpc.packageservice.user.package.count.query";
 const CW_IDENTITY_API = "mtop.user.getUserSimple";
@@ -65,7 +65,7 @@ function cwObject(value) {
 }
 
 function cwKnownVersion(value) {
-    return ["1.1.0", "1.2.0", "1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", CW_VERSION].includes(value);
+    return ["1.1.0", "1.2.0", "1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", "1.3.3", CW_VERSION].includes(value);
 }
 
 function cwText(value, limit = 160) {
@@ -330,7 +330,7 @@ function cwAppNames(value, allowed) {
 
 function cwAppState(value, now) {
     const rows = [], empty = {version: CW_VERSION, startedAt: now, rows};
-    if (!cwObject(value) || !["1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", CW_VERSION].includes(value.version) || !Array.isArray(value.rows)
+    if (!cwObject(value) || !["1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", "1.3.3", CW_VERSION].includes(value.version) || !Array.isArray(value.rows)
         || !Number.isSafeInteger(value.startedAt) || value.startedAt <= 0 || value.startedAt > now
         || now - value.startedAt > CW_APP_WINDOW) return empty;
     const seen = new Set();
@@ -469,7 +469,7 @@ function cwAuthState(value, now = Date.now()) {
     const accountSessionHash = legacy ? "" : value.accountSessionHash;
     const restricted = cwRequiresIdentity({captureKind});
     if (!["request_cookie", "native_session_candidate", "request_cookie_candidate", "response_cookie_candidate"].includes(captureKind)
-        || captureKind === "response_cookie_candidate" && !["1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", CW_VERSION].includes(value.version)
+        || captureKind === "response_cookie_candidate" && !["1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", "1.3.3", CW_VERSION].includes(value.version)
         || value.version === "1.2.0" && captureKind === "request_cookie_candidate" || !["h5", "gw"].includes(sourceChannel)
         || !(accountCheckedAt === null || Number.isFinite(accountCheckedAt) && accountCheckedAt > 0 && accountCheckedAt <= now + 60000)
         || typeof accountSessionHash !== "string" || accountSessionHash !== "" && !/^[0-9a-f]{32}$/.test(accountSessionHash)
@@ -522,7 +522,7 @@ function cwQueryFields(record, now = Date.now()) {
 
 function cwQueryDiagnostic(cached, auth, now = Date.now()) {
     const checked = cwAuthState(auth, now);
-    return checked && cwObject(cached) && ["1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", CW_VERSION].includes(cached.version) && cached.source === "auto" && cached.blocked !== true
+    return checked && cwObject(cached) && ["1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", "1.3.3", CW_VERSION].includes(cached.version) && cached.source === "auto" && cached.blocked !== true
         && cached.owner === checked.owner && cached.inputHash === checked.inputHash && cached.generation === checked.generation
         && typeof cached.runId === "string" && /^[0-9a-f]{32}$/.test(cached.runId) ? cwQueryFields(cached.queryDiagnostic, now) : null;
 }
@@ -855,7 +855,7 @@ function cwTransportCleanSample(value, startedAt, at) {
 function cwTransportState(value, now = Date.now()) {
     try {
         if (!cwTransportObject(value) || !cwTransportExactKeys(value, ["schema", "version", "runId", "kind", "startedAt", "leaseUntil", "at", "expiresAt", "omit", "include"])
-            || value.schema !== 1 || !["1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", CW_VERSION].includes(value.version) || !["RUNNING", "COMPLETE"].includes(value.kind)
+            || value.schema !== 1 || !["1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", "1.3.3", CW_VERSION].includes(value.version) || !["RUNNING", "COMPLETE"].includes(value.kind)
             || typeof value.runId !== "string" || !/^[0-9a-f]{32}$/.test(value.runId) || !cwTransportTime(now)
             || !cwTransportTime(value.startedAt) || value.startedAt > now + 60000 || !cwTransportTime(value.at)
             || value.at < value.startedAt || value.at > now + 60000 || !cwTransportTime(value.leaseUntil)
@@ -1464,7 +1464,7 @@ function cwResponseCleanSchema(value) {
 
 function cwResponseState(value, now) {
     const empty = {version: CW_VERSION, startedAt: now, rows: []};
-    if (!cwResponseTime(now) || !cwObject(value) || !["1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", CW_VERSION].includes(value.version)
+    if (!cwResponseTime(now) || !cwObject(value) || !["1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", "1.3.3", CW_VERSION].includes(value.version)
         || !cwResponseTime(value.startedAt) || value.startedAt > now || now - value.startedAt >= CW_RESPONSE_WINDOW
         || !Array.isArray(value.rows) || value.rows.length > 32) return empty;
     const rows = [], seen = new Set();
@@ -1612,7 +1612,7 @@ function cwResponseLines(ctx, now = Date.now()) {
 }
 
 // 来源：official.mjs
-// 引擎：Egern JavaScript | 版本：1.3.3 | 语言：JavaScript ES module
+// 引擎：Egern JavaScript | 版本：1.3.4 | 语言：JavaScript ES module
 // 构建：node cainiao-widget/build.mjs
 // 运行：同一模块捕获实际 RPC bearer 或本人签发 token，再由 generic 独立查询
 // 依赖：core.mjs、app.mjs；不执行 APK、不调用原生签名、不在 hook 发送个人查询
@@ -1945,7 +1945,7 @@ function cwOfficialState(value, now = Date.now()) {
     try {
         const legacy = value?.version === "1.3.0", binding = value?.binding === undefined ? "uid" : value.binding;
         const retiredTokenHashes = value?.retiredTokenHashes === undefined ? [] : value.retiredTokenHashes;
-        if (!cwOfficialTime(now) || !cwObject(value) || ![CW_VERSION, "1.3.0", "1.3.1", "1.3.2"].includes(value.version) || !cwOfficialHash(value.owner)
+        if (!cwOfficialTime(now) || !cwObject(value) || ![CW_VERSION, "1.3.0", "1.3.1", "1.3.2", "1.3.3"].includes(value.version) || !cwOfficialHash(value.owner)
             || !["uid", "bearer", "unbound"].includes(binding) || legacy && binding !== "uid" || !cwOfficialHashes(retiredTokenHashes)
             || !cwOfficialHash(value.generation) || !cwOfficialHash(value.revision) || !CW_OFFICIAL_STATUSES.includes(value.status)
             || !cwOfficialTime(value.at) || value.at > now || !CW_OFFICIAL_FAILURES.includes(value.failure) || !CW_OFFICIAL_CAPTURES.includes(value.captureResult)
@@ -2384,13 +2384,18 @@ function cwOfficialLines(ctx, now = Date.now()) {
 function cwOfficialShapeLines(shape) {
     const missing = CW_OFFICIAL_RPC_KEYS.slice(0, 9).filter((_, index) => shape.fieldTypes[index] === "missing");
     const yes = value => value ? "是" : "否", names = values => values.length ? values.join("、") : "无";
+    const types = (start, end) => CW_OFFICIAL_RPC_KEYS.slice(start, end).map((key, index) => key + "=" + shape.fieldTypes[start + index]).join("；");
     return ["RPC 固定形状：正文=" + shape.body + "；argsTypes=" + shape.argsTypes + "；已知唯一类型=" + yes(shape.argsTypeKnown)
         + "；argsObjs=" + shape.argsObjs + "；对象数量=" + (shape.argsObjsCount === null ? "未知" : shape.argsObjsCount),
     "RPC 已知字段缺失：" + names(missing) + "；根额外字段=" + shape.rootExtraCount + "；对象额外字段=" + shape.objectExtraCount,
     "RPC version 类型=" + shape.fieldTypes[5] + "；是否数值 1/2=" + yes(shape.versionKnown) + "；appName 是否已知=" + yes(shape.appNameKnown),
     "RPC installStatus 类型=" + shape.fieldTypes[4] + "；JSON=" + shape.installJSON + "；缺失=" + names(shape.installMissing)
         + "；多余=" + shape.installExtraCount + "；非布尔已知键=" + names(shape.installWrongTypes),
-    "RPC ext 类型=" + shape.fieldTypes[6] + "；JSON=" + shape.extJSON + "；apiVersion 类型=" + shape.extAPI + "；是否 V3=" + yes(shape.extV3) + "；多余=" + shape.extExtraCount];
+    "RPC ext 类型=" + shape.fieldTypes[6] + "；JSON=" + shape.extJSON + "；apiVersion 类型=" + shape.extAPI + "；是否 V3=" + yes(shape.extV3) + "；多余=" + shape.extExtraCount,
+    "RPC 形状观察时间：" + new Date(shape.at).toISOString(),
+    "RPC 字段类型：" + types(0, 4) + "（brand 可省略）",
+    "RPC 字段类型：" + types(4, 7),
+    "RPC 字段类型：" + types(7, 10)];
 }
 
 // 来源：render.mjs

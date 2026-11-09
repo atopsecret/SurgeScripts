@@ -131,13 +131,13 @@ function oldAppState() {
     ]};
 }
 
-test("1.3.3 明确认识九个已发布历史版本，未知版本不进入迁移", () => {
-    assert.equal(core.CW_VERSION, "1.3.3");
-    for (const version of ["1.1.0", "1.2.0", "1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", "1.3.3"]) assert.equal(core.cwKnownVersion(version), true, version);
-    for (const version of ["1.2.5", "1.3.4", "1.2", "1.2.1 ", null, true]) assert.equal(core.cwKnownVersion(version), false);
+test("1.3.4 明确认识十个已发布历史版本，未知版本不进入迁移", () => {
+    assert.equal(core.CW_VERSION, "1.3.4");
+    for (const version of ["1.1.0", "1.2.0", "1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4"]) assert.equal(core.cwKnownVersion(version), true, version);
+    for (const version of ["1.2.5", "1.3.5", "1.2", "1.2.1 ", null, true]) assert.equal(core.cwKnownVersion(version), false);
 });
 
-for (const version of ["1.3.0", "1.3.1", "1.3.2"]) test(version + " 升级保留旧响应候选、终止诊断与 App 观察窗口，读取不重试或续期", async () => {
+for (const version of ["1.3.0", "1.3.1", "1.3.2", "1.3.3"]) test(version + " 升级保留旧响应候选、终止诊断与 App 观察窗口，读取不重试或续期", async () => {
     const f = fixture(), previous = {...oldAuth({kind: "response_cookie_candidate", status: "expired", confirmed: true}), version};
     const cache = {...oldCache(previous, {terminalStatus: "expired", queryDiagnostic: queryRecord()}), version};
     seed(f, previous, cache);

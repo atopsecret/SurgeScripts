@@ -85,7 +85,7 @@ export function cwAuthState(value, now = Date.now()) {
     const accountSessionHash = legacy ? "" : value.accountSessionHash;
     const restricted = cwRequiresIdentity({captureKind});
     if (!["request_cookie", "native_session_candidate", "request_cookie_candidate", "response_cookie_candidate"].includes(captureKind)
-        || captureKind === "response_cookie_candidate" && !["1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", CW_VERSION].includes(value.version)
+        || captureKind === "response_cookie_candidate" && !["1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", "1.3.3", CW_VERSION].includes(value.version)
         || value.version === "1.2.0" && captureKind === "request_cookie_candidate" || !["h5", "gw"].includes(sourceChannel)
         || !(accountCheckedAt === null || Number.isFinite(accountCheckedAt) && accountCheckedAt > 0 && accountCheckedAt <= now + 60000)
         || typeof accountSessionHash !== "string" || accountSessionHash !== "" && !/^[0-9a-f]{32}$/.test(accountSessionHash)
@@ -138,7 +138,7 @@ export function cwQueryFields(record, now = Date.now()) {
 
 export function cwQueryDiagnostic(cached, auth, now = Date.now()) {
     const checked = cwAuthState(auth, now);
-    return checked && cwObject(cached) && ["1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", CW_VERSION].includes(cached.version) && cached.source === "auto" && cached.blocked !== true
+    return checked && cwObject(cached) && ["1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", "1.3.3", CW_VERSION].includes(cached.version) && cached.source === "auto" && cached.blocked !== true
         && cached.owner === checked.owner && cached.inputHash === checked.inputHash && cached.generation === checked.generation
         && typeof cached.runId === "string" && /^[0-9a-f]{32}$/.test(cached.runId) ? cwQueryFields(cached.queryDiagnostic, now) : null;
 }

@@ -3,7 +3,7 @@
 # 运行：手机更新同模块；官方组件真实查询被捕获后运行本组件
 # 依赖：同目录自包含 JS；四个精确 MTOP 主机和一个官方小组件查询主机
 name: 菜鸟取件 · 原生小组件
-description: 1.3.3；按实际 iOS 官方查询支持省略 brand，独立 POST 保持原样省略，不填造设备品牌。保留旧 H5 首次迁移、官方账号和撤销屏障；新 token 不继承旧缓存，每次请求使用新时间戳。当前已取得 iOS 脱敏请求形状，手机独立摘要查询待验收；完整列表及结构化取件码未确认。在线更新同模块，无需电脑、HAR 或另装诊断。
+description: 1.3.4；连接状态显示已保存 RPC 的记录时间与十个字段类型，不新增采集、不放松查询合同。保留省略 brand、旧 H5 首次迁移及专用会话隔离；新 token 不继承旧缓存。手机实际连接尚未验收，独立摘要、完整列表及结构化取件码仍待确认。在线更新同模块，无需电脑、HAR 或另装诊断。
 author: atopsecret
 homepage: https://github.com/atopsecret/SurgeScripts/tree/main/cainiao-widget
 manual: https://github.com/atopsecret/SurgeScripts/blob/main/cainiao-widget/README.md
@@ -36,21 +36,21 @@ scriptings:
   - http_request:
       name: 菜鸟 App 会话采集
       match: '^https://(?:h5api\.m\.taobao\.com|acs\.m\.taobao\.com|cn-acs\.m\.cainiao\.com|e2e-mtop\.cainiao\.com)(?::443)?/(?:h5/(?:mtop(?:\.[A-Za-z0-9_-]+)+|com\.taobao\.mtop\.[mM][lL]ogin[uU]nit[sS]ervice\.(?:[lL]ogin|[aA]uto[lL]ogin|[lL]ogout))/[0-9]+(?:\.[0-9]+)*|gw/(?:mtop(?:\.[A-Za-z0-9_-]+)+|com\.taobao\.mtop\.[mM][lL]ogin[uU]nit[sS]ervice\.(?:[lL]ogin|[aA]uto[lL]ogin|[lL]ogout))(?:/(?:[0-9]+(?:\.[0-9]+)*|\*))?)/?(?:\?[^#\s]*)?$'
-      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.js?v=1.3.3
+      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.js?v=1.3.4
       body_required: false
       update_interval: 3600
       timeout: 5
   - http_response:
       name: 菜鸟 App 服务端会话采集
       match: '^https://(?:h5api\.m\.taobao\.com|acs\.m\.taobao\.com|cn-acs\.m\.cainiao\.com|e2e-mtop\.cainiao\.com)(?::443)?/(?:h5/(?!mtop\.[cC][aA][iI][nN][iI][aA][oO]\.[gG][uU][oO][gG][uU][oO]\.[wW][iI][dD][gG][eE][tT]\.[tT][oO][kK][eE][nN]\.[gG][eE][tT]\.[cC][nN](?:/|\?|$))mtop(?:\.[A-Za-z0-9_-]+)+/[0-9]+(?:\.[0-9]+)*|gw/(?!mtop\.[cC][aA][iI][nN][iI][aA][oO]\.[gG][uU][oO][gG][uU][oO]\.[wW][iI][dD][gG][eE][tT]\.[tT][oO][kK][eE][nN]\.[gG][eE][tT]\.[cC][nN](?:/|\?|$))mtop(?:\.[A-Za-z0-9_-]+)+(?:/(?:[0-9]+(?:\.[0-9]+)*|\*))?)/?(?:\?[^#\s]*)?$'
-      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.js?v=1.3.3
+      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.js?v=1.3.4
       body_required: false
       update_interval: 3600
       timeout: 5
   - http_response:
       name: 菜鸟已知登录结构观察
       match: '^https://(?:h5api\.m\.taobao\.com|acs\.m\.taobao\.com|cn-acs\.m\.cainiao\.com|e2e-mtop\.cainiao\.com)(?::443)?/(?:h5/com\.taobao\.mtop\.[mM][lL]ogin[uU]nit[sS]ervice\.(?:[lL]ogin|[aA]uto[lL]ogin|[lL]ogout)/[0-9]+(?:\.[0-9]+)*|gw/com\.taobao\.mtop\.[mM][lL]ogin[uU]nit[sS]ervice\.(?:[lL]ogin|[aA]uto[lL]ogin|[lL]ogout)(?:/(?:[0-9]+(?:\.[0-9]+)*|\*))?)/?(?:\?[^#\s]*)?$'
-      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.js?v=1.3.3
+      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.js?v=1.3.4
       env:
         CW_LOGIN_SCHEMA: 'true'
       body_required: true
@@ -61,7 +61,7 @@ scriptings:
   - http_response:
       name: 菜鸟官方小组件专用会话
       match: '^https://(?:h5api\.m\.taobao\.com|acs\.m\.taobao\.com|cn-acs\.m\.cainiao\.com|e2e-mtop\.cainiao\.com)(?::443)?/(?:h5/mtop\.[cC][aA][iI][nN][iI][aA][oO]\.[gG][uU][oO][gG][uU][oO]\.[wW][iI][dD][gG][eE][tT]\.[tT][oO][kK][eE][nN]\.[gG][eE][tT]\.[cC][nN]/1\.0|gw/mtop\.[cC][aA][iI][nN][iI][aA][oO]\.[gG][uU][oO][gG][uU][oO]\.[wW][iI][dD][gG][eE][tT]\.[tT][oO][kK][eE][nN]\.[gG][eE][tT]\.[cC][nN](?:/(?:1\.0|\*))?)/?(?:\?[^#\s]*)?$'
-      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.js?v=1.3.3
+      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.js?v=1.3.4
       env:
         CW_OFFICIAL_TOKEN: 'true'
       body_required: true
@@ -72,7 +72,7 @@ scriptings:
   - http_request:
       name: 菜鸟官方小组件查询参数
       match: '^https://guoguouser\.cainiao\.com(?::443)?/com\.cainiao\.guoguo\.guoguouser\.widget\.WidgetLogisticsService/1\.0\.0/queryWidgetDetailsV2$'
-      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.js?v=1.3.3
+      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.js?v=1.3.4
       body_required: true
       binary_body: true
       max_size: 262144
@@ -80,12 +80,12 @@ scriptings:
       timeout: 5
   - generic:
       name: 菜鸟取件 · 原生脚本
-      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.js?v=1.3.3
+      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.js?v=1.3.4
       update_interval: 3600
       timeout: 25
   - generic:
       name: 菜鸟连接状态
-      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.js?v=1.3.3
+      script_url: https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.js?v=1.3.4
       env:
         CAINIAO_DIAGNOSTIC: 'true'
         CW_TRANSPORT_CHECK: 'true'

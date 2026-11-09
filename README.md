@@ -16,7 +16,7 @@ Surge 与 Egern 去广告模块、蔚来自动签到脚本、Apple 天气增强�
   [使用说明](jd/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml)
 - **菜鸟 1.2.1（Surge / Egern）**：九个精确主机限定 QUIC 或 UDP 443，补仅识别为 UDP 的连接；保留双端页面与素材规则，协议回退仍需手机验证。
   [使用说明](cainiao/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.yaml)
-- **菜鸟取件小组件 1.3.6（Egern 原生，正在发布）**：修正实际 RPC timestamp 输入校验，允许有限正数至安全整数上限（含小数），只验证、不保存或复用；新 POST 仍为正整数毫秒。七入口共用同一 JS，不需要 ZIP、电脑或 HAR。手机已确定 TIMESTAMP 拒绝点，具体值未读取；手机实际连接尚未验收，独立摘要、完整列表和结构化取件码继续分别验证。
+- **菜鸟取件小组件 1.3.6（Egern 原生，已发布）**：本人手机首次手动官方摘要查询成功，关闭菜鸟 App 后第二次新查询也成功，请求／成功计数 1→2、时间戳递增。七入口共用同一 JS，不需要 ZIP、电脑或 HAR。bearer 的 UID 未确认；完整列表、结构化取件码、自动 iOS 调度和 token 到期续签尚未验证。
   [手机安装与升级](cainiao-widget/开始使用-1.3.6.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.3.6)
 - **闲鱼**：新旧开屏接口、缓存广告引用、悬浮策略及指定广告素材。
   [使用说明](xianyu/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-adblock.egern.yaml)

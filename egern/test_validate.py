@@ -343,14 +343,18 @@ class ValidationTests(unittest.TestCase):
         self.assertIn("菜鸟 App 自带的小组件", guide)
         self.assertIn("正常打开本人菜鸟 App 一次", guide)
         self.assertIn("不需要 ZIP、电脑、复制源码、HAR 或 Cookie", guide)
-        self.assertRegex(guide, r"1\.3\.6 (?:正在发布|已发布)")
-        self.assertIn("手机实际连接尚未验收", guide)
+        self.assertIn("1.3.6 已发布", guide)
         self.assertIn("egern:/modules/new?name=NAME&url=URL", guide)
         module_url = "https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.3.6"
         quick_guide = (ROOT / "cainiao-widget/开始使用-1.3.6.md").read_text()
         for text in [guide, quick_guide]:
-            self.assertRegex(text, r"1\.3\.6 (?:正在发布|已发布)")
-            self.assertIn("手机实际连接尚未验收", text)
+            self.assertIn("1.3.6 已发布", text)
+            self.assertIn("手机两次手动独立摘要已验收", text)
+            self.assertIn("关闭菜鸟 App 后", text)
+            self.assertIn("1→2", text)
+            self.assertIn("UID 未确认", text)
+            self.assertIn("完整列表、结构化取件码、自动 iOS 调度和 token 到期续签尚未验证", text)
+            self.assertNotIn("手机实际连接尚未验收", text)
             self.assertIn(module_url, text)
             match = re.search(r"\]\((egern:/modules/new\?[^\s)]+)\)", text)
             self.assertIsNotNone(match)
@@ -359,6 +363,17 @@ class ValidationTests(unittest.TestCase):
             self.assertEqual(parse_qs(parsed.query, strict_parsing=True), {
                 "name": ["菜鸟取件 · 原生小组件"], "url": [module_url],
             })
+        phone = json.loads((ROOT / "cainiao-widget/sources.json").read_text())["ios_manual_official_summary_verification"]
+        self.assertTrue(phone["phone_first_manual_official_summary_query_verified"])
+        self.assertTrue(phone["phone_second_manual_official_summary_query_after_app_closed_verified"])
+        self.assertFalse(phone["uid_account_confirmed"])
+        self.assertFalse(phone["app_reopened_before_second_query"])
+        first, second = phone["first_manual_query"], phone["second_manual_query_app_closed"]
+        self.assertEqual((first["request_count"], first["success_count"], first["failure"]), (1, 1, "NONE"))
+        self.assertEqual((second["request_count"], second["success_count"], second["failure"]), (2, 2, "NONE"))
+        self.assertGreater(second["new_request_timestamp"], first["new_request_timestamp"])
+        for boundary in ["ios_full_protocol_verified", "full_personal_list_verified", "structured_pickup_codes_verified", "automatic_ios_scheduling_verified", "token_expiry_renewal_verified"]:
+            self.assertFalse(phone[boundary], boundary)
         self.assertIn("CW_AUTH_STORE", script)
         self.assertIn("CW_SELF_HEADER", script)
         self.assertIn("CW_IDENTITY_API", script)

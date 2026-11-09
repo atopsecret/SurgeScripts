@@ -3,7 +3,7 @@
 # 运行：手机更新同模块；官方组件真实查询被捕获后运行本组件
 # 依赖：同目录自包含 JS；四个精确 MTOP 主机和一个官方小组件查询主机
 name: 菜鸟取件 · 原生小组件
-description: 1.3.6；修正实际 RPC timestamp 输入校验，允许有限正数至 MAX_SAFE_INTEGER（含小数），只验证、不保存或复用。新 POST、本机时间和状态仍用正整数毫秒，其它合同及隔离屏障不变。手机已确定 TIMESTAMP 拒绝点但未读取值，实际连接尚未验收。在线更新同模块，无需电脑、HAR 或另装诊断。
+description: 1.3.6 已发布；本人手机首次及关闭菜鸟 App 后第二次手动独立官方摘要查询均成功，计数 1→2、时间戳递增。bearer 的 UID 未确认；完整列表、结构化取件码、自动 iOS 调度和 token 到期续签尚未验证。保留本机凭据、隔离及撤销保护。在线更新同模块，无需电脑、HAR 或另装诊断。
 author: atopsecret
 homepage: https://github.com/atopsecret/SurgeScripts/tree/main/cainiao-widget
 manual: https://github.com/atopsecret/SurgeScripts/blob/main/cainiao-widget/README.md

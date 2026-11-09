@@ -19,6 +19,8 @@
 
 1.3.0 的专用小组件通信合同来自[菜鸟官方网站](https://www.cainiao.com/technology-cainiao-app.html)下载入口实际指向的第一方 Android APK（8.11.1105）。只做本机静态分析，重新实现精确 token／JSON RPC 协议、请求归属和摘要过滤；不复制、执行或分发官方 App、反汇编代码或 SDK 二进制。具体来源链、文件 SHA-256 和平台限制见[官方协议核对](官方小组件协议核对.md)及 `sources.json`。Egern `ctx.http.post`、单次读体及原字节透传按[官方 JavaScript API](https://egernapp.com/zh-CN/docs/javascript-api/)实现。Android 的实现不被标为 iOS 实测，也不保证当前服务端接受；专用凭据和个人结果不离开本人手机。
 
+1.3.1 根据本项目复现修复“实际查询已出现，但没有此前签发记录就无法接入”的限制，保留原 UID 签发路径。RPC-only 路径以该次实际 token 与合法业务模板建立 bearer 候选，token 摘要只作会话隔离，不表示已核实 UID。另在本人 iPhone 的现有 Egern 界面核对官方 `WidgetExtension` 发往精确查询端点的 POST 和 JSON RPC 请求头；未读取该次正文、凭据或包裹内容。现场端点证据不等于 iOS 正文、结果结构或独立刷新验收。没有新增第三方源码或许可依赖，不复制或分发官方代码；来源记录只保存协议事实，不含私人标识或原始流量。
+
 以下保留两份上游 LICENSE 的完整原文。
 
 ## mykohuang/kuaidi-skill

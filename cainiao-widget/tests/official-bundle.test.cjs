@@ -1,4 +1,4 @@
-// 引擎：Node.js 20+ 内置测试 | 版本：1.3.0 | 语言：JavaScript CommonJS
+// 引擎：Node.js 20+ 内置测试 | 版本：1.3.1 | 语言：JavaScript CommonJS
 // 构建：node cainiao-widget/build.mjs
 // 运行：node --experimental-vm-modules --test cainiao-widget/tests/official-bundle.test.cjs
 // 依赖：内置库；执行实际自包含发布入口，只有合成会话、内存 HTTP 和内存存储
@@ -141,6 +141,24 @@ test("实际发布入口捕获专用凭据和真实模板后，关闭 App 不再
     assert.equal(f.state().snapshot.total, 1);
     for (const secret of [TOKEN, UID, COOKIE, SIGN]) assert(!JSON.stringify([widget, f.logs]).includes(secret));
     assert.equal(f.memory.get(AUTH), undefined);
+});
+
+test("实际发布入口合成 RPC-only 无 UID 直接接入，跨两次新查询不借旧 H5", async () => {
+    const f = await fixture(); await bind(f); assert.equal(f.state().binding, "bearer"); assert.equal(f.state().status, "pending");
+    assert.equal(f.requests.length, 0); assert.equal(f.state().snapshot, null); assert.equal(f.state().successCount, 0);
+    for (let i = 0; i < 2; i++) {f.replies.push(reply(summary())); await f.entry(f.ctx); f.advance(1000);}
+    assert.equal(f.state().status, "ready"); assert.equal(f.state().successCount, 2); assert.equal(f.requests.length, 2);
+    assert.equal(f.memory.get(AUTH), undefined);
+    const times = f.requests.map(row => JSON.parse(row.options.body).argsObjs[0].timestamp); assert(times[1] > times[0]);
+    for (const row of f.requests) {assert.equal(row.url, RPC); assert.equal(JSON.parse(row.options.body).argsObjs[0].token, TOKEN);}
+});
+
+test("实际发布入口未知合成 RPC 只保存固定形状，不将字段值或 token 输出到诊断", async () => {
+    const f = await fixture(); await bind(f, TOKEN, {version: "synthetic-private-version", secretUnknown: "synthetic-private-value"});
+    assert.equal(f.state().binding, "unbound"); assert.equal(f.state().token, ""); assert.equal(f.requests.length, 0);
+    const widget = await f.entry({...f.ctx, env: {...f.ctx.env, CAINIAO_DIAGNOSTIC: "true"}});
+    const text = JSON.stringify(widget); assert.match(text, /RPC.*已观察/); assert.match(text, /version 类型=string/);
+    for (const value of [TOKEN, "synthetic-private", "secretUnknown"]) assert(!JSON.stringify([widget, [...f.memory]]).includes(value));
 });
 
 test("只有专用 token 而未观察到实际 RPC 模板时不请求，不硬填 Android 参数", async () => {

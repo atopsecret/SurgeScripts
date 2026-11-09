@@ -1,6 +1,6 @@
-// 引擎：Egern JavaScript | 版本：1.3.0 | 语言：JavaScript ES module
+// 引擎：Egern JavaScript | 版本：1.3.1 | 语言：JavaScript ES module
 // 构建：node cainiao-widget/build.mjs
-// 运行：同一模块捕获本人 App 的实际专用 token 和 RPC 模板，再由 generic 独立查询
+// 运行：同一模块捕获实际 RPC bearer 或本人签发 token，再由 generic 独立查询
 // 依赖：core.mjs、app.mjs；不执行 APK、不调用原生签名、不在 hook 发送个人查询
 import {CW_VERSION, CW_STORE, CW_OFFICIAL_STORE, CW_SELF_HEADER, cwObject, cwCookieMap, cwText, md5} from "./core.mjs";
 import {CW_APP_HOSTS, cwAppRoute, cwAppHeaderValues} from "./app.mjs";
@@ -15,10 +15,14 @@ const CW_OFFICIAL_TOKEN_ROUTE = /^https:\/\/(h5api\.m\.taobao\.com|acs\.m\.taoba
 const CW_OFFICIAL_QUERY_ROUTE = /^https:\/\/guoguouser\.cainiao\.com(?::443)?(\/[^?#]*)$/i;
 const CW_OFFICIAL_QUERY_PATH = CW_OFFICIAL_QUERY_URL.slice("https://guoguouser.cainiao.com".length);
 const CW_OFFICIAL_CONFLICT_OWNER = md5("capture-conflicting-identities");
+const CW_OFFICIAL_UNBOUND_OWNER = md5("official-rpc-unbound");
+const CW_OFFICIAL_RETIRED_LIMIT = 32;
 const CW_OFFICIAL_INSTALL_KEYS = ["isLargeInstall", "isMediumInstall", "isSmallInstall", "isNewSmallInstall", "isLargeV2Install"];
+const CW_OFFICIAL_RPC_KEYS = ["appName", "source", "channel", "brand", "installStatus", "version", "ext", "token", "timestamp", "lbs"];
+const CW_OFFICIAL_TYPES = ["missing", "null", "object", "array", "string", "number", "boolean", "invalid", "unread"];
 const CW_OFFICIAL_STATUSES = ["waiting_token", "waiting_template", "pending", "ready", "expired", "invalid", "signed_out"];
 const CW_OFFICIAL_FAILURES = ["NONE", "INVALID_TOKEN", "QUERY_ERROR", "BUSINESS_FAILURE", "HTTP_REJECTED", "SCHEMA_INVALID", "OFFLINE", "DEADLINE", "STORAGE_UNCONFIRMED", "ACCOUNT_BLOCKED", "SIGNED_OUT"];
-const CW_OFFICIAL_CAPTURES = ["NONE", "ticket", "issued", "template", "unchanged", "anonymous", "invalid", "token_mismatch", "conflict", "signed_out"];
+const CW_OFFICIAL_CAPTURES = ["NONE", "ticket", "issued", "template", "unchanged", "anonymous", "invalid", "token_mismatch", "conflict", "signed_out", "rpc_bearer", "rpc_unrecognized", "revocation_full"];
 
 class CwOfficialFailure extends Error {
     constructor(code) { super(code); this.officialCode = code; }
@@ -32,6 +36,59 @@ function cwOfficialAuto(ctx) { return (ctx.env?.CONNECTION_MODE || "auto") === "
 function cwOfficialOpaque(value) { return typeof value === "string" && value.length > 0 && value.length <= 8192 && value.trim().length > 0 && !/[\x00-\x1f\x7f]/.test(value); }
 function cwOfficialString(value, max, empty = true) { return typeof value === "string" && value.length <= max && (empty || value.length > 0) && !/[\x00-\x1f\x7f]/.test(value); }
 function cwOfficialSameKeys(value, keys) { return cwObject(value) && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key)); }
+function cwOfficialBearerOwner(tokenHash) { return md5("official-bearer:" + tokenHash); }
+function cwOfficialHashes(value) {
+    return Array.isArray(value) && value.length <= CW_OFFICIAL_RETIRED_LIMIT && value.every(cwOfficialHash) && new Set(value).size === value.length;
+}
+
+function cwOfficialShapeType(value, present = true) {
+    return !present ? "missing" : value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
+}
+
+// 只保留固定路径的类型、已知键缺失和计数。未知键名、字段值、token 和原文均不进入形状。
+function cwOfficialRPCShape(body, now) {
+    const object = cwObject(body), argsTypes = object ? body.argsTypes : undefined, argsObjs = object ? body.argsObjs : undefined;
+    const item = Array.isArray(argsObjs) && argsObjs.length === 1 && cwObject(argsObjs[0]) ? argsObjs[0] : null;
+    const nested = value => {
+        if (typeof value !== "string") return {value: null, type: "unread"};
+        try {const parsed = cwOfficialJSON(value); return {value: parsed, type: cwOfficialShapeType(parsed)};}
+        catch {return {value: null, type: "invalid"};}
+    };
+    const install = nested(item?.installStatus), ext = nested(item?.ext), installObject = cwObject(install.value), extObject = cwObject(ext.value);
+    return {at: now, body: body === undefined ? "invalid" : cwOfficialShapeType(body),
+        argsTypes: cwOfficialShapeType(argsTypes, object && Object.hasOwn(body, "argsTypes")),
+        argsTypesCount: Array.isArray(argsTypes) ? argsTypes.length : null,
+        argsTypeKnown: Array.isArray(argsTypes) && argsTypes.length === 1 && argsTypes[0] === CW_OFFICIAL_ARGS_TYPE,
+        argsObjs: cwOfficialShapeType(argsObjs, object && Object.hasOwn(body, "argsObjs")),
+        argsObjsCount: Array.isArray(argsObjs) ? argsObjs.length : null,
+        rootExtraCount: object ? Object.keys(body).filter(key => !["argsTypes", "argsObjs"].includes(key)).length : 0,
+        objectExtraCount: item ? Object.keys(item).filter(key => !CW_OFFICIAL_RPC_KEYS.includes(key)).length : 0,
+        fieldTypes: CW_OFFICIAL_RPC_KEYS.map(key => cwOfficialShapeType(item?.[key], !!item && Object.hasOwn(item, key))),
+        appNameKnown: item?.appName === "GUOGUO_APP", versionKnown: item?.version === 1 || item?.version === 2,
+        installJSON: install.type,
+        installMissing: installObject ? CW_OFFICIAL_INSTALL_KEYS.filter(key => !Object.hasOwn(install.value, key)) : [...CW_OFFICIAL_INSTALL_KEYS],
+        installWrongTypes: installObject ? CW_OFFICIAL_INSTALL_KEYS.filter(key => Object.hasOwn(install.value, key) && typeof install.value[key] !== "boolean") : [],
+        installExtraCount: installObject ? Object.keys(install.value).filter(key => !CW_OFFICIAL_INSTALL_KEYS.includes(key)).length : 0,
+        extJSON: ext.type, extAPI: cwOfficialShapeType(ext.value?.apiVersion, extObject && Object.hasOwn(ext.value, "apiVersion")),
+        extV3: extObject && ext.value.apiVersion === "V3", extExtraCount: extObject ? Object.keys(ext.value).filter(key => key !== "apiVersion").length : 0};
+}
+
+function cwOfficialShapeState(value, now) {
+    if (value === null || value === undefined) return null;
+    const keys = ["at", "body", "argsTypes", "argsTypesCount", "argsTypeKnown", "argsObjs", "argsObjsCount", "rootExtraCount", "objectExtraCount", "fieldTypes",
+        "appNameKnown", "versionKnown", "installJSON", "installMissing", "installWrongTypes", "installExtraCount", "extJSON", "extAPI", "extV3", "extExtraCount"];
+    const count = number => Number.isSafeInteger(number) && number >= 0 && number <= 50000;
+    const knownKeys = list => Array.isArray(list) && list.length <= CW_OFFICIAL_INSTALL_KEYS.length
+        && list.every(key => CW_OFFICIAL_INSTALL_KEYS.includes(key)) && new Set(list).size === list.length;
+    if (!cwOfficialSameKeys(value, keys) || !cwOfficialTime(value.at) || value.at > now
+        || ["body", "argsTypes", "argsObjs", "installJSON", "extJSON", "extAPI"].some(key => !CW_OFFICIAL_TYPES.includes(value[key]))
+        || ["argsTypesCount", "argsObjsCount"].some(key => value[key] !== null && !count(value[key]))
+        || ["rootExtraCount", "objectExtraCount", "installExtraCount", "extExtraCount"].some(key => !count(value[key]))
+        || ["argsTypeKnown", "appNameKnown", "versionKnown", "extV3"].some(key => typeof value[key] !== "boolean")
+        || !Array.isArray(value.fieldTypes) || value.fieldTypes.length !== CW_OFFICIAL_RPC_KEYS.length || value.fieldTypes.some(type => !CW_OFFICIAL_TYPES.includes(type))
+        || !knownKeys(value.installMissing) || !knownKeys(value.installWrongTypes)) throw cwOfficialFail();
+    return Object.fromEntries(keys.map(key => [key, Array.isArray(value[key]) ? [...value[key]] : value[key]]));
+}
 
 export function cwOfficialRoute(url, headers) {
     if (typeof url !== "string" || url.length > 65536 || /[\x00-\x20\x7f]/.test(url)) return null;
@@ -274,7 +331,10 @@ export function cwOfficialReadSummary(body, now) {
 
 export function cwOfficialState(value, now = Date.now()) {
     try {
-        if (!cwOfficialTime(now) || !cwObject(value) || value.version !== CW_VERSION || !cwOfficialHash(value.owner)
+        const legacy = value?.version === "1.3.0", binding = value?.binding === undefined ? "uid" : value.binding;
+        const retiredTokenHashes = value?.retiredTokenHashes === undefined ? [] : value.retiredTokenHashes;
+        if (!cwOfficialTime(now) || !cwObject(value) || ![CW_VERSION, "1.3.0"].includes(value.version) || !cwOfficialHash(value.owner)
+            || !["uid", "bearer", "unbound"].includes(binding) || legacy && binding !== "uid" || !cwOfficialHashes(retiredTokenHashes)
             || !cwOfficialHash(value.generation) || !cwOfficialHash(value.revision) || !CW_OFFICIAL_STATUSES.includes(value.status)
             || !cwOfficialTime(value.at) || value.at > now || !CW_OFFICIAL_FAILURES.includes(value.failure) || !CW_OFFICIAL_CAPTURES.includes(value.captureResult)
             || typeof value.token !== "string" || value.token && !cwOfficialOpaque(value.token)
@@ -284,12 +344,16 @@ export function cwOfficialState(value, now = Date.now()) {
             || value.successCount > value.requestCount
             || ["tokenCapturedAt", "templateCapturedAt", "lastRequestAt", "lastSuccessAt"].some(key => value[key] !== null
                 && (!cwOfficialTime(value[key]) || value[key] > now + (key === "lastRequestAt" ? 60000 : 0)))) return null;
-        const template = value.template === null ? null : cwOfficialTemplateFields(value.template);
+        const template = value.template === null ? null : cwOfficialTemplateFields(value.template), rpcShape = cwOfficialShapeState(value.rpcShape, now);
         if (template ? !value.token || value.templateHash !== md5(JSON.stringify(template)) || value.templateCapturedAt === null : value.templateHash !== "" || value.templateCapturedAt !== null) return null;
         if (value.token ? value.tokenCapturedAt === null : value.tokenCapturedAt !== null) return null;
         if (["pending", "ready"].includes(value.status) && (!value.token || !template)
             || value.status === "waiting_template" && (!value.token || template)
             || ["waiting_token", "invalid", "signed_out", "expired"].includes(value.status) && (value.token || template)) return null;
+        if (binding === "bearer" && (!value.tokenHash || value.owner !== cwOfficialBearerOwner(value.tokenHash) || value.issueTicket !== null
+            || retiredTokenHashes.includes(value.tokenHash) && !["invalid", "signed_out", "expired"].includes(value.status))) return null;
+        if (binding === "unbound" && (value.owner !== CW_OFFICIAL_UNBOUND_OWNER || value.tokenHash !== "" || value.token || template || value.issueTicket !== null
+            || value.status !== "waiting_token" || value.snapshot !== null || value.requestCount !== 0 || value.successCount !== 0 || retiredTokenHashes.length)) return null;
         let issueTicket = null;
         if (value.issueTicket !== null) {
             const ticket = value.issueTicket;
@@ -297,7 +361,7 @@ export function cwOfficialState(value, now = Date.now()) {
                 || !cwOfficialTime(ticket.at) || ticket.at > now || !CW_APP_HOSTS.includes(ticket.host) || !["h5", "gw"].includes(ticket.channel)) return null;
             issueTicket = {requestHash: ticket.requestHash, owner: ticket.owner, generation: ticket.generation, at: ticket.at, host: ticket.host, channel: ticket.channel};
         }
-        return {version: CW_VERSION, owner: value.owner, generation: value.generation, revision: value.revision, status: value.status,
+        return {version: CW_VERSION, binding, retiredTokenHashes: [...retiredTokenHashes], rpcShape, owner: value.owner, generation: value.generation, revision: value.revision, status: value.status,
             token: value.token, tokenHash: value.tokenHash, tokenCapturedAt: value.tokenCapturedAt, template, templateHash: value.templateHash,
             templateCapturedAt: value.templateCapturedAt, issueTicket, lastIssueHash: value.lastIssueHash, runId: value.runId,
             snapshot: cwOfficialSnapshot(value.snapshot, now), requestCount: value.requestCount, successCount: value.successCount,
@@ -305,8 +369,8 @@ export function cwOfficialState(value, now = Date.now()) {
     } catch { return null; }
 }
 
-function cwOfficialInitial(owner, now, status = "waiting_token", tokenHash = "") {
-    return {version: CW_VERSION, owner, generation: cwOfficialNonce(now), revision: cwOfficialNonce(now), status, token: "", tokenHash,
+function cwOfficialInitial(owner, now, status = "waiting_token", tokenHash = "", binding = "uid", retiredTokenHashes = []) {
+    return {version: CW_VERSION, binding, retiredTokenHashes: [...retiredTokenHashes], rpcShape: null, owner, generation: cwOfficialNonce(now), revision: cwOfficialNonce(now), status, token: "", tokenHash,
         tokenCapturedAt: null, template: null, templateHash: "", templateCapturedAt: null, issueTicket: null, lastIssueHash: "", runId: "", snapshot: null,
         requestCount: 0, successCount: 0, lastRequestAt: null, lastSuccessAt: null, failure: "NONE", captureResult: "NONE", at: now};
 }
@@ -320,7 +384,9 @@ function cwOfficialSignature(value) {
 function cwOfficialAccess(ctx, now) {
     try {
         const raw = ctx.storage.getJSON(CW_OFFICIAL_STORE), barrier = ctx.storage.getJSON(CW_STORE);
-        return {raw, state: cwOfficialState(raw, now), signature: cwOfficialSignature(raw), barrier, barrierSignature: cwOfficialSignature(barrier)};
+        const reference = {raw, state: cwOfficialState(raw, now), signature: cwOfficialSignature(raw), barrier, barrierSignature: cwOfficialSignature(barrier)};
+        cwOfficialBearerBarrier(reference);
+        return reference;
     } catch { throw cwOfficialFail("STORAGE_UNCONFIRMED"); }
 }
 
@@ -332,7 +398,17 @@ function cwOfficialGuard(ctx, reference, now) {
 }
 
 function cwOfficialBlocked(reference, owner) {
-    return cwObject(reference.barrier) && reference.barrier.blocked === true && reference.barrier.owner !== owner;
+    const bearer = cwOfficialBearerBarrier(reference);
+    return bearer?.stopped === true || reference.state?.binding === "bearer" && bearer?.retiredTokenHashes.includes(reference.state.tokenHash)
+        || cwObject(reference.barrier) && reference.barrier.blocked === true && reference.barrier.owner !== owner;
+}
+
+function cwOfficialBearerBarrier(reference) {
+    const barrier = reference.barrier;
+    if (!cwObject(barrier) || !Object.hasOwn(barrier, "officialBinding")) return null;
+    if (barrier.officialBinding !== "bearer" || barrier.blocked !== true || barrier.source !== "capture" || barrier.cookie !== "" || barrier.snapshot !== null
+        || !cwOfficialHash(barrier.owner) || !cwOfficialHashes(barrier.retiredTokenHashes) || typeof barrier.stopped !== "boolean") throw cwOfficialFail("STORAGE_UNCONFIRMED");
+    return barrier;
 }
 
 function cwOfficialCaptureBlocked(reference, owner) {
@@ -352,19 +428,86 @@ function cwOfficialWrite(ctx, reference, value, now) {
     return saved;
 }
 
-function cwOfficialIsolate(ctx, reference, owner, now) {
+function cwOfficialIsolate(ctx, reference, owner, now, bearer = null) {
     cwOfficialGuard(ctx, reference, now);
-    const barrier = {version: CW_VERSION, owner, source: "capture", blocked: true, cookie: "", snapshot: null};
+    const barrier = {version: CW_VERSION, owner, source: "capture", blocked: true, cookie: "", snapshot: null,
+        ...(bearer ? {officialBinding: "bearer", retiredTokenHashes: [...bearer.retiredTokenHashes], stopped: bearer.stopped === true} : {})};
     try { ctx.storage.setJSON(CW_STORE, barrier); } catch { throw cwOfficialFail("STORAGE_UNCONFIRMED"); }
     const saved = cwOfficialAccess(ctx, now);
     if (saved.signature !== reference.signature) throw cwOfficialFail("SUPERSEDED");
     if (!cwObject(saved.barrier) || saved.barrier.owner !== owner || saved.barrier.blocked !== true || saved.barrier.source !== "capture"
         || saved.barrier.cookie !== "" || saved.barrier.snapshot !== null) throw cwOfficialFail("STORAGE_UNCONFIRMED");
+    if (bearer && JSON.stringify(cwOfficialBearerBarrier(saved)) !== JSON.stringify(barrier)) throw cwOfficialFail("STORAGE_UNCONFIRMED");
     return saved;
+}
+
+function cwOfficialRetired(reference) {
+    return [...new Set([...(reference.state?.retiredTokenHashes || []), ...(cwOfficialBearerBarrier(reference)?.retiredTokenHashes || [])])];
+}
+
+function cwOfficialStopBearer(ctx, reference, now, failure, captureResult, status, full = false) {
+    const state = reference.state;
+    if (!state || state.binding !== "bearer") return reference;
+    let retired = cwOfficialRetired(reference);
+    if (!retired.includes(state.tokenHash)) {
+        if (retired.length >= CW_OFFICIAL_RETIRED_LIMIT) full = true;
+        else retired.push(state.tokenHash);
+    }
+    reference = cwOfficialIsolate(ctx, reference, state.owner, now, {retiredTokenHashes: retired, stopped: full});
+    return cwOfficialWrite(ctx, reference, {...cwOfficialInitial(state.owner, now, status, state.tokenHash, "bearer", retired),
+        failure, captureResult, rpcShape: state.rpcShape}, now);
+}
+
+function cwOfficialRecordRPC(ctx, reference, now, shape) {
+    if (reference.state && reference.state.binding !== "unbound") return reference;
+    if (cwObject(reference.barrier) && reference.barrier.blocked === true) return reference;
+    const state = {...cwOfficialInitial(CW_OFFICIAL_UNBOUND_OWNER, now, "waiting_token", "", "unbound"),
+        rpcShape: shape, captureResult: "rpc_unrecognized", failure: "SCHEMA_INVALID"};
+    return cwOfficialWrite(ctx, reference, state, now);
+}
+
+function cwOfficialCaptureBearer(ctx, reference, parsed, now, shape) {
+    const state = reference.state, fence = cwOfficialBearerBarrier(reference), tokenHash = md5(parsed.token), owner = cwOfficialBearerOwner(tokenHash);
+    // UID 路径及未完成的 UID 账号切换不由无 UID 的 RPC 撤销。
+    if (state && state.binding === "uid" || cwObject(reference.barrier) && reference.barrier.blocked === true && !fence) return reference;
+    let retired = cwOfficialRetired(reference);
+    if (retired.length > CW_OFFICIAL_RETIRED_LIMIT) throw cwOfficialFail("STORAGE_UNCONFIRMED");
+    if (fence?.stopped || retired.includes(tokenHash)) return reference;
+    // B 已经留下屏障而状态仍是 A，只有 B 本身可完成保存，旧 A 或第三个候选不能撤回 B。
+    if (fence && fence.owner !== state?.owner && fence.owner !== owner) return reference;
+    if (state?.binding === "bearer" && state.tokenHash === tokenHash) {
+        if (["expired", "invalid", "signed_out"].includes(state.status) || cwOfficialBlocked(reference, owner)) return reference;
+        const templateHash = md5(JSON.stringify(parsed.template));
+        if (state.templateHash === templateHash && ["pending", "ready"].includes(state.status)) return reference;
+        return cwOfficialWrite(ctx, reference, {...state, template: parsed.template, templateHash, templateCapturedAt: now,
+            status: "pending", revision: cwOfficialNonce(now), runId: "", failure: "NONE", captureResult: "template", rpcShape: shape, at: now}, now);
+    }
+    if (state?.binding === "bearer" && state.tokenHash && !retired.includes(state.tokenHash)) {
+        if (retired.length >= CW_OFFICIAL_RETIRED_LIMIT)
+            return cwOfficialStopBearer(ctx, reference, now, "ACCOUNT_BLOCKED", "revocation_full", "invalid", true);
+        retired.push(state.tokenHash);
+    }
+    if (retired.length >= CW_OFFICIAL_RETIRED_LIMIT)
+        return cwOfficialStopBearer(ctx, reference, now, "ACCOUNT_BLOCKED", "revocation_full", "invalid", true);
+    reference = cwOfficialIsolate(ctx, reference, owner, now, {retiredTokenHashes: retired, stopped: false});
+    return cwOfficialWrite(ctx, reference, {...cwOfficialInitial(owner, now, "pending", tokenHash, "bearer", retired),
+        token: parsed.token, tokenCapturedAt: now, template: parsed.template, templateHash: md5(JSON.stringify(parsed.template)), templateCapturedAt: now,
+        rpcShape: shape, captureResult: "rpc_bearer"}, now);
 }
 
 function cwOfficialObserveIdentity(ctx, reference, identity, route, now) {
     let state = reference.state;
+    if (state?.binding === "bearer") {
+        if (identity.conflict || route.apiKind === "logout") return cwOfficialStopBearer(ctx, reference, now,
+            identity.conflict ? "ACCOUNT_BLOCKED" : "SIGNED_OUT", identity.conflict ? "conflict" : "signed_out", identity.conflict ? "invalid" : "signed_out");
+        // 无同次 UID 绑定时不将普通流量的 UID 与 token 隔离摘要比较，也不推断两者同账号。
+        return reference;
+    }
+    if (state?.binding === "unbound" && !identity.conflict && route.apiKind !== "logout") {
+        if (route.kind !== "token" || !identity.owner) return reference;
+        state = cwOfficialInitial(identity.owner, now);
+        return cwOfficialWrite(ctx, reference, state, now);
+    }
     if (identity.conflict) {
         const owner = CW_OFFICIAL_CONFLICT_OWNER;
         reference = cwOfficialIsolate(ctx, reference, owner, now);
@@ -412,7 +555,7 @@ export async function captureCainiaoOfficialRequest(ctx, clock = () => Date.now(
         now = clock(); if (!cwOfficialTime(now)) return;
         reference = cwOfficialAccess(ctx, now);
         reference = cwOfficialObserveIdentity(ctx, reference, cwOfficialIdentity(request.headers), observed, now);
-        if (!route || reference.state?.status === "invalid" && reference.state.captureResult === "conflict") return;
+        if (!route || reference.state?.binding === "uid" && reference.state.status === "invalid" && reference.state.captureResult === "conflict") return;
         if (route.kind === "token") {
             const identity = cwOfficialIdentity(request.headers);
             if (!identity.owner || cwOfficialBlocked(reference, identity.owner)) return;
@@ -433,8 +576,14 @@ export async function captureCainiaoOfficialRequest(ctx, clock = () => Date.now(
         const after = clock();
         if (ctx.request !== request || ctx.response || after < now) throw cwOfficialFail("SUPERSEDED");
         cwOfficialGuard(ctx, reference, after);
-        const body = cwOfficialParseBytes(bytes, request.headers), state = reference.state;
-        if (!state || !state.token || cwOfficialBlocked(reference, state.owner) || cwOfficialObservedTemplateToken(body) !== state.token) return {body: bytes};
+        let body;
+        try {body = cwOfficialParseBytes(bytes, request.headers);}
+        catch {
+            cwOfficialRecordRPC(ctx, reference, after, cwOfficialRPCShape(undefined, after));
+            return {body: bytes};
+        }
+        const state = reference.state, shape = cwOfficialRPCShape(body, after);
+        if (state?.binding === "uid" && (!state.token || cwOfficialBlocked(reference, state.owner) || cwOfficialObservedTemplateToken(body) !== state.token)) return {body: bytes};
         let parsed;
         try {
             parsed = cwOfficialTemplate(body);
@@ -442,14 +591,20 @@ export async function captureCainiaoOfficialRequest(ctx, clock = () => Date.now(
             if (rpc.some(value => value.trim() !== "JsonContent")) throw cwOfficialFail();
         } catch {
             // 同 token 的未知实际合同停止旧模板；不同 token、歧义或迟到正文没有此权限。
-            cwOfficialWrite(ctx, reference, {...state, template: null, templateHash: "", templateCapturedAt: null, status: "waiting_template",
-                revision: cwOfficialNonce(after), runId: "", failure: "SCHEMA_INVALID", captureResult: "invalid", at: after}, after);
+            if (state?.token && cwOfficialObservedTemplateToken(body) === state.token && !cwOfficialBlocked(reference, state.owner)) {
+                cwOfficialWrite(ctx, reference, {...state, template: null, templateHash: "", templateCapturedAt: null, status: "waiting_template",
+                    revision: cwOfficialNonce(after), runId: "", failure: "SCHEMA_INVALID", captureResult: "invalid", rpcShape: shape, at: after}, after);
+            } else cwOfficialRecordRPC(ctx, reference, after, shape);
+            return {body: bytes};
+        }
+        if (!state || state.binding !== "uid") {
+            cwOfficialCaptureBearer(ctx, reference, parsed, after, shape);
             return {body: bytes};
         }
         const templateHash = md5(JSON.stringify(parsed.template));
         if (state.templateHash === templateHash && ["pending", "ready"].includes(state.status)) return {body: bytes};
         cwOfficialWrite(ctx, reference, {...state, template: parsed.template, templateHash, templateCapturedAt: after,
-            status: "pending", revision: cwOfficialNonce(after), runId: "", failure: "NONE", captureResult: "template", at: after}, after);
+            status: "pending", revision: cwOfficialNonce(after), runId: "", failure: "NONE", captureResult: "template", rpcShape: shape, at: after}, after);
     } catch (error) { cwOfficialLogFailure(error); }
     return bytes ? {body: bytes} : undefined;
 }
@@ -512,11 +667,12 @@ export async function loadCainiaoOfficialModel(ctx, clock, base, bounded) {
     let reference;
     try { reference = cwOfficialAccess(ctx, now); }
     catch { return cwOfficialStop(base, "STORAGE_UNCONFIRMED"); }
-    if (reference.raw === null || reference.raw === undefined) return null;
+    if (reference.raw === null || reference.raw === undefined) return cwOfficialBearerBarrier(reference) ? cwOfficialStop(base, "STORAGE_UNCONFIRMED") : null;
     const original = reference.state;
     if (!original) return cwOfficialStop(base, "STORAGE_UNCONFIRMED");
     if (cwOfficialBlocked(reference, original.owner)) return cwOfficialStop(base, "ACCOUNT_BLOCKED");
     if (["invalid", "signed_out"].includes(original.status)) return cwOfficialStop(base, "ACCOUNT_BLOCKED");
+    if (original.binding === "unbound") return cwOfficialModel(base, null, "setup", "已观察到官方 RPC，请求正文合同尚未接受；连接状态保留固定字段类型，未猜测 iOS 参数", {setupTitle: "等待实际 RPC 合同"});
     if (original.status === "expired") return cwOfficialModel(base, original.snapshot, "expired", "官方专用 token 已失效，请在 App 重新签发" + (original.snapshot ? " · 上次官方摘要" : ""));
     if (!original.token) return cwOfficialModel(base, null, "setup", "已观察到 App 身份，尚未取得本人专用 widget token", {setupTitle: "等待 App 专用会话"});
     if (!original.template) return cwOfficialModel(base, null, "setup", "已取得专用 token，尚未观察到匹配的实际查询参数；未猜测平台字段", {setupTitle: "等待 App 官方查询"});
@@ -589,11 +745,26 @@ export function cwOfficialLines(ctx, now = Date.now()) {
     const statuses = {waiting_token: "等待专用 token", waiting_template: "已捕获 token，等待同值实际 RPC 参数", pending: "参数已绑定，等待新的摘要查询", ready: "已有独立官方摘要成功记录",
         expired: "专用 token 已拒绝，停止重试", invalid: "账号冲突或已变化，旧摘要已隔离", signed_out: "已观察到退出请求，专用会话停止"};
     const captures = {NONE: "尚无采集", ticket: "已记录本次签发请求票据", issued: "已捕获本次专用 token", template: "已绑定实际 RPC 参数", unchanged: "同值记录保留原状态", anonymous: "身份变化，等待新签发",
-        invalid: "格式未确认", token_mismatch: "请求 token 未匹配本次签发", conflict: "同次身份冲突", signed_out: "已观察到退出"};
-    const lines = ["官方专用会话：" + statuses[state.status], "最近采集：" + captures[state.captureResult],
+        invalid: "格式未确认", token_mismatch: "请求 token 未匹配本次签发", conflict: "同次身份冲突", signed_out: "已观察到退出",
+        rpc_bearer: "已捕获真实 RPC 凭据会话，等待独立查询", rpc_unrecognized: "RPC 已观察，正文合同未接受", revocation_full: "撤销记录已满，专用会话停止"};
+    const lines = ["官方专用会话：" + (state.binding === "unbound" ? "RPC 已观察，等待可接受的正文合同" : statuses[state.status]), "最近采集：" + captures[state.captureResult],
+        "归属边界：" + (state.binding === "bearer" ? "专用凭据会话；UID 账号未确认" : state.binding === "unbound" ? "未绑定凭据或 UID" : "同次签发 UID 绑定"),
         "独立查询尝试：" + state.requestCount + " 次；官方摘要成功：" + state.successCount + " 次。",
         "最近查询分类：" + state.failure, "覆盖范围：官方摘要；完整列表和结构化取件码均未确认。"];
+    if (state.rpcShape) lines.push(...cwOfficialShapeLines(state.rpcShape));
     if (state.lastRequestAt !== null) lines.push("最近生成请求时间戳：" + state.lastRequestAt);
     if (state.lastSuccessAt !== null) lines.push("最近独立摘要成功：" + new Date(state.lastSuccessAt).toISOString());
     return lines;
+}
+
+function cwOfficialShapeLines(shape) {
+    const missing = CW_OFFICIAL_RPC_KEYS.slice(0, 9).filter((_, index) => shape.fieldTypes[index] === "missing");
+    const yes = value => value ? "是" : "否", names = values => values.length ? values.join("、") : "无";
+    return ["RPC 固定形状：正文=" + shape.body + "；argsTypes=" + shape.argsTypes + "；已知唯一类型=" + yes(shape.argsTypeKnown)
+        + "；argsObjs=" + shape.argsObjs + "；对象数量=" + (shape.argsObjsCount === null ? "未知" : shape.argsObjsCount),
+    "RPC 已知字段缺失：" + names(missing) + "；根额外字段=" + shape.rootExtraCount + "；对象额外字段=" + shape.objectExtraCount,
+    "RPC version 类型=" + shape.fieldTypes[5] + "；是否数值 1/2=" + yes(shape.versionKnown) + "；appName 是否已知=" + yes(shape.appNameKnown),
+    "RPC installStatus 类型=" + shape.fieldTypes[4] + "；JSON=" + shape.installJSON + "；缺失=" + names(shape.installMissing)
+        + "；多余=" + shape.installExtraCount + "；非布尔已知键=" + names(shape.installWrongTypes),
+    "RPC ext 类型=" + shape.fieldTypes[6] + "；JSON=" + shape.extJSON + "；apiVersion 类型=" + shape.extAPI + "；是否 V3=" + yes(shape.extV3) + "；多余=" + shape.extExtraCount];
 }

@@ -119,8 +119,8 @@ function assertBoundedRecord(f, expected = {}) {
     return record;
 }
 
-test("1.3.0 保留实际 Cookie 加 UID 候选与纯 native 候选的身份门禁", () => {
-    assert.equal(core.CW_VERSION, "1.3.0");
+test("1.3.1 保留实际 Cookie 加 UID 候选与纯 native 候选的身份门禁", () => {
+    assert.equal(core.CW_VERSION, "1.3.1");
     for (const [captureKind, expected] of [["request_cookie_candidate", true], ["native_session_candidate", true], ["request_cookie", false]]) {
         assert.equal(auth.cwRequiresIdentity({captureKind}), expected);
     }

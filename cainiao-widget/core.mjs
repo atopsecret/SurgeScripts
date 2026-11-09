@@ -3,7 +3,7 @@
 // 运行：由 runtime.mjs 调用；离线验证 node --test cainiao-widget/tests/core.test.cjs
 // 依赖：无；协议来源见 THIRD_PARTY_NOTICES.md
 
-export const CW_VERSION = "1.3.0";
+export const CW_VERSION = "1.3.1";
 export const CW_API = "mtop.cainiao.lpc.packageservice.queryPdsPackageDataList";
 export const CW_COUNT_API = "mtop.cainiao.lpc.packageservice.user.package.count.query";
 export const CW_IDENTITY_API = "mtop.user.getUserSimple";
@@ -62,7 +62,7 @@ export function cwObject(value) {
 }
 
 export function cwKnownVersion(value) {
-    return ["1.1.0", "1.2.0", "1.2.1", "1.2.2", "1.2.3", "1.2.4", CW_VERSION].includes(value);
+    return ["1.1.0", "1.2.0", "1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.3.0", CW_VERSION].includes(value);
 }
 
 export function cwText(value, limit = 160) {

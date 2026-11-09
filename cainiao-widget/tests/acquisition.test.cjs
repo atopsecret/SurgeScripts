@@ -161,8 +161,8 @@ function seedOld(f, state, cache = oldCache(state)) {
     return cache;
 }
 
-test("1.3.0 保留响应头候选门禁，七项原值只存本组件认证键", async () => {
-    assert.equal(core.CW_VERSION, "1.3.0");
+test("1.3.1 保留响应头候选门禁，七项原值只存本组件认证键", async () => {
+    assert.equal(core.CW_VERSION, "1.3.1");
     assert.equal(typeof core.CW_RESPONSE_STORE, "string");
     assert.equal(typeof core.CW_TRANSPORT_STORE, "string");
     const f = fixture();
@@ -552,7 +552,7 @@ test("App 观察第 33 个新类别先淘汰最旧行，原七天窗口与真实
         assert.equal(stored.rows.length, 32, "实际存储不能先写 33 行再由 reader 丢掉");
         assert.equal(summary.rows.length, 32);
         assert.equal(stored.startedAt, startedAt, "新增类别不能续期原观察窗口");
-        assert.equal(stored.version, "1.3.0");
+        assert.equal(stored.version, "1.3.1");
         assert.equal(new Set(stored.rows.map(key)).size, 32);
         const newKey = "acs.m.taobao.com|gw|session_refresh";
         assert(stored.rows.some(row => key(row) === newKey));
@@ -609,7 +609,7 @@ for (const kind of ["request_cookie", "request_cookie_candidate", "native_sessio
         const cache = seedOld(f, previous, oldCache(previous, {terminalStatus: ["pending", "connected"].includes(status) ? "" : status}));
         const memory = structuredClone([...f.memory]), writes = f.writes.length;
         const migrated = auth.cwReadAuth(f.ctx, f.clock());
-        assert.equal(migrated.version, "1.3.0");
+        assert.equal(migrated.version, "1.3.1");
         for (const key of AUTH_FIELDS) assert.equal(migrated[key], previous[key], key + " / " + status);
         const lines = auth.diagnoseCainiaoConnection(f.ctx, f.clock);
         assert.equal(lines.type, "widget");

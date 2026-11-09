@@ -1,4 +1,4 @@
-// 引擎：Node.js 20+ 内置测试 | 版本：1.3.0 | 语言：JavaScript CommonJS
+// 引擎：Node.js 20+ 内置测试 | 版本：1.3.1 | 语言：JavaScript CommonJS
 // 构建：node cainiao-widget/build.mjs
 // 运行：node --test cainiao-widget/tests/official-widget.test.cjs
 // 依赖：内置库及 auth-fixture.cjs；仅合成 token、内存 HTTP 和内存存储
@@ -209,8 +209,8 @@ function deferred() {
     return {promise, resolve};
 }
 
-test("1.3.0 专用 key 与四 MTOP token 路由返回固定结构", () => {
-    assert.equal(core.CW_VERSION, "1.3.0"); assert.equal(typeof core.CW_OFFICIAL_STORE, "string");
+test("当前版本专用 key 与四 MTOP token 路由返回固定结构", () => {
+    assert.match(core.CW_VERSION, /^1\.[0-9]+\.[0-9]+$/); assert.equal(typeof core.CW_OFFICIAL_STORE, "string");
     assert(core.CW_OFFICIAL_STORE.length > 0);
     assert(![core.CW_STORE, core.CW_AUTH_STORE, core.CW_APP_STORE, core.CW_RESPONSE_STORE, core.CW_TRANSPORT_STORE].includes(core.CW_OFFICIAL_STORE));
     for (const host of HOSTS) for (const channel of ["h5", "gw"]) {

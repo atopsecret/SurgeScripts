@@ -91,6 +91,18 @@ test("常量端点与两种 GET 模式固定，只有合成 Cookie 和 Accept �
     }
 });
 
+test("1.3.0 升级保留已完成发送对照的原始窗口，不重新发出回显请求", async () => {
+    const f = fixture(), previous = complete(NOW - 60000, {version: "1.3.0"});
+    f.memory.set(core.CW_TRANSPORT_STORE, previous);
+    const result = await run(f);
+    assert.equal(result.kind, "COMPLETE");
+    assert.equal(result.startedAt, previous.startedAt);
+    assert.equal(result.expiresAt, previous.expiresAt);
+    assert.equal(f.requests.length, 0);
+    assert.equal(f.writes.length, 0);
+    assert.deepEqual(stored(f), previous);
+});
+
 test("不读取手动 Cookie、App 原始头或个人存储，也不修改已有 auth", async () => {
     const f = fixture();
     Object.defineProperty(f.ctx.env, "CAINIAO_COOKIE", {get() { throw new Error(PRIVATE); }});

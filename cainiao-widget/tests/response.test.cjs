@@ -193,7 +193,7 @@ function seed(f, rows, startedAt = NOW) {
 }
 
 test("响应模块仅导入已有本地 helper，版本和取证键独立", () => {
-    assert.equal(core.CW_VERSION, "1.3.0");
+    assert.equal(core.CW_VERSION, "1.3.1");
     assert.equal(core.CW_RESPONSE_STORE, "cainiao-widget.response.v1");
     for (const name of ["captureCainiaoResponse", "cwResponseLines", "cwResponseCookies", "cwResponseSchema"])
         assert.equal(typeof response[name], "function");
@@ -748,6 +748,21 @@ test("固定七天窗口不因匿名响应续期，过期后count=1且不继承�
     f.setNow(NOW + WINDOW); await capture(f);
     assert.equal(metadata(f).startedAt, NOW + WINDOW); assert.equal(row(f).count, 1); assert.deepEqual(row(f).cookies, []);
     assert.equal(row(f).usable, 0); assert.equal(row(f).result, "none"); safeRecord(f);
+});
+
+test("1.3.0 升级保留响应观察的原始窗口，诊断只读且新响应不重建窗口", async () => {
+    const f = fixture({cookies: fullCookies()});
+    await capture(f);
+    const previous = {...structuredClone(metadata(f)), version: "1.3.0"};
+    f.memory.set(core.CW_RESPONSE_STORE, previous);
+    const writes = f.calls.storageWrite;
+    assert(summary(f).some(line => line.includes("acs.m.taobao.com")));
+    assert.equal(f.calls.storageWrite, writes);
+    assert.deepEqual(metadata(f), previous);
+    f.setNow(NOW + DAY);
+    await capture(f);
+    assert.equal(metadata(f).startedAt, previous.startedAt);
+    assert.equal(row(f).count, 2);
 });
 
 test("七天前1ms可读，整七天已过期；generic只读不删或续期旧窗口", async () => {

@@ -91,8 +91,8 @@ test("常量端点与两种 GET 模式固定，只有合成 Cookie 和 Accept �
     }
 });
 
-test("1.3.0 升级保留已完成发送对照的原始窗口，不重新发出回显请求", async () => {
-    const f = fixture(), previous = complete(NOW - 60000, {version: "1.3.0"});
+for (const version of ["1.3.0", "1.3.1"]) test(version + " 升级保留已完成发送对照的原始窗口，不重新发出回显请求", async () => {
+    const f = fixture(), previous = complete(NOW - 60000, {version});
     f.memory.set(core.CW_TRANSPORT_STORE, previous);
     const result = await run(f);
     assert.equal(result.kind, "COMPLETE");

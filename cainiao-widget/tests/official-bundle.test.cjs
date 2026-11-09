@@ -1,4 +1,4 @@
-// 引擎：Node.js 20+ 内置测试 | 版本：1.3.1 | 语言：JavaScript CommonJS
+// 引擎：Node.js 20+ 内置测试 | 版本：1.3.2 | 语言：JavaScript CommonJS
 // 构建：node cainiao-widget/build.mjs
 // 运行：node --experimental-vm-modules --test cainiao-widget/tests/official-bundle.test.cjs
 // 依赖：内置库；执行实际自包含发布入口，只有合成会话、内存 HTTP 和内存存储
@@ -159,6 +159,25 @@ test("实际发布入口未知合成 RPC 只保存固定形状，不将字段值
     const widget = await f.entry({...f.ctx, env: {...f.ctx.env, CAINIAO_DIAGNOSTIC: "true"}});
     const text = JSON.stringify(widget); assert.match(text, /RPC.*已观察/); assert.match(text, /version 类型=string/);
     for (const value of [TOKEN, "synthetic-private", "secretUnknown"]) assert(!JSON.stringify([widget, [...f.memory]]).includes(value));
+});
+
+test("实际 bundle 从旧受限会话屏障记录未知合同，再以合法 RPC 首次迁移并执行两次新查询", async () => {
+    const f = await fixture();
+    await f.entry({...f.ctx, request: {method: "GET", url: "https://acs.m.taobao.com/gw/mtop.synthetic.account.query/*/",
+        headers: headers([["Cookie", "cookie2=" + COOKIE], ["x-uid", UID]])}});
+    assert.equal(f.memory.get(CACHE).blocked, true); assert.equal(f.state(), undefined);
+    const previous = JSON.stringify(f.memory.get(CACHE));
+    await bind(f, TOKEN, {version: "synthetic-private-version"});
+    assert.equal(f.state().binding, "unbound"); assert.equal(JSON.stringify(f.memory.get(CACHE)), previous);
+    const waiting = await f.entry(f.ctx); assert.match(JSON.stringify(waiting), /等待实际 RPC 合同/); assert.equal(f.requests.length, 0);
+    const diagnosis = await f.entry({...f.ctx, env: {...f.ctx.env, CAINIAO_DIAGNOSTIC: "true"}});
+    assert.match(JSON.stringify(diagnosis), /RPC version 类型=string/);
+    for (const secret of [TOKEN, UID, COOKIE, "synthetic-private-version"]) assert(!JSON.stringify(diagnosis).includes(secret));
+    await bind(f); assert.equal(f.state().binding, "bearer"); assert.equal(f.state().snapshot, null);
+    for (let i = 0; i < 2; i++) {f.replies.push(reply(summary())); await f.entry(f.ctx); f.advance(1000);}
+    assert.equal(f.state().successCount, 2); assert.equal(f.requests.length, 2);
+    const times = f.requests.map(row => JSON.parse(row.options.body).argsObjs[0].timestamp); assert(times[1] > times[0]);
+    for (const row of f.requests) for (const secret of [UID, COOKIE]) assert(!JSON.stringify(row).includes(secret));
 });
 
 test("只有专用 token 而未观察到实际 RPC 模板时不请求，不硬填 Android 参数", async () => {

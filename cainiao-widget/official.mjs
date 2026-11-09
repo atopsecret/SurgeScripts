@@ -1,8 +1,8 @@
-// 引擎：Egern JavaScript | 版本：1.3.1 | 语言：JavaScript ES module
+// 引擎：Egern JavaScript | 版本：1.3.2 | 语言：JavaScript ES module
 // 构建：node cainiao-widget/build.mjs
 // 运行：同一模块捕获实际 RPC bearer 或本人签发 token，再由 generic 独立查询
 // 依赖：core.mjs、app.mjs；不执行 APK、不调用原生签名、不在 hook 发送个人查询
-import {CW_VERSION, CW_STORE, CW_OFFICIAL_STORE, CW_SELF_HEADER, cwObject, cwCookieMap, cwText, md5} from "./core.mjs";
+import {CW_VERSION, CW_STORE, CW_OFFICIAL_STORE, CW_SELF_HEADER, cwObject, cwKnownVersion, cwCookieMap, cwText, md5} from "./core.mjs";
 import {CW_APP_HOSTS, cwAppRoute, cwAppHeaderValues} from "./app.mjs";
 
 export const CW_OFFICIAL_TOKEN_API = "mtop.cainiao.guoguo.widget.token.get.cn";
@@ -333,7 +333,7 @@ export function cwOfficialState(value, now = Date.now()) {
     try {
         const legacy = value?.version === "1.3.0", binding = value?.binding === undefined ? "uid" : value.binding;
         const retiredTokenHashes = value?.retiredTokenHashes === undefined ? [] : value.retiredTokenHashes;
-        if (!cwOfficialTime(now) || !cwObject(value) || ![CW_VERSION, "1.3.0"].includes(value.version) || !cwOfficialHash(value.owner)
+        if (!cwOfficialTime(now) || !cwObject(value) || ![CW_VERSION, "1.3.0", "1.3.1"].includes(value.version) || !cwOfficialHash(value.owner)
             || !["uid", "bearer", "unbound"].includes(binding) || legacy && binding !== "uid" || !cwOfficialHashes(retiredTokenHashes)
             || !cwOfficialHash(value.generation) || !cwOfficialHash(value.revision) || !CW_OFFICIAL_STATUSES.includes(value.status)
             || !cwOfficialTime(value.at) || value.at > now || !CW_OFFICIAL_FAILURES.includes(value.failure) || !CW_OFFICIAL_CAPTURES.includes(value.captureResult)
@@ -411,6 +411,15 @@ function cwOfficialBearerBarrier(reference) {
     return barrier;
 }
 
+function cwOfficialLegacyHandoff(reference) {
+    // 只为尚无官方凭据的首次迁移识别旧 capture 屏障，不能重置已绑定、损坏或已撤销的官方状态。
+    if (reference.raw !== null && reference.raw !== undefined && reference.state?.binding !== "unbound") return false;
+    const barrier = reference.barrier;
+    return cwOfficialSameKeys(barrier, ["version", "owner", "source", "blocked", "cookie", "snapshot"])
+        && cwKnownVersion(barrier.version) && cwOfficialHash(barrier.owner) && barrier.owner !== CW_OFFICIAL_CONFLICT_OWNER
+        && barrier.source === "capture" && barrier.blocked === true && barrier.cookie === "" && barrier.snapshot === null;
+}
+
 function cwOfficialCaptureBlocked(reference, owner) {
     if (!cwOfficialBlocked(reference, owner)) return false;
     // 现存 A 自己的屏障不妨碍真实 B 换号；保存 B 失败而仍留 A 状态时则必须保护 B。
@@ -459,8 +468,9 @@ function cwOfficialStopBearer(ctx, reference, now, failure, captureResult, statu
 }
 
 function cwOfficialRecordRPC(ctx, reference, now, shape) {
+    if (reference.raw !== null && reference.raw !== undefined && !reference.state) return reference;
     if (reference.state && reference.state.binding !== "unbound") return reference;
-    if (cwObject(reference.barrier) && reference.barrier.blocked === true) return reference;
+    if (cwObject(reference.barrier) && reference.barrier.blocked === true && !cwOfficialLegacyHandoff(reference)) return reference;
     const state = {...cwOfficialInitial(CW_OFFICIAL_UNBOUND_OWNER, now, "waiting_token", "", "unbound"),
         rpcShape: shape, captureResult: "rpc_unrecognized", failure: "SCHEMA_INVALID"};
     return cwOfficialWrite(ctx, reference, state, now);
@@ -468,8 +478,9 @@ function cwOfficialRecordRPC(ctx, reference, now, shape) {
 
 function cwOfficialCaptureBearer(ctx, reference, parsed, now, shape) {
     const state = reference.state, fence = cwOfficialBearerBarrier(reference), tokenHash = md5(parsed.token), owner = cwOfficialBearerOwner(tokenHash);
-    // UID 路径及未完成的 UID 账号切换不由无 UID 的 RPC 撤销。
-    if (state && state.binding === "uid" || cwObject(reference.barrier) && reference.barrier.blocked === true && !fence) return reference;
+    // 已有官方 UID 与未知账号屏障不由 RPC 撤销；严格识别的旧 H5 屏障只允许全新 bearer 接管。
+    if (reference.raw !== null && reference.raw !== undefined && !state || state?.binding === "uid"
+        || cwObject(reference.barrier) && reference.barrier.blocked === true && !fence && !cwOfficialLegacyHandoff(reference)) return reference;
     let retired = cwOfficialRetired(reference);
     if (retired.length > CW_OFFICIAL_RETIRED_LIMIT) throw cwOfficialFail("STORAGE_UNCONFIRMED");
     if (fence?.stopped || retired.includes(tokenHash)) return reference;
@@ -670,7 +681,7 @@ export async function loadCainiaoOfficialModel(ctx, clock, base, bounded) {
     if (reference.raw === null || reference.raw === undefined) return cwOfficialBearerBarrier(reference) ? cwOfficialStop(base, "STORAGE_UNCONFIRMED") : null;
     const original = reference.state;
     if (!original) return cwOfficialStop(base, "STORAGE_UNCONFIRMED");
-    if (cwOfficialBlocked(reference, original.owner)) return cwOfficialStop(base, "ACCOUNT_BLOCKED");
+    if (cwOfficialBlocked(reference, original.owner) && !(original.binding === "unbound" && cwOfficialLegacyHandoff(reference))) return cwOfficialStop(base, "ACCOUNT_BLOCKED");
     if (["invalid", "signed_out"].includes(original.status)) return cwOfficialStop(base, "ACCOUNT_BLOCKED");
     if (original.binding === "unbound") return cwOfficialModel(base, null, "setup", "已观察到官方 RPC，请求正文合同尚未接受；连接状态保留固定字段类型，未猜测 iOS 参数", {setupTitle: "等待实际 RPC 合同"});
     if (original.status === "expired") return cwOfficialModel(base, original.snapshot, "expired", "官方专用 token 已失效，请在 App 重新签发" + (original.snapshot ? " · 上次官方摘要" : ""));
@@ -741,7 +752,8 @@ export function cwOfficialLines(ctx, now = Date.now()) {
     if (reference.raw === null || reference.raw === undefined) return ["官方专用会话：尚未捕获本人专用 token 与实际 RPC 参数。"];
     const state = reference.state;
     if (!state) return ["官方专用会话：本机状态格式未确认，未继承凭据或成功证明。"];
-    if (cwOfficialBlocked(reference, state.owner)) return ["官方专用会话：账号屏障生效，旧 token 与摘要已阻断。"];
+    if (cwOfficialBlocked(reference, state.owner)) return ["官方专用会话：账号屏障生效，旧 token 与摘要已阻断。",
+        ...(state.binding === "unbound" && state.rpcShape && cwOfficialLegacyHandoff(reference) ? cwOfficialShapeLines(state.rpcShape) : [])];
     const statuses = {waiting_token: "等待专用 token", waiting_template: "已捕获 token，等待同值实际 RPC 参数", pending: "参数已绑定，等待新的摘要查询", ready: "已有独立官方摘要成功记录",
         expired: "专用 token 已拒绝，停止重试", invalid: "账号冲突或已变化，旧摘要已隔离", signed_out: "已观察到退出请求，专用会话停止"};
     const captures = {NONE: "尚无采集", ticket: "已记录本次签发请求票据", issued: "已捕获本次专用 token", template: "已绑定实际 RPC 参数", unchanged: "同值记录保留原状态", anonymous: "身份变化，等待新签发",

@@ -2,9 +2,9 @@
 
 在手机上显示待取数量和包裹信息。支持桌面四种尺寸、浅深色与锁屏三种尺寸；查询失败时保留上次结果和原更新时间。
 
-**1.3.1 修复已有官方凭据无法从实际查询接入的问题。默认通过手机在线模块安装，不需要 ZIP、电脑、复制源码、HAR 或 Cookie。** 可以与[菜鸟去广告](../cainiao/README.md)一起使用，不依赖去广告模块或另装诊断。不读取短信、菜鸟私有存储或 App 沙盒，不修改 App 的请求和响应。
+**1.3.2 修复旧 H5 隔离标记挡住官方组件首次接入的问题。默认通过手机在线模块安装，不需要 ZIP、电脑、复制源码、HAR 或 Cookie。** 可以与[菜鸟去广告](../cainiao/README.md)一起使用，不依赖去广告模块或另装诊断。不读取短信、菜鸟私有存储或 App 沙盒，不修改 App 的请求和响应。
 
-**1.3.1 正在发布。手机实际连接尚未验收。** 本人 iPhone 的官方 `WidgetExtension` 已向固定 `queryWidgetDetailsV2` 端点发送新 POST，Egern 已解密并记录 HTTP 200。现场仅查看端点和请求头，未取得该次正文；这不证明业务成功，也没有确认 iOS 的请求字段。1.3.0 要求先捕获带 UID 的 token 签发，再捕获同 token 查询；官方组件复用已有 token 时会被挡在接入之前。1.3.1 允许一条符合现有合同的实际查询直接建立凭据候选，不要求再次签发。
+**1.3.2 正在发布。手机实际连接尚未验收。** 1.3.1 已发布并在手机更新，但新官方 RPC 出现后仍未接通。独立回归复现了旧 H5 `blocked` 标记误挡首次接入的缺陷；1.3.2 允许符合严格旧格式的屏障迁移到全新的 bearer 会话，保留官方 UID、身份冲突及撤销保护。实际 JSON 模板、独立摘要查询和关闭 App 后第二次新查询仍须手机分别验收，不能用 HTTP 200 或离线测试代替。
 
 候选仍须由本组件发起新请求并验证结果。返回范围是**官方待取摘要**，还不是完整包裹列表或结构化取件码，见[官方协议核对](官方小组件协议核对.md)。历史版本 1.3.0 的实现提交 `53c6764` 已推送至 `main`，2026-11-09 10:08:59（北京时间）十四个公开原地址回读同字节；这是旧版发布事实，不是本版发布或手机验收结果。此前补丁与失败记录保留。
 
@@ -14,7 +14,7 @@
 
 ## 安装
 
-已安装在线模块时更新原模块和它引用的远程 JS，不用重装自己的 CA、填写凭据或增加诊断模块。只有另建新版模块时才先停用旧模块，不要同时启用两份同名组件。远程脚本 URL 的 `?v=1.3.1` 只是缓存更新参数，不会锁定 Git 提交；升级需核对模块描述和 JS 首行。手机简短步骤见[1.3.1 接入说明](开始使用-1.3.1.md)。官方组件已经在主屏时保留即可，不再删除重装或退出重登；升级也不会复活旧失败代次。
+已安装在线模块时更新原模块和它引用的远程 JS，不用重装自己的 CA、填写凭据或增加诊断模块。只有另建新版模块时才先停用旧模块，不要同时启用两份同名组件。远程脚本 URL 的 `?v=1.3.2` 只是缓存更新参数，不会锁定 Git 提交；升级需核对模块描述和 JS 首行。手机简短步骤见[1.3.2 接入说明](开始使用-1.3.2.md)。官方组件已经在主屏时保留即可，不再删除重装或退出重登；升级也不会复活旧失败代次。
 
 首次接入：已有**菜鸟 App 自带的小组件**时，保持它在主屏，等待一次实际刷新。尚未添加时先添加一个，正常打开本人菜鸟 App 一次，再等官方组件刷新。回到 Egern 运行“菜鸟取件”；如果独立查询成功，再关闭菜鸟 App 运行一次，确认第二次新请求。iOS 正文和结果结构尚未确认，不保证更新后就能接通。
 
@@ -22,9 +22,9 @@
 
 **本地模块不是必要条件。** Egern 支持远程模块和远程脚本；一个模块加载全部七个入口和同一份自包含 JS，不需要另建文件或装依赖。新增的签发响应和查询参数采集属于小组件本体，不是另一个诊断模块；三个响应匹配互不重叠。
 
-[在 Egern 一次添加菜鸟取件小组件](egern:/modules/new?name=%E8%8F%9C%E9%B8%9F%E5%8F%96%E4%BB%B6%20%C2%B7%20%E5%8E%9F%E7%94%9F%E5%B0%8F%E7%BB%84%E4%BB%B6&url=https%3A%2F%2Fraw.githubusercontent.com%2Fatopsecret%2FSurgeScripts%2Fmain%2Fcainiao-widget%2Fcainiao-widget.egern.yaml%3Fv%3D1.3.1)
+[在 Egern 一次添加菜鸟取件小组件](egern:/modules/new?name=%E8%8F%9C%E9%B8%9F%E5%8F%96%E4%BB%B6%20%C2%B7%20%E5%8E%9F%E7%94%9F%E5%B0%8F%E7%BB%84%E4%BB%B6&url=https%3A%2F%2Fraw.githubusercontent.com%2Fatopsecret%2FSurgeScripts%2Fmain%2Fcainiao-widget%2Fcainiao-widget.egern.yaml%3Fv%3D1.3.2)
 
-如果当前阅读器不允许打开 `egern:`，把[远程模块地址](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.3.1)添加到 Egern 即可；不用下载本地文件。模块描述和 JS 首行均应显示 **1.3.1**。本版仍在发布，只有原地址回读完成后才标为已发布。
+如果当前阅读器不允许打开 `egern:`，把[远程模块地址](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.3.2)添加到 Egern 即可；不用下载本地文件。模块描述和 JS 首行均应显示 **1.3.2**。本版仍在发布，只有原地址回读完成后才标为已发布。
 
 1. 在手机点一次添加链接，确认添加 Egern 模块；客户端下载模块和脚本。保持 `CONNECTION_MODE=auto`、`CAINIAO_COOKIE` 留空，已有旧版先停用，不同时启用两份。
 2. 保持 Egern 代理运行。**已有自己的 HTTPS 解密证书且已信任时，不用重装。** 尚未配置时按客户端指引安装并信任自己的 Egern CA。模块只声明四个原网关和新增的 `guoguouser.cainiao.com`，不代改手机系统设置。
@@ -175,4 +175,4 @@ python3 egern/validate.py
 
 独立的 Python 登录助手仍保留给已有手动流程和协议开发，默认安装不需要它；旧版使用说明见[1.0.0 历史文档](https://github.com/atopsecret/SurgeScripts/blob/fafc62337f46a4908b99b9d053796b24d1875d70/cainiao-widget/README.md)。
 
-旧 H5 协议参考两个固定版本的 MIT 项目。1.3.0 的专用合同来自菜鸟官网下载的 Android 样本静态分析；1.3.1 另核对本人 iPhone 官方扩展实际发出的端点和请求头，并修复必须先见签发记录的限制。iOS 正文和独立查询尚未验收。实现不复制或分发官方 App 代码；来源、哈希和许可见 [sources.json](sources.json) 与 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。没有执行上游技能、SDK 或下载的 App 样本。
+旧 H5 协议参考两个固定版本的 MIT 项目。1.3.0 的专用合同来自菜鸟官网下载的 Android 样本静态分析；1.3.1 另核对本人 iPhone 官方扩展实际发出的端点和请求头，修复必须先见签发记录的限制；1.3.2 修复本项目旧 H5 屏障的首次迁移缺陷。iOS 正文和独立查询尚未验收。实现不复制或分发官方 App 代码；来源、哈希和许可见 [sources.json](sources.json) 与 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。没有执行上游技能、SDK 或下载的 App 样本。

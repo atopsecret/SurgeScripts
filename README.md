@@ -16,7 +16,7 @@ Surge 与 Egern 去广告模块、蔚来自动签到脚本、Apple 天气增强�
   [使用说明](jd/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml)
 - **菜鸟 1.2.1（Surge / Egern）**：九个精确主机限定 QUIC 或 UDP 443，补仅识别为 UDP 的连接；保留双端页面与素材规则，协议回退仍需手机验证。
   [使用说明](cainiao/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.egern.yaml)
-- **菜鸟取件小组件 1.3.0（Egern 原生，正在发布）**：参考官方组件，增加专用 token、实际参数绑定和独立摘要 POST，不再只改提示。七入口共用同一 JS，不需要 ZIP、电脑或 HAR。协议来自官方 Android 静态证据，iPhone 接通尚未验收；摘要不是完整列表或结构化取件码。
+- **菜鸟取件小组件 1.3.0（Egern 原生，已发布）**：参考官方组件，增加专用 token、实际参数绑定和独立摘要 POST，不再只改提示。七入口共用同一 JS，不需要 ZIP、电脑或 HAR。协议来自官方 Android 静态证据，iPhone 接通尚未验收；摘要不是完整列表或结构化取件码。
   [手机安装与升级](cainiao-widget/开始使用-1.3.0.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao-widget/cainiao-widget.egern.yaml?v=1.3.0)
 - **闲鱼**：新旧开屏接口、缓存广告引用、悬浮策略及指定广告素材。
   [使用说明](xianyu/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-adblock.egern.yaml)

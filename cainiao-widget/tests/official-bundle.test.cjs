@@ -1,4 +1,4 @@
-// 引擎：Node.js 20+ 内置测试 | 版本：1.3.5 | 语言：JavaScript CommonJS
+// 引擎：Node.js 20+ 内置测试 | 版本：1.3.6 | 语言：JavaScript CommonJS
 // 构建：node cainiao-widget/build.mjs
 // 运行：node --experimental-vm-modules --test cainiao-widget/tests/official-bundle.test.cjs
 // 依赖：内置库；执行实际自包含发布入口，只有合成会话、内存 HTTP 和内存存储
@@ -195,6 +195,23 @@ test("实际 bundle 接受省略 brand 的合成 iOS 形状，两次新 POST 均
     for (let i = 0; i < 2; i++) {f.replies.push(reply(summary())); await f.entry(f.ctx); f.advance(1000);}
     assert.equal(f.state().successCount, 2); assert.equal(f.requests.length, 2);
     for (const row of f.requests) assert.equal(Object.hasOwn(JSON.parse(row.options.body).argsObjs[0], "brand"), false);
+});
+
+test("实际 bundle 观察小数数值时间戳后，两次独立 POST 均生成新的整数毫秒", async () => {
+    for (const observed of [NOW - 60000 + 0.25, (NOW - 60000) / 1000 + 0.25]) {
+        const f = await fixture(), body = bodyTemplate(TOKEN); delete body.argsObjs[0].brand;
+        body.argsObjs[0].timestamp = observed;
+        const incoming = withBody({...f.ctx, request: {method: "POST", url: RPC}}, body);
+        const result = await f.entry(incoming.ctx);
+        assert.deepEqual(Buffer.from(result.body), Buffer.from(incoming.raw)); assert.equal(incoming.calls.reads, 1);
+        assert.equal(f.state().binding, "bearer"); assert.equal(f.state().status, "pending");
+        assert.equal(Object.hasOwn(f.state().template, "timestamp"), false); assert.equal(f.requests.length, 0);
+        for (let i = 0; i < 2; i++) {f.replies.push(reply(summary())); await f.entry(f.ctx); f.advance(1000);}
+        assert.equal(f.state().successCount, 2); assert.equal(f.requests.length, 2);
+        const sent = f.requests.map(row => JSON.parse(row.options.body).argsObjs[0]);
+        assert.deepEqual(sent.map(row => row.timestamp), [NOW, NOW + 1000]);
+        for (const object of sent) {assert(Number.isSafeInteger(object.timestamp)); assert.notEqual(object.timestamp, observed); assert(!Object.hasOwn(object, "brand"));}
+    }
 });
 
 test("只有专用 token 而未观察到实际 RPC 模板时不请求，不硬填 Android 参数", async () => {

@@ -372,7 +372,7 @@ test("模板 token 必须与该代次签发结果逐字相等，不能借另一�
 
 test("实际模板的必需参数类型或版本未知时停止，不补默认值", async () => {
     const changes = [{appName: "GUOGUO"}, {source: ""}, {source: 1}, {brand: null}, {channel: {}},
-        {version: "1"}, {version: 3}, {timestamp: 1.5}, {timestamp: "123"},
+        {version: "1"}, {version: 3}, {timestamp: 0}, {timestamp: "123"},
         {installStatus: {}}, {installStatus: "[]"}, {installStatus: '{"isLargeInstall":"true"}'},
         {ext: {apiVersion: "V3"}}, {ext: '{"apiVersion":"V4"}'}];
     for (const values of changes) {

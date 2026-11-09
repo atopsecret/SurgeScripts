@@ -1,4 +1,4 @@
-// 引擎：Egern JavaScript | 版本：1.3.5 | 语言：JavaScript ES module
+// 引擎：Egern JavaScript | 版本：1.3.6 | 语言：JavaScript ES module
 // 构建：node cainiao-widget/build.mjs
 // 运行：同一模块捕获实际 RPC bearer 或本人签发 token，再由 generic 独立查询
 // 依赖：core.mjs、app.mjs；不执行 APK、不调用原生签名、不在 hook 发送个人查询
@@ -32,6 +32,7 @@ class CwOfficialFailure extends Error {
 function cwOfficialFail(code = "SCHEMA_INVALID") { return new CwOfficialFailure(code); }
 function cwOfficialTemplateFail(reason) { const error = cwOfficialFail(); error.rejectReason = reason; return error; }
 function cwOfficialTime(value) { return Number.isSafeInteger(value) && value > 0; }
+function cwOfficialObservedTime(value) { return Number.isFinite(value) && value > 0 && value <= Number.MAX_SAFE_INTEGER; }
 function cwOfficialHash(value) { return typeof value === "string" && /^[0-9a-f]{32}$/.test(value); }
 function cwOfficialNonce(now) { return md5("official:" + now + ":" + Math.random() + ":" + Math.random()); }
 function cwOfficialAuto(ctx) { return (ctx.env?.CONNECTION_MODE || "auto") === "auto"; }
@@ -284,7 +285,7 @@ export function cwOfficialTemplate(body) {
     const object = body.argsObjs[0], keys = ["appName", "source", "channel", "brand", "installStatus", "version", "ext", "token", "timestamp"];
     if (!cwObject(object) || Object.keys(object).some(key => ![...keys, "lbs"].includes(key))) throw cwOfficialTemplateFail("WRAPPER");
     if (!Object.hasOwn(object, "token") || !cwOfficialOpaque(object.token)) throw cwOfficialTemplateFail("TOKEN");
-    if (!Object.hasOwn(object, "timestamp") || !cwOfficialTime(object.timestamp)) throw cwOfficialTemplateFail("TIMESTAMP");
+    if (!Object.hasOwn(object, "timestamp") || !cwOfficialObservedTime(object.timestamp)) throw cwOfficialTemplateFail("TIMESTAMP");
     if (Object.hasOwn(object, "lbs") && !cwOfficialString(object.lbs, 1024)) throw cwOfficialTemplateFail("LBS");
     const fields = Object.fromEntries(keys.slice(0, 7).filter(key => Object.hasOwn(object, key)).map(key => [key, object[key]]));
     return {token: object.token, template: cwOfficialTemplateFields(fields)};
@@ -344,7 +345,7 @@ export function cwOfficialState(value, now = Date.now()) {
     try {
         const legacy = value?.version === "1.3.0", binding = value?.binding === undefined ? "uid" : value.binding;
         const retiredTokenHashes = value?.retiredTokenHashes === undefined ? [] : value.retiredTokenHashes;
-        if (!cwOfficialTime(now) || !cwObject(value) || ![CW_VERSION, "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4"].includes(value.version) || !cwOfficialHash(value.owner)
+        if (!cwOfficialTime(now) || !cwObject(value) || ![CW_VERSION, "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5"].includes(value.version) || !cwOfficialHash(value.owner)
             || !["uid", "bearer", "unbound"].includes(binding) || legacy && binding !== "uid" || !cwOfficialHashes(retiredTokenHashes)
             || !cwOfficialHash(value.generation) || !cwOfficialHash(value.revision) || !CW_OFFICIAL_STATUSES.includes(value.status)
             || !cwOfficialTime(value.at) || value.at > now || !CW_OFFICIAL_FAILURES.includes(value.failure) || !CW_OFFICIAL_CAPTURES.includes(value.captureResult)

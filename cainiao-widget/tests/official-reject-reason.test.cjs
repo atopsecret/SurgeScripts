@@ -45,7 +45,7 @@ const cases = () => [
     ["APP_NAME", body({appName: SECRET})], ["SOURCE", body({source: ""})], ["CHANNEL", body({channel: "x".repeat(257)})],
     ["BRAND", body({brand: null})], ["INSTALL_STATUS", body({installStatus: '{"isSmallInstall":false}'})],
     ["VERSION", body({version: 3})], ["EXT", body({ext: '{"apiVersion":"synthetic-private-api"}'})],
-    ["TOKEN", body({token: ""})], ["TIMESTAMP", body({timestamp: 1.5})], ["LBS", body({lbs: null})],
+    ["TOKEN", body({token: ""})], ["TIMESTAMP", body({timestamp: 0})], ["LBS", body({lbs: null})],
 ];
 
 test("模板各拒绝点携带固定原因，导出签名和 SCHEMA_INVALID 不变", () => {

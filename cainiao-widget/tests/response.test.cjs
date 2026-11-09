@@ -193,7 +193,7 @@ function seed(f, rows, startedAt = NOW) {
 }
 
 test("响应模块仅导入已有本地 helper，版本和取证键独立", () => {
-    assert.equal(core.CW_VERSION, "1.3.4");
+    assert.equal(core.CW_VERSION, "1.3.5");
     assert.equal(core.CW_RESPONSE_STORE, "cainiao-widget.response.v1");
     for (const name of ["captureCainiaoResponse", "cwResponseLines", "cwResponseCookies", "cwResponseSchema"])
         assert.equal(typeof response[name], "function");

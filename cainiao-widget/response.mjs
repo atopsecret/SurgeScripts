@@ -309,7 +309,7 @@ function cwResponseCleanSchema(value) {
 
 function cwResponseState(value, now) {
     const empty = {version: CW_VERSION, startedAt: now, rows: []};
-    if (!cwResponseTime(now) || !cwObject(value) || !["1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", "1.3.3", CW_VERSION].includes(value.version)
+    if (!cwResponseTime(now) || !cwObject(value) || !["1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", CW_VERSION].includes(value.version)
         || !cwResponseTime(value.startedAt) || value.startedAt > now || now - value.startedAt >= CW_RESPONSE_WINDOW
         || !Array.isArray(value.rows) || value.rows.length > 32) return empty;
     const rows = [], seen = new Set();

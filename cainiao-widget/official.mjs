@@ -1,4 +1,4 @@
-// 引擎：Egern JavaScript | 版本：1.3.4 | 语言：JavaScript ES module
+// 引擎：Egern JavaScript | 版本：1.3.5 | 语言：JavaScript ES module
 // 构建：node cainiao-widget/build.mjs
 // 运行：同一模块捕获实际 RPC bearer 或本人签发 token，再由 generic 独立查询
 // 依赖：core.mjs、app.mjs；不执行 APK、不调用原生签名、不在 hook 发送个人查询
@@ -20,6 +20,7 @@ const CW_OFFICIAL_RETIRED_LIMIT = 32;
 const CW_OFFICIAL_INSTALL_KEYS = ["isLargeInstall", "isMediumInstall", "isSmallInstall", "isNewSmallInstall", "isLargeV2Install"];
 const CW_OFFICIAL_RPC_KEYS = ["appName", "source", "channel", "brand", "installStatus", "version", "ext", "token", "timestamp", "lbs"];
 const CW_OFFICIAL_TYPES = ["missing", "null", "object", "array", "string", "number", "boolean", "invalid", "unread"];
+const CW_OFFICIAL_REJECT_REASONS = ["WRAPPER", "APP_NAME", "SOURCE", "CHANNEL", "BRAND", "INSTALL_STATUS", "VERSION", "EXT", "TOKEN", "TIMESTAMP", "LBS", "RPC_HEADER", "BODY"];
 const CW_OFFICIAL_STATUSES = ["waiting_token", "waiting_template", "pending", "ready", "expired", "invalid", "signed_out"];
 const CW_OFFICIAL_FAILURES = ["NONE", "INVALID_TOKEN", "QUERY_ERROR", "BUSINESS_FAILURE", "HTTP_REJECTED", "SCHEMA_INVALID", "OFFLINE", "DEADLINE", "STORAGE_UNCONFIRMED", "ACCOUNT_BLOCKED", "SIGNED_OUT"];
 const CW_OFFICIAL_CAPTURES = ["NONE", "ticket", "issued", "template", "unchanged", "anonymous", "invalid", "token_mismatch", "conflict", "signed_out", "rpc_bearer", "rpc_unrecognized", "revocation_full"];
@@ -29,6 +30,7 @@ class CwOfficialFailure extends Error {
 }
 
 function cwOfficialFail(code = "SCHEMA_INVALID") { return new CwOfficialFailure(code); }
+function cwOfficialTemplateFail(reason) { const error = cwOfficialFail(); error.rejectReason = reason; return error; }
 function cwOfficialTime(value) { return Number.isSafeInteger(value) && value > 0; }
 function cwOfficialHash(value) { return typeof value === "string" && /^[0-9a-f]{32}$/.test(value); }
 function cwOfficialNonce(now) { return md5("official:" + now + ":" + Math.random() + ":" + Math.random()); }
@@ -75,12 +77,14 @@ function cwOfficialRPCShape(body, now) {
 
 function cwOfficialShapeState(value, now) {
     if (value === null || value === undefined) return null;
+    const hasReason = cwObject(value) && Object.hasOwn(value, "rejectReason");
     const keys = ["at", "body", "argsTypes", "argsTypesCount", "argsTypeKnown", "argsObjs", "argsObjsCount", "rootExtraCount", "objectExtraCount", "fieldTypes",
-        "appNameKnown", "versionKnown", "installJSON", "installMissing", "installWrongTypes", "installExtraCount", "extJSON", "extAPI", "extV3", "extExtraCount"];
+        "appNameKnown", "versionKnown", "installJSON", "installMissing", "installWrongTypes", "installExtraCount", "extJSON", "extAPI", "extV3", "extExtraCount",
+        ...(hasReason ? ["rejectReason"] : [])];
     const count = number => Number.isSafeInteger(number) && number >= 0 && number <= 50000;
     const knownKeys = list => Array.isArray(list) && list.length <= CW_OFFICIAL_INSTALL_KEYS.length
         && list.every(key => CW_OFFICIAL_INSTALL_KEYS.includes(key)) && new Set(list).size === list.length;
-    if (!cwOfficialSameKeys(value, keys) || !cwOfficialTime(value.at) || value.at > now
+    if (!cwOfficialSameKeys(value, keys) || hasReason && !CW_OFFICIAL_REJECT_REASONS.includes(value.rejectReason) || !cwOfficialTime(value.at) || value.at > now
         || ["body", "argsTypes", "argsObjs", "installJSON", "extJSON", "extAPI"].some(key => !CW_OFFICIAL_TYPES.includes(value[key]))
         || ["argsTypesCount", "argsObjsCount"].some(key => value[key] !== null && !count(value[key]))
         || ["rootExtraCount", "objectExtraCount", "installExtraCount", "extExtraCount"].some(key => !count(value[key]))
@@ -226,9 +230,9 @@ function cwOfficialJSON(text) {
 
 function cwOfficialBodyHeaders(headers) {
     const encoding = cwAppHeaderValues(headers, "content-encoding").map(value => value.trim().toLowerCase());
-    if (encoding.some(value => value !== "identity")) throw cwOfficialFail();
+    if (encoding.some(value => value !== "identity")) throw cwOfficialTemplateFail("RPC_HEADER");
     const types = cwAppHeaderValues(headers, "content-type").map(value => value.split(";", 1)[0].trim().toLowerCase());
-    if (types.some(value => !["application/json", "text/json"].includes(value))) throw cwOfficialFail();
+    if (types.some(value => !["application/json", "text/json"].includes(value))) throw cwOfficialTemplateFail("RPC_HEADER");
 }
 
 export function cwOfficialParseBytes(raw, headers) {
@@ -257,24 +261,31 @@ function cwOfficialParseText(text, headers) {
 }
 
 function cwOfficialTemplateFields(value) {
+    if (!cwObject(value)) throw cwOfficialTemplateFail("WRAPPER");
     const hasBrand = cwObject(value) && Object.hasOwn(value, "brand");
     const keys = ["appName", "source", "channel", ...(hasBrand ? ["brand"] : []), "installStatus", "version", "ext"];
-    if (!cwOfficialSameKeys(value, keys) || value.appName !== "GUOGUO_APP" || ![1, 2].includes(value.version)
-        || !cwOfficialString(value.source, 128, false) || !cwOfficialString(value.channel, 256) || hasBrand && !cwOfficialString(value.brand, 256)
-        || !cwOfficialString(value.installStatus, 4096, false) || !cwOfficialString(value.ext, 4096, false)) throw cwOfficialFail();
-    const install = cwOfficialJSON(value.installStatus), ext = cwOfficialJSON(value.ext);
-    if (!cwOfficialSameKeys(install, CW_OFFICIAL_INSTALL_KEYS) || CW_OFFICIAL_INSTALL_KEYS.some(key => typeof install[key] !== "boolean")
-        || !cwOfficialSameKeys(ext, ["apiVersion"]) || ext.apiVersion !== "V3") throw cwOfficialFail();
+    if (Object.keys(value).some(key => !keys.includes(key))) throw cwOfficialTemplateFail("WRAPPER");
+    const checks = [["appName", "APP_NAME", value.appName === "GUOGUO_APP"], ["source", "SOURCE", cwOfficialString(value.source, 128, false)],
+        ["channel", "CHANNEL", cwOfficialString(value.channel, 256)], ...(hasBrand ? [["brand", "BRAND", cwOfficialString(value.brand, 256)]] : []),
+        ["installStatus", "INSTALL_STATUS", cwOfficialString(value.installStatus, 4096, false)], ["version", "VERSION", [1, 2].includes(value.version)],
+        ["ext", "EXT", cwOfficialString(value.ext, 4096, false)]];
+    for (const [key, reason, valid] of checks) if (!Object.hasOwn(value, key) || !valid) throw cwOfficialTemplateFail(reason);
+    let install, ext;
+    try {install = cwOfficialJSON(value.installStatus);} catch {throw cwOfficialTemplateFail("INSTALL_STATUS");}
+    if (!cwOfficialSameKeys(install, CW_OFFICIAL_INSTALL_KEYS) || CW_OFFICIAL_INSTALL_KEYS.some(key => typeof install[key] !== "boolean")) throw cwOfficialTemplateFail("INSTALL_STATUS");
+    try {ext = cwOfficialJSON(value.ext);} catch {throw cwOfficialTemplateFail("EXT");}
+    if (!cwOfficialSameKeys(ext, ["apiVersion"]) || ext.apiVersion !== "V3") throw cwOfficialTemplateFail("EXT");
     return Object.fromEntries(keys.map(key => [key, value[key]]));
 }
 
 export function cwOfficialTemplate(body) {
     if (!cwOfficialSameKeys(body, ["argsTypes", "argsObjs"]) || !Array.isArray(body.argsTypes) || body.argsTypes.length !== 1
-        || body.argsTypes[0] !== CW_OFFICIAL_ARGS_TYPE || !Array.isArray(body.argsObjs) || body.argsObjs.length !== 1) throw cwOfficialFail();
+        || body.argsTypes[0] !== CW_OFFICIAL_ARGS_TYPE || !Array.isArray(body.argsObjs) || body.argsObjs.length !== 1) throw cwOfficialTemplateFail("WRAPPER");
     const object = body.argsObjs[0], keys = ["appName", "source", "channel", "brand", "installStatus", "version", "ext", "token", "timestamp"];
-    if (!cwObject(object) || !keys.every(key => key === "brand" || Object.hasOwn(object, key)) || Object.keys(object).some(key => ![...keys, "lbs"].includes(key))
-        || !cwOfficialOpaque(object.token) || !cwOfficialTime(object.timestamp)
-        || Object.hasOwn(object, "lbs") && !cwOfficialString(object.lbs, 1024)) throw cwOfficialFail();
+    if (!cwObject(object) || Object.keys(object).some(key => ![...keys, "lbs"].includes(key))) throw cwOfficialTemplateFail("WRAPPER");
+    if (!Object.hasOwn(object, "token") || !cwOfficialOpaque(object.token)) throw cwOfficialTemplateFail("TOKEN");
+    if (!Object.hasOwn(object, "timestamp") || !cwOfficialTime(object.timestamp)) throw cwOfficialTemplateFail("TIMESTAMP");
+    if (Object.hasOwn(object, "lbs") && !cwOfficialString(object.lbs, 1024)) throw cwOfficialTemplateFail("LBS");
     const fields = Object.fromEntries(keys.slice(0, 7).filter(key => Object.hasOwn(object, key)).map(key => [key, object[key]]));
     return {token: object.token, template: cwOfficialTemplateFields(fields)};
 }
@@ -333,7 +344,7 @@ export function cwOfficialState(value, now = Date.now()) {
     try {
         const legacy = value?.version === "1.3.0", binding = value?.binding === undefined ? "uid" : value.binding;
         const retiredTokenHashes = value?.retiredTokenHashes === undefined ? [] : value.retiredTokenHashes;
-        if (!cwOfficialTime(now) || !cwObject(value) || ![CW_VERSION, "1.3.0", "1.3.1", "1.3.2", "1.3.3"].includes(value.version) || !cwOfficialHash(value.owner)
+        if (!cwOfficialTime(now) || !cwObject(value) || ![CW_VERSION, "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4"].includes(value.version) || !cwOfficialHash(value.owner)
             || !["uid", "bearer", "unbound"].includes(binding) || legacy && binding !== "uid" || !cwOfficialHashes(retiredTokenHashes)
             || !cwOfficialHash(value.generation) || !cwOfficialHash(value.revision) || !CW_OFFICIAL_STATUSES.includes(value.status)
             || !cwOfficialTime(value.at) || value.at > now || !CW_OFFICIAL_FAILURES.includes(value.failure) || !CW_OFFICIAL_CAPTURES.includes(value.captureResult)
@@ -589,8 +600,9 @@ export async function captureCainiaoOfficialRequest(ctx, clock = () => Date.now(
         cwOfficialGuard(ctx, reference, after);
         let body;
         try {body = cwOfficialParseBytes(bytes, request.headers);}
-        catch {
-            cwOfficialRecordRPC(ctx, reference, after, cwOfficialRPCShape(undefined, after));
+        catch (error) {
+            cwOfficialRecordRPC(ctx, reference, after, {...cwOfficialRPCShape(undefined, after),
+                rejectReason: CW_OFFICIAL_REJECT_REASONS.includes(error?.rejectReason) ? error.rejectReason : "BODY"});
             return {body: bytes};
         }
         const state = reference.state, shape = cwOfficialRPCShape(body, after);
@@ -598,9 +610,12 @@ export async function captureCainiaoOfficialRequest(ctx, clock = () => Date.now(
         let parsed;
         try {
             parsed = cwOfficialTemplate(body);
-            const rpc = cwAppHeaderValues(request.headers, "http-rpc-type");
-            if (rpc.some(value => value.trim() !== "JsonContent")) throw cwOfficialFail();
-        } catch {
+            try {
+                const rpc = cwAppHeaderValues(request.headers, "http-rpc-type");
+                if (rpc.some(value => value.trim() !== "JsonContent")) throw cwOfficialTemplateFail("RPC_HEADER");
+            } catch {throw cwOfficialTemplateFail("RPC_HEADER");}
+        } catch (error) {
+            shape.rejectReason = CW_OFFICIAL_REJECT_REASONS.includes(error?.rejectReason) ? error.rejectReason : "WRAPPER";
             // 同 token 的未知实际合同停止旧模板；不同 token、歧义或迟到正文没有此权限。
             if (state?.token && cwOfficialObservedTemplateToken(body) === state.token && !cwOfficialBlocked(reference, state.owner)) {
                 cwOfficialWrite(ctx, reference, {...state, template: null, templateHash: "", templateCapturedAt: null, status: "waiting_template",
@@ -775,6 +790,7 @@ function cwOfficialShapeLines(shape) {
     const types = (start, end) => CW_OFFICIAL_RPC_KEYS.slice(start, end).map((key, index) => key + "=" + shape.fieldTypes[start + index]).join("；");
     return ["RPC 固定形状：正文=" + shape.body + "；argsTypes=" + shape.argsTypes + "；已知唯一类型=" + yes(shape.argsTypeKnown)
         + "；argsObjs=" + shape.argsObjs + "；对象数量=" + (shape.argsObjsCount === null ? "未知" : shape.argsObjsCount),
+    "RPC 合同拒绝字段：" + (shape.rejectReason || "未记录"),
     "RPC 已知字段缺失：" + names(missing) + "；根额外字段=" + shape.rootExtraCount + "；对象额外字段=" + shape.objectExtraCount,
     "RPC version 类型=" + shape.fieldTypes[5] + "；是否数值 1/2=" + yes(shape.versionKnown) + "；appName 是否已知=" + yes(shape.appNameKnown),
     "RPC installStatus 类型=" + shape.fieldTypes[4] + "；JSON=" + shape.installJSON + "；缺失=" + names(shape.installMissing)

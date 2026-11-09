@@ -65,8 +65,8 @@ function nativePds(packages = [parcel()], totalPage = 1, currentPage = 1) {
     return response({api: API, ret: ["SUCCESS::成功"], data: {packages, totalPage, currentPage}});
 }
 
-test("1.3.4 保留 App 采集的四网关及本机元数据键", () => {
-    assert.equal(core.CW_VERSION, "1.3.4");
+test("1.3.5 保留 App 采集的四网关及本机元数据键", () => {
+    assert.equal(core.CW_VERSION, "1.3.5");
     assert.equal(core.CW_APP_STORE, "cainiao-widget.app.v1");
     assert.deepEqual([...app.CW_APP_HOSTS].sort(), HOSTS.slice().sort());
 });

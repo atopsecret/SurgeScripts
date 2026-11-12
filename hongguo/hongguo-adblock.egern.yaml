@@ -5,7 +5,7 @@
 # 来源：HongGuo Lite（Minis）、home-dns-adblock（abclq）；保留原作者 MIT 通知。
 # 机制：精确拒绝原模块广告/上报主机；广告与正片视频子域分开处理。
 # 差异：不拒绝 dns.alidns.com/doh.pub，不解密整个 snssdk.com。
-name: 红果短剧去广告（Egern 原生）
+name: 红果短剧去广告
 description: 78 条广告与上报规则；保留正片视频主机，不阻断主配置公共 DNS。穿山甲接口空 JSON 需要 Egern CA。
 author: skernelx · Minis · abclq
 homepage: https://github.com/atopsecret/SurgeScripts/tree/main/hongguo

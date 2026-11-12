@@ -2,7 +2,7 @@
 # Build: 无需构建
 # Run: 在 Egern 模块中导入本文件；仅处理已知明文 HTTP 接口
 # Deps: 本目录 jyjt-member.egern.js
-name: 戒烟军团客户端会员标志 · Egern
+name: 戒烟军团解锁会员
 description: 1.0.0 原生版；只改已知 SOAP 响应内原有的完整零值与空日期，HTTP 错误及 SOAP Fault 放行。
 author: Pier
 homepage: https://github.com/atopsecret/SurgeScripts/tree/main/jyjt

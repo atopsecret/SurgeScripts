@@ -1,6 +1,6 @@
-name: 菜鸟去广告（Egern 原生）
+name: 菜鸟去广告
 description: eg-native-20261108-1.2.1；九个精确主机改为 QUIC 或 UDP 443 条件，补仅识别为 UDP 的连接；缓存广告需在 App 内清理，保留原有页面与素材规则。
-author: skernelx · Kelee / 小白脸 来源
+author: skernelx 来源
 homepage: https://github.com/atopsecret/SurgeScripts
 rules:
 # 广告专用主机可直接拒绝；只按本次抓包确认的主机或广告域后缀匹配。

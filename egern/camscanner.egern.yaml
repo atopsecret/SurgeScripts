@@ -1,0 +1,29 @@
+# Engine | Egern 原生模块 | YAML / jq
+# Build: 无需构建
+# Run: 在 Egern「工具 → 模块」中导入本文件并启用 MITM
+# Deps: Egern 内置 jq；无外部 JavaScript
+# 原模块：https://yfamilys.com/module/camscanner.sgmodule
+# 原逻辑：https://raw.githubusercontent.com/NobyDa/Script/master/Surge/JS/CamScanner.js
+name: 扫描全能王 · Egern 原生
+description: 1.0.0；保留响应结构，仅改写会员到期字段；无外部脚本依赖。
+author: NobyDa · atopsecret（Egern 原生重写）
+homepage: https://github.com/atopsecret/SurgeScripts/tree/main/egern
+manual: https://github.com/atopsecret/SurgeScripts/blob/main/egern/camscanner.md
+icon: doc.viewfinder
+
+body_rewrites:
+  - response_jq:
+      match: '^https://api(?:-cs)?\.intsig\.net(?::443)?/purchase/cs/query_property(?:\?[^#\s]*)?(?![\s\S])'
+      filter: >-
+        if type != "object" then .
+        elif (.data | type) != "object" then .
+        elif (.data.psnl_vip_property | type) == "object"
+          or .data.psnl_vip_property == null then
+          .data.psnl_vip_property.expiry = "2013017600"
+        else . end
+
+mitm:
+  hostnames:
+    includes:
+      - api.intsig.net
+      - api-cs.intsig.net

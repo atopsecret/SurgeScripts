@@ -1,9 +1,10 @@
 # Egern 原生模块
 
-十个独立原生模块。响应脚本用 `export default` 异步函数，逻辑规则、本地响应和小组件采用原生 YAML，不把 Surge 脚本包进兼容壳。
+十一个独立原生模块。响应脚本用 `export default` 异步函数；扫描全能王直接用内置 jq，无外部脚本。逻辑规则、本地响应和小组件采用原生 YAML，不把 Surge 脚本包进兼容壳。
 
 ## 安装链接
 
+- [扫描全能王 1.0.0](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/egern/camscanner.egern.yaml)：原生 jq 定点改写会员到期字段，保留其他响应数据；[一键导入与说明](camscanner.md)。
 - [Apple 天气增强](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/apple-weather/apple-weather-enhancer.egern.yaml)：WeatherKit v3.1.0 天气、降水、AQI 和 FlatBuffers；参数使用原生 `env_schema`。
 - [高德地图](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.egern.yaml)：2.1.0，RT 开屏 multipart、个人页 v3、十五类页面与内嵌配置净化。
 - [京东 2.0.0](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml)：十二类接口、已知导航、精准开屏素材尺寸与原字节回退。
@@ -44,6 +45,8 @@ NAS 原 Surge 网关条件不能从当前公开 Egern 条件策略字段直接�
 ## 离线检查
 
 需要 Node.js 20+、Python 3.11+ 和 PyYAML 6。命令见[仓库说明](../README.md#离线校验)。`validate.py` 只检查本项目所用官方字段，不是 Egern 官方配置解析器。可用 `--rules-dir` 同时验证本地 Rules 仓库原生集合与原列表的逐条等价性。
+
+2026-11-12 新增扫描全能王 1.0.0：内置 jq 回归 **19/19**，公共静态 **43/43 → 47/47**；十一份原生 YAML、九个原生 JS 检查通过。原有脚本基线 **1096/1096**，浅克隆补齐现有测试所引用的历史提交后通过，未修改旧模块。新模块无外部 JS，详情及真实 jq 命令见[扫描全能王说明](camscanner.md)；手机导入、证书和 App 效果另行验收。
 
 2026-11-06 脚本回归 **340/340**，其中 Surge 77 项、原生 263 项；公共静态测试 **17/17**。七个 YAML、六个原生 JS 和 9,980 条公共规则条件检查通过。红果不需要响应脚本，其 78 条条件及 Map Local 边界由静态测试覆盖。
 

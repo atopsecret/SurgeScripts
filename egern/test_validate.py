@@ -20,10 +20,62 @@ ROOT = file.resolve().parents[1]
 
 class ValidationTests(unittest.TestCase):
     def test_all_native_modules(self):
-        self.assertEqual(len(validator.MODULES), 10)
+        self.assertEqual(len(validator.MODULES), 11)
         for path in validator.MODULES:
             with self.subTest(path=path):
                 validator.validate_module(ROOT / path, ROOT)
+
+    def validate_body_rewrite_fixture(self, rewrites):
+        module = {
+            "name": "消息体重写合同夹具", "description": "本地合成配置",
+            "author": "fixture", "homepage": "https://github.com/atopsecret/SurgeScripts",
+            "body_rewrites": rewrites,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "body-rewrite.yaml"
+            path.write_text(validator.yaml.safe_dump(module, allow_unicode=True), encoding="utf-8")
+            return validator.validate_module(path, ROOT)
+
+    def test_response_jq_native_fields_accepted(self):
+        self.assertEqual(self.validate_body_rewrite_fixture([]), set())
+        for disabled in [None, True, False]:
+            body = {"match": "^https://example\\.invalid/", "filter": ".data.value = 1"}
+            if disabled is not None:
+                body["disabled"] = disabled
+            with self.subTest(disabled=disabled):
+                self.assertEqual(self.validate_body_rewrite_fixture([{"response_jq": body}]), set())
+
+    def test_body_rewrites_invalid_array_and_entry_shapes_rejected(self):
+        for rewrites in [None, {}, "fixture", [None], ["fixture"], [{}],
+                         [{"response_jq": None}], [{"response_jq": []}],
+                         [{"response_jq": {}, "request_jq": {}}]]:
+            with self.subTest(rewrites=rewrites), self.assertRaises(ValueError):
+                self.validate_body_rewrite_fixture(rewrites)
+
+    def test_response_jq_unknown_types_and_fields_rejected(self):
+        body = {"match": "^https://example\\.invalid/", "filter": "."}
+        for kind in ["http_response", "response_regex", "request_jq", "unknown"]:
+            with self.subTest(kind=kind), self.assertRaises(ValueError):
+                self.validate_body_rewrite_fixture([{kind: body}])
+        for field in ["body_required", "requires-body", "script_url", "max_size", "find"]:
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                self.validate_body_rewrite_fixture([{"response_jq": dict(body, **{field: True})}])
+
+    def test_response_jq_invalid_match_filter_and_disabled_rejected(self):
+        original = {"match": "^https://example\\.invalid/", "filter": "."}
+        for field, values in {
+            "match": [None, 1, False, "", "("],
+            "filter": [None, 1, False, "", "  \n"],
+            "disabled": [None, "true", 0, 1, []],
+        }.items():
+            for value in values:
+                with self.subTest(field=field, value=value), self.assertRaises((ValueError, re.error)):
+                    self.validate_body_rewrite_fixture([{"response_jq": dict(original, **{field: value})}])
+        for field in ["match", "filter"]:
+            body = dict(original)
+            del body[field]
+            with self.subTest(missing=field), self.assertRaises(ValueError):
+                self.validate_body_rewrite_fixture([{"response_jq": body}])
 
     def validate_widget_fixture(self, widgets, scriptings=None):
         module = {

@@ -1,6 +1,6 @@
 # SurgeScripts
 
-Surge 与 Egern 去广告模块、蔚来自动签到脚本、Apple 天气增强及菜鸟取件小组件。十个模块提供独立 Egern 原生版本；各模块可以单独安装，不需要替换整份客户端配置。
+Surge 与 Egern 去广告模块、蔚来自动签到脚本、Apple 天气增强、菜鸟取件小组件及扫描全能王会员到期字段重写。十一个模块提供独立 Egern 原生版本；各模块可以单独安装，不需要替换整份客户端配置。
 
 当前仓库：[atopsecret/SurgeScripts](https://github.com/atopsecret/SurgeScripts)。安装入口使用 `main`；蔚来 Egern 脚本固定到完整提交地址。
 
@@ -8,6 +8,8 @@ Surge 与 Egern 去广告模块、蔚来自动签到脚本、Apple 天气增强�
 
 ## 模块索引
 
+- **扫描全能王 1.0.0（Egern 原生）**：使用内置 jq 定点改写会员到期字段，保留其他响应数据，无外部脚本依赖。
+  [一键导入与使用说明](egern/camscanner.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/egern/camscanner.egern.yaml)
 - **Apple 天气增强 1.0.0（Egern）**：基于 WeatherKit v3.1.0 的可用数据集、天气替换、降水补充和 AQI 算法；原生入口与二进制响应处理。
   [使用说明](apple-weather/README.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/apple-weather/apple-weather-enhancer.egern.yaml)
 - **高德地图 2.1.0**：保留 RT 开屏，修复个人页 v3；十五类页面与内嵌配置定点净化。
@@ -29,7 +31,7 @@ Surge 与 Egern 去广告模块、蔚来自动签到脚本、Apple 天气增强�
 - **蔚来自动签到（Surge 2.1.6 / Egern 3.2.0）**：保存已知接口的登录凭据，每日 09:00 使用它签到；成功通知简短并带表情。Egern 在累计缺失时先做一次有上限的同接口 POST 统计复查，再统一通知；保留当日观察和精简凭据提醒。
   [使用说明](weilai/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/weilai/weilai-auto-checkin.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/weilai/weilai-auto-checkin.egern.yaml?v=3.2.0)
 
-Egern 使用 `.egern.yaml` 和对应原生脚本，不直接运行 Surge 全局变量脚本。完整安装索引、转换差异与验证边界见 [Egern 说明](egern/README.md)。
+Egern 使用 `.egern.yaml` 和对应原生脚本；扫描全能王直接使用内置 jq，不加载 JavaScript。原生版不运行 Surge 全局变量脚本。完整安装索引、转换差异与验证边界见 [Egern 说明](egern/README.md)。
 
 ## 安装、更新与旧账号迁移
 
@@ -105,7 +107,11 @@ node --experimental-vm-modules --test --test-reporter=tap \
 ```sh
 python3 egern/validate.py
 python3 -m unittest discover -s egern -p test_validate.py -v
+# 扫描全能王的实际 jq 回归另需 jq 1.6+
+python3 -m unittest discover -s egern -p test_camscanner.py -v
 ```
+
+2026-11-12 扫描全能王 1.0.0：本模块 **19/19**，公共静态 **43/43 → 47/47**，合并发现 **66/66**；原有脚本 **1096/1096 → 1096/1096**。十一份原生模块和九个原生脚本检查通过；新模块只有一个 YAML、无外部 JS。手机端导入、证书信任及 App 实际效果待验收，见[模块说明](egern/camscanner.md)。
 
 Egern 的 `.egern.js` 是 ES module，单文件语法检查使用 `node --input-type=module --check < 文件名`。上述检查不执行模块业务请求，也不调用真实签到。
 

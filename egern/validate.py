@@ -3,7 +3,7 @@
 # 构建：无需编译
 # 运行：python3 egern/validate.py [--rules-dir RULES_DIRECTORY]
 # 依赖：PyYAML 6、Node.js 20+；不联网，不调用客户端或业务 API
-"""检查十个原生模块字段、正则、脚本引用和可选公共规则目录。
+"""检查十一个原生模块字段、正则、脚本引用和可选公共规则目录。
 
 范围是本项目实际使用的官方文档字段，不伪装成 Egern 官方解析器。
 只读本地文件；不加载私人配置、不执行脚本业务，不证明手机运行可用。
@@ -33,6 +33,7 @@ MODULES = (
     "apple-weather/apple-weather-enhancer.egern.yaml",
     "cainiao/cainiao-adblock.egern.yaml",
     "cainiao-widget/cainiao-widget.egern.yaml",
+    "egern/camscanner.egern.yaml",
 )
 META = {"name", "description", "author", "homepage", "manual", "icon", "open_url"}
 RULE_TYPES = {"domain", "domain_suffix", "domain_keyword", "domain_regex", "domain_wildcard", "geoip", "ip_cidr", "ip_cidr6", "asn", "url_regex", "user_agent", "dest_port", "protocol", "ssid", "bssid", "cellular"}
@@ -114,7 +115,7 @@ def script_path(url: str, root: Path) -> Path:
 def validate_module(path: Path, root: Path) -> set[Path]:
     module = load(path)
     require(isinstance(module, dict), "模块根必须为映射")
-    require(not set(module) - META - {"rules", "scriptings", "map_locals", "mitm", "env_schema", "widgets"}, "模块根含非本项目所用官方字段")
+    require(not set(module) - META - {"rules", "scriptings", "map_locals", "body_rewrites", "mitm", "env_schema", "widgets"}, "模块根含非本项目所用官方字段")
     for key in META & set(module):
         require(isinstance(module[key], str) and bool(module[key]), "模块元数据必须为非空字符串")
     for key in ("name", "description", "author", "homepage"):
@@ -135,6 +136,19 @@ def validate_module(path: Path, root: Path) -> set[Path]:
                     require(descriptor["default_value"] in options, "本项目枚举默认值须包含在 options 中")
     for item in module.get("rules", []):
         validate_rule(item)
+    # 本项目当前只使用官方响应 jq 类型；不猜测其它重写字段。
+    # 来源：https://egernapp.com/docs/configuration/body_rewrites/
+    rewrites = module.get("body_rewrites", [])
+    require(isinstance(rewrites, list), "body_rewrites 必须为数组")
+    for item in rewrites:
+        require(isinstance(item, dict) and len(item) == 1, "消息体重写必须只有一个类型键")
+        kind, body = next(iter(item.items()))
+        require(kind == "response_jq" and isinstance(body, dict), "非本项目所用原生响应 jq 类型")
+        require(not set(body) - {"match", "filter", "disabled"}, "响应 jq 含非文档字段")
+        regex(body.get("match"))
+        require(isinstance(body.get("filter"), str) and bool(body["filter"].strip()), "响应 jq filter 必须为非空字符串")
+        if "disabled" in body:
+            require(type(body["disabled"]) is bool, "响应 jq disabled 必须为布尔值")
     for item in module.get("map_locals", []):
         require(isinstance(item, dict) and not set(item) - {"match", "status_code", "headers", "body"}, "Map Local 含非文档字段")
         regex(item.get("match"))

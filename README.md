@@ -8,7 +8,7 @@ Surge 与 Egern 去广告模块、蔚来自动签到脚本、Apple 天气增强�
 
 ## 模块索引
 
-- **扫描全能王 1.0.0（Egern 原生）**：使用内置 jq 定点改写会员到期字段，保留其他响应数据，无外部脚本依赖。
+- **扫描全能王 1.0.1（Egern 原生）**：会员到期时间改为北京时间 2099 年末；使用内置 jq 定点改写，保留其他响应数据，无外部脚本依赖。
   [一键导入与使用说明](camscanner/README.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/camscanner/camscanner.egern.yaml)
 - **Apple 天气增强 1.0.0（Egern）**：基于 WeatherKit v3.1.0 的可用数据集、天气替换、降水补充和 AQI 算法；原生入口与二进制响应处理。
   [使用说明](apple-weather/README.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/apple-weather/apple-weather-enhancer.egern.yaml)

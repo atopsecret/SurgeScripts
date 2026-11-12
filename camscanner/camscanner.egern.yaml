@@ -3,7 +3,7 @@
 # Run: 在 Egern「工具 → 模块」中导入本文件并启用 MITM
 # Deps: Egern 内置 jq；无外部 JavaScript
 name: 扫描全能王
-description: 1.0.0；保留响应结构，仅改写会员到期字段；无外部脚本依赖。
+description: 1.0.1；会员到期至北京时间2099-12-31 23:59:59；保留响应结构；无外部脚本依赖。
 author: NobyDa · atopsecret（Egern 原生重写）
 homepage: https://github.com/atopsecret/SurgeScripts/tree/main/camscanner
 manual: https://github.com/atopsecret/SurgeScripts/blob/main/camscanner/README.md
@@ -17,7 +17,7 @@ body_rewrites:
         elif (.data | type) != "object" then .
         elif (.data.psnl_vip_property | type) == "object"
           or .data.psnl_vip_property == null then
-          .data.psnl_vip_property.expiry = "2013017600"
+          .data.psnl_vip_property.expiry = "4102415999"
         else . end
 
 mitm:

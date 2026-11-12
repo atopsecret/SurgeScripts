@@ -4,7 +4,7 @@
 
 ## 安装链接
 
-- [扫描全能王 1.0.0](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/camscanner/camscanner.egern.yaml)：原生 jq 定点改写会员到期字段，保留其他响应数据；[一键导入与说明](../camscanner/README.md)。
+- [扫描全能王 1.0.1](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/camscanner/camscanner.egern.yaml)：会员到期改为北京时间 2099 年末；原生 jq 定点改写并保留其他响应数据；[一键导入与说明](../camscanner/README.md)。
 - [Apple 天气增强](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/apple-weather/apple-weather-enhancer.egern.yaml)：WeatherKit v3.1.0 天气、降水、AQI 和 FlatBuffers；参数使用原生 `env_schema`。
 - [高德地图](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.egern.yaml)：2.1.0，RT 开屏 multipart、个人页 v3、十五类页面与内嵌配置净化。
 - [京东 2.0.0](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jd/jd-adblock.egern.yaml)：十二类接口、已知导航、精准开屏素材尺寸与原字节回退。

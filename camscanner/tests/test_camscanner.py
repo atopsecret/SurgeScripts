@@ -5,6 +5,7 @@
 """执行模块里的真实 jq 表达式，不用 Python 实现冒充 Egern 重写。"""
 
 import copy
+from datetime import datetime
 import importlib.util
 import json
 from pathlib import Path
@@ -13,6 +14,7 @@ import shutil
 import subprocess
 import unittest
 from urllib.parse import parse_qs, urlsplit
+from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[2]
 VALIDATOR_FILE = ROOT / "egern/validate.py"
@@ -21,7 +23,7 @@ validator = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(validator)
 MODULE_PATH = ROOT / "camscanner/camscanner.egern.yaml"
 MODULE_URL = "https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/camscanner/camscanner.egern.yaml"
-EXPIRY = "2013017600"
+EXPIRY = "4102415999"
 
 
 class CamScannerTests(unittest.TestCase):
@@ -54,14 +56,22 @@ class CamScannerTests(unittest.TestCase):
         self.assertEqual(set(self.rule), {"match", "filter"})
 
     def test_metadata_and_source_attribution(self):
-        self.assertIn("1.0.0", self.module["description"])
+        self.assertIn("1.0.1", self.module["description"])
         self.assertIn("保留响应结构", self.module["description"])
         self.assertIn("NobyDa", self.module["author"])
-        source = MODULE_PATH.read_text(encoding="utf-8")
+        source = (ROOT / "camscanner/README.md").read_text(encoding="utf-8")
         self.assertIn("https://yfamilys.com/module/camscanner.sgmodule", source)
         self.assertIn("https://raw.githubusercontent.com/NobyDa/Script/master/Surge/JS/CamScanner.js", source)
         self.assertEqual(self.module["manual"], "https://github.com/atopsecret/SurgeScripts/blob/main/camscanner/README.md")
         self.assertTrue((ROOT / "camscanner/README.md").is_file())
+
+    def test_expiry_is_last_second_of_2099_in_shanghai(self):
+        output = self.rewrite({"data": {"psnl_vip_property": {"expiry": "0"}}})
+        expiry = output["data"]["psnl_vip_property"]["expiry"]
+        self.assertIsInstance(expiry, str)
+        self.assertEqual(expiry, "4102415999")
+        date = datetime.fromtimestamp(int(expiry), tz=ZoneInfo("Asia/Shanghai"))
+        self.assertEqual(date.isoformat(), "2099-12-31T23:59:59+08:00")
 
     def test_module_assets_use_one_independent_directory(self):
         self.assertEqual(MODULE_PATH.parent, ROOT / "camscanner")
@@ -111,7 +121,7 @@ class CamScannerTests(unittest.TestCase):
         self.assertNotRegex("prefix " + base, self.pattern)
         self.assertNotRegex("https://api.intsig.net/other/purchase/cs/query_property", self.pattern)
 
-    def test_minimal_original_response_keeps_the_original_string_value(self):
+    def test_minimal_response_uses_the_configured_string_expiry(self):
         payload = {"data": {"psnl_vip_property": {"expiry": "0"}}}
         output = self.rewrite(payload)
         self.assertEqual(output, {"data": {"psnl_vip_property": {"expiry": EXPIRY}}})

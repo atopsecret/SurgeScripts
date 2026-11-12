@@ -1,14 +1,16 @@
-# 扫描全能王 · Egern 原生 1.0.0
+# 扫描全能王 · Egern 原生 1.0.1
 
 完整重写为 Egern 原生 YAML，使用内置 jq 定点处理 JSON。只有一个模块文件，不加载 NobyDa 的远程脚本，也不依赖 Surge 兼容 API。
 
 ## 直接安装
 
-- [一键导入 Egern](egern:/modules/new?name=%E6%89%AB%E6%8F%8F%E5%85%A8%E8%83%BD%E7%8E%8B%20%C2%B7%20Egern%20%E5%8E%9F%E7%94%9F&url=https%3A%2F%2Fraw.githubusercontent.com%2Fatopsecret%2FSurgeScripts%2Fmain%2Fcamscanner%2Fcamscanner.egern.yaml)
+- [一键导入 Egern](egern:/modules/new?name=%E6%89%AB%E6%8F%8F%E5%85%A8%E8%83%BD%E7%8E%8B&url=https%3A%2F%2Fraw.githubusercontent.com%2Fatopsecret%2FSurgeScripts%2Fmain%2Fcamscanner%2Fcamscanner.egern.yaml)
 - [模块直链](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/camscanner/camscanner.egern.yaml)
 - [查看模块源码](camscanner.egern.yaml)
 
 也可以在 Egern「工具 → 模块 → 添加」中粘贴模块直链。适用于支持原生 `body_rewrites.response_jq` 的 Egern。
+
+已安装的模块手动更新一次，描述显示 **1.0.1** 且到期日期为 **2099-12-31** 即为当前资源；更新后重新打开扫描全能王触发属性查询。
 
 1. 停用处理同一接口的旧兼容模块，再启用本模块。
 2. 开启 Egern HTTPS 解密；安装并信任 Egern 当前 CA。已经安装且信任当前 CA 的设备不用重复安装。
@@ -17,15 +19,17 @@
 
 模块仅追加解密主机，不携带证书、节点、账户信息或登录凭据，不替换整份主配置。
 
-## 保留的原功能
+## 会员到期时间
 
-[原 Surge 模块](https://yfamilys.com/module/camscanner.sgmodule) 活动引用的 [NobyDa 脚本](https://raw.githubusercontent.com/NobyDa/Script/master/Surge/JS/CamScanner.js) 实际只输出一个会员到期字段：
+**1.0.1 将会员到期时间改为北京时间 2099-12-31 23:59:59**，写入值为 Unix 秒字符串：
 
 ```text
-data.psnl_vip_property.expiry = "2013017600"
+data.psnl_vip_property.expiry = "4102415999"
 ```
 
-本版保持这个值及其字符串类型。它是 **2033-10-15 19:33:20 UTC**，不是 2099 年或永不过期。原脚本没有会员等级、云端配额或服务端权限的处理，本版也没有虚构这些功能。
+这个值对应 UTC `2099-12-31 15:59:59`。保持接口原有字符串类型，不把秒误写为毫秒；其他响应字段及匹配规则不变。
+
+之前显示 2033 年，是因为 [原 Surge 模块](https://yfamilys.com/module/camscanner.sgmodule) 引用的 [NobyDa 脚本](https://raw.githubusercontent.com/NobyDa/Script/master/Surge/JS/CamScanner.js) 写死 `"2013017600"`，即 `2033-10-15 19:33:20 UTC`，初版沿用了它。当前版本按用户要求只调整到期值，原脚本之外的会员等级和云端配额逻辑不变。
 
 仅匹配两个精确 HTTPS 主机：
 
@@ -60,6 +64,8 @@ python3 -m unittest discover -s camscanner/tests -p test_camscanner.py -v
 [模块回归](tests/test_camscanner.py)实际执行 YAML 内的 jq 表达式，覆盖字段保留、缺失值、未知类型、幂等、单输入单输出、URL 边界和导入链接。公共校验器仍是本仓库的字段检查器，不是 Egern 官方解析器。
 
 2026-11-12 按仓库规范迁入独立目录后，本模块回归 **19/19 → 20/20**（新增目录布局检查），公共静态 **47/47**，原有脚本 **1096/1096**；十一份原生 YAML、九个原生 JS 检查通过。迁移前后的改写规则和 MITM 结构完全一致。初次独立复核另通过 43 个 JSON 和 39 个 URL 边界样例。以上是离线结果，不是手机端验收。
+
+1.0.1 到期调整回归：本模块 **21/21**，公共静态 **47/47**，原有脚本 **1096/1096**。新增检查从真实 jq 输出解读 `4102415999`，确认是北京时间 **2099-12-31 23:59:59**，且字段仍为秒级字符串。
 
 ## 来源与格式依据
 

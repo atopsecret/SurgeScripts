@@ -1,6 +1,6 @@
-name: 拼多多去广告（Egern 原生）
+name: 拼多多去广告
 description: eg-native-20261105-r1；原生页面净化、开屏空响应和 UA 双条件素材拦截；单域 QUIC 阻断，不封锁整个商品图片 CDN。
-author: skernelx · FFDNS · RuCu6 · ZenmoFeiShi
+author: skernelx
 homepage: https://github.com/atopsecret/SurgeScripts/tree/main/pinduoduo
 # 来源与范围见本目录 README；不修改主配置 DNS、IPv6 或全局 QUIC。
 rules:

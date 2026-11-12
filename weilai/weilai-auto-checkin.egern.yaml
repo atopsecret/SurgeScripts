@@ -2,7 +2,7 @@
 # Build: 无需构建
 # Run: 在 Egern 模块中导入；信任 Egern CA；打开蔚来 App 重新捕获凭据
 # Deps: 本目录 weilai-auto-checkin.egern.js；凭据只在 Egern 本地存储
-name: 蔚来自动签到 · Egern
+name: 蔚来自动签到
 description: 3.2.0 原生版；先保存签到成功，累计缺失时复查一次，补齐统计后统一通知；保留凭据捕获修复、当日统计观察与只读诊断，四入口固定同一脚本提交。
 author: atopsecret（Surge 原版 skernelx）
 homepage: https://github.com/atopsecret/SurgeScripts/tree/main/weilai

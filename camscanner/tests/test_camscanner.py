@@ -1,6 +1,6 @@
 # 引擎：Egern 原生 jq 离线回归 | 语言：Python 3.11+
 # 构建：无需编译
-# 运行：python3 -m unittest discover -s egern -p test_camscanner.py -v
+# 运行：python3 -m unittest discover -s camscanner/tests -p test_camscanner.py -v
 # 依赖：PyYAML 6、jq 1.6+；仅使用本地合成 JSON，不发送业务请求
 """执行模块里的真实 jq 表达式，不用 Python 实现冒充 Egern 重写。"""
 
@@ -14,13 +14,13 @@ import subprocess
 import unittest
 from urllib.parse import parse_qs, urlsplit
 
-VALIDATOR_FILE = Path(__file__).with_name("validate.py")
+ROOT = Path(__file__).resolve().parents[2]
+VALIDATOR_FILE = ROOT / "egern/validate.py"
 SPEC = importlib.util.spec_from_file_location("camscanner_validator", VALIDATOR_FILE)
 validator = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(validator)
-ROOT = VALIDATOR_FILE.resolve().parents[1]
-MODULE_PATH = ROOT / "egern/camscanner.egern.yaml"
-MODULE_URL = "https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/egern/camscanner.egern.yaml"
+MODULE_PATH = ROOT / "camscanner/camscanner.egern.yaml"
+MODULE_URL = "https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/camscanner/camscanner.egern.yaml"
 EXPIRY = "2013017600"
 
 
@@ -60,8 +60,22 @@ class CamScannerTests(unittest.TestCase):
         source = MODULE_PATH.read_text(encoding="utf-8")
         self.assertIn("https://yfamilys.com/module/camscanner.sgmodule", source)
         self.assertIn("https://raw.githubusercontent.com/NobyDa/Script/master/Surge/JS/CamScanner.js", source)
-        self.assertEqual(self.module["manual"], "https://github.com/atopsecret/SurgeScripts/blob/main/egern/camscanner.md")
-        self.assertTrue((ROOT / "egern/camscanner.md").is_file())
+        self.assertEqual(self.module["manual"], "https://github.com/atopsecret/SurgeScripts/blob/main/camscanner/README.md")
+        self.assertTrue((ROOT / "camscanner/README.md").is_file())
+
+    def test_module_assets_use_one_independent_directory(self):
+        self.assertEqual(MODULE_PATH.parent, ROOT / "camscanner")
+        self.assertEqual(self.module["homepage"], "https://github.com/atopsecret/SurgeScripts/tree/main/camscanner")
+        self.assertIn("camscanner/camscanner.egern.yaml", validator.MODULES)
+        for relative in ["README.md", "方案.md", "tasks.md", "tests/test_camscanner.py"]:
+            with self.subTest(relative=relative):
+                self.assertTrue((MODULE_PATH.parent / relative).is_file())
+        for old_name in ["camscanner.egern.yaml", "camscanner.md", "test_camscanner.py"]:
+            with self.subTest(old_name=old_name):
+                self.assertFalse((ROOT / "egern" / old_name).exists())
+        for index in [ROOT / "README.md", ROOT / "egern/README.md"]:
+            with self.subTest(index=index):
+                self.assertIn(MODULE_URL, index.read_text(encoding="utf-8"))
 
     def test_mitm_is_limited_to_the_two_target_hosts(self):
         self.assertEqual(self.module["mitm"], {"hostnames": {"includes": [
@@ -182,7 +196,7 @@ class CamScannerTests(unittest.TestCase):
                     self.assertNotEqual(result.returncode, 0)
 
     def test_one_click_import_link_points_to_the_published_module(self):
-        guide = (ROOT / "egern/camscanner.md").read_text(encoding="utf-8")
+        guide = (ROOT / "camscanner/README.md").read_text(encoding="utf-8")
         match = re.search(r"\]\((egern:/modules/new\?[^\s)]+)\)", guide)
         self.assertIsNotNone(match)
         parsed = urlsplit(match.group(1))

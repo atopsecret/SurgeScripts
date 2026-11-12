@@ -4,8 +4,8 @@
 
 ## 直接安装
 
-- [一键导入 Egern](egern:/modules/new?name=%E6%89%AB%E6%8F%8F%E5%85%A8%E8%83%BD%E7%8E%8B%20%C2%B7%20Egern%20%E5%8E%9F%E7%94%9F&url=https%3A%2F%2Fraw.githubusercontent.com%2Fatopsecret%2FSurgeScripts%2Fmain%2Fegern%2Fcamscanner.egern.yaml)
-- [模块直链](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/egern/camscanner.egern.yaml)
+- [一键导入 Egern](egern:/modules/new?name=%E6%89%AB%E6%8F%8F%E5%85%A8%E8%83%BD%E7%8E%8B%20%C2%B7%20Egern%20%E5%8E%9F%E7%94%9F&url=https%3A%2F%2Fraw.githubusercontent.com%2Fatopsecret%2FSurgeScripts%2Fmain%2Fcamscanner%2Fcamscanner.egern.yaml)
+- [模块直链](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/camscanner/camscanner.egern.yaml)
 - [查看模块源码](camscanner.egern.yaml)
 
 也可以在 Egern「工具 → 模块 → 添加」中粘贴模块直链。适用于支持原生 `body_rewrites.response_jq` 的 Egern。
@@ -54,12 +54,12 @@ api-cs.intsig.net
 ```sh
 python3 egern/validate.py
 python3 -m unittest discover -s egern -p test_validate.py -v
-python3 -m unittest discover -s egern -p test_camscanner.py -v
+python3 -m unittest discover -s camscanner/tests -p test_camscanner.py -v
 ```
 
-[模块回归](test_camscanner.py)实际执行 YAML 内的 jq 表达式，覆盖字段保留、缺失值、未知类型、幂等、单输入单输出、URL 边界和导入链接。公共校验器仍是本仓库的字段检查器，不是 Egern 官方解析器。
+[模块回归](tests/test_camscanner.py)实际执行 YAML 内的 jq 表达式，覆盖字段保留、缺失值、未知类型、幂等、单输入单输出、URL 边界和导入链接。公共校验器仍是本仓库的字段检查器，不是 Egern 官方解析器。
 
-2026-11-12 本模块回归 **19/19**，公共静态 **43/43 → 47/47**；十一份原生 YAML、九个原生 JS 字段和语法检查通过。独立复核另通过 43 个 JSON 语义样例和 39 个 URL 边界样例。以上是离线结果，不是手机端验收。
+2026-11-12 按仓库规范迁入独立目录后，本模块回归 **19/19 → 20/20**（新增目录布局检查），公共静态 **47/47**，原有脚本 **1096/1096**；十一份原生 YAML、九个原生 JS 检查通过。迁移前后的改写规则和 MITM 结构完全一致。初次独立复核另通过 43 个 JSON 和 39 个 URL 边界样例。以上是离线结果，不是手机端验收。
 
 ## 来源与格式依据
 

@@ -33,7 +33,7 @@ MODULES = (
     "apple-weather/apple-weather-enhancer.egern.yaml",
     "cainiao/cainiao-adblock.egern.yaml",
     "cainiao-widget/cainiao-widget.egern.yaml",
-    "egern/camscanner.egern.yaml",
+    "camscanner/camscanner.egern.yaml",
 )
 META = {"name", "description", "author", "homepage", "manual", "icon", "open_url"}
 RULE_TYPES = {"domain", "domain_suffix", "domain_keyword", "domain_regex", "domain_wildcard", "geoip", "ip_cidr", "ip_cidr6", "asn", "url_regex", "user_agent", "dest_port", "protocol", "ssid", "bssid", "cellular"}

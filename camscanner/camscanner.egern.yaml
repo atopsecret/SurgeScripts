@@ -7,8 +7,8 @@
 name: 扫描全能王 · Egern 原生
 description: 1.0.0；保留响应结构，仅改写会员到期字段；无外部脚本依赖。
 author: NobyDa · atopsecret（Egern 原生重写）
-homepage: https://github.com/atopsecret/SurgeScripts/tree/main/egern
-manual: https://github.com/atopsecret/SurgeScripts/blob/main/egern/camscanner.md
+homepage: https://github.com/atopsecret/SurgeScripts/tree/main/camscanner
+manual: https://github.com/atopsecret/SurgeScripts/blob/main/camscanner/README.md
 icon: doc.viewfinder
 
 body_rewrites:

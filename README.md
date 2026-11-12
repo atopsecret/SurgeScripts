@@ -9,7 +9,7 @@ Surge 与 Egern 去广告模块、蔚来自动签到脚本、Apple 天气增强�
 ## 模块索引
 
 - **扫描全能王 1.0.0（Egern 原生）**：使用内置 jq 定点改写会员到期字段，保留其他响应数据，无外部脚本依赖。
-  [一键导入与使用说明](egern/camscanner.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/egern/camscanner.egern.yaml)
+  [一键导入与使用说明](camscanner/README.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/camscanner/camscanner.egern.yaml)
 - **Apple 天气增强 1.0.0（Egern）**：基于 WeatherKit v3.1.0 的可用数据集、天气替换、降水补充和 AQI 算法；原生入口与二进制响应处理。
   [使用说明](apple-weather/README.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/apple-weather/apple-weather-enhancer.egern.yaml)
 - **高德地图 2.1.0**：保留 RT 开屏，修复个人页 v3；十五类页面与内嵌配置定点净化。
@@ -108,10 +108,10 @@ node --experimental-vm-modules --test --test-reporter=tap \
 python3 egern/validate.py
 python3 -m unittest discover -s egern -p test_validate.py -v
 # 扫描全能王的实际 jq 回归另需 jq 1.6+
-python3 -m unittest discover -s egern -p test_camscanner.py -v
+python3 -m unittest discover -s camscanner/tests -p test_camscanner.py -v
 ```
 
-2026-11-12 扫描全能王 1.0.0：本模块 **19/19**，公共静态 **43/43 → 47/47**，合并发现 **66/66**；原有脚本 **1096/1096 → 1096/1096**。十一份原生模块和九个原生脚本检查通过；新模块只有一个 YAML、无外部 JS。手机端导入、证书信任及 App 实际效果待验收，见[模块说明](egern/camscanner.md)。
+2026-11-12 扫描全能王 1.0.0：按仓库规范使用独立 `camscanner/`，模块资料及专属测试集中管理，公共目录只留索引与校验。本模块 **19/19 → 20/20**，公共静态 **47/47**，Python 合计 **67/67**；原有脚本 **1096/1096 → 1096/1096**。十一份原生模块和九个原生脚本检查通过，改写规则与 MITM 结构保持不变；模块仍只有一个 YAML、无外部 JS。手机端验收见[模块说明](camscanner/README.md)。
 
 Egern 的 `.egern.js` 是 ES module，单文件语法检查使用 `node --input-type=module --check < 文件名`。上述检查不执行模块业务请求，也不调用真实签到。
 

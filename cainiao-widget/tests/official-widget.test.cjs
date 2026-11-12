@@ -460,9 +460,13 @@ test("待取摘要严格筛数值 900，不退回字符串900、在途或任意�
 
 test("正计数但没有可用待取摘要仍保留件数，不能写成没有待取", async () => {
     for (const items of [[], [item({logisticsStatus: 10101})], [item({logisticsStatusSimpleDesc: ""})]]) {
-        const {model} = await connected({items, total: 5});
-        assert.equal(model.total, 5); assert.deepEqual(model.items, []); assert.match(model.message, /摘要未提供/);
-        assert(!/没有待取|暂无待取|没有包裹/.test(model.message));
+        const {f, model} = await connected({items, total: 5});
+        assert.equal(model.total, 5); assert.deepEqual(model.items, []); assert.equal(model.message, "");
+        for (const family of ["systemSmall", "systemMedium", "systemLarge", "systemExtraLarge", "accessoryCircular", "accessoryRectangular", "accessoryInline"]) {
+            const widget = JSON.stringify(render.renderWidget(model, family, f.clock()));
+            assert.match(widget, /暂无包裹详情/, family);
+            assert.doesNotMatch(widget, /暂无待取|没有待取|官方|摘要/, family);
+        }
     }
 });
 
@@ -817,7 +821,7 @@ test("缺失或 null 摘要列表及描述只保留官方真实计数，不伪�
         else info.packageItemInfoList[0].logisticsStatusSimpleDesc = null;
         f.replies.push(response(body)); const model = await load(f); assertReady(model);
         assert.equal(model.total, 5, missing); assert.deepEqual(model.items, [], missing);
-        assert.match(model.message, /摘要未提供/); assert(!/没有待取|暂无待取|没有包裹/.test(model.message));
+        assert.equal(model.message, "");
         assert.equal(saved(f).snapshot.total, 5); assert.deepEqual(saved(f).snapshot.items, []);
         assert.equal(saved(f).successCount, 1); assert.equal(posts(f).length, 1); assertNewPost(posts(f)[0]);
     }
@@ -829,7 +833,7 @@ test("非数组的未知摘要列表结构拒绝，不能当作成功空列表",
         f.replies.push(queryReply({items: unknown, total: 5})); const model = await load(f);
         assert.equal(model.status, "error"); assert.equal(model.updatedAt, null); assert.deepEqual(model.items, []);
         assert.equal(saved(f).failure, "SCHEMA_INVALID"); assert.equal(saved(f).successCount, 0); assert.equal(saved(f).snapshot, null);
-        assert.equal(posts(f).length, 1); assert.match(model.message, /结构未确认/);
+        assert.equal(posts(f).length, 1); assert.equal(model.message, "暂时查不到包裹");
         assert(!memoryJSON(f).includes("synthetic-unknown-list-private")); assertNoPrivateLines(f);
     }
 });

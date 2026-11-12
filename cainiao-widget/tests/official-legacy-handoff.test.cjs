@@ -83,7 +83,7 @@ test("旧 H5 屏障下未知 RPC 仅保留固定 shape，屏障逐字不变且�
     await capture(f, template({version: "synthetic-private-version", syntheticUnknown: "synthetic-private-value"}));
     assert.equal(state(f)?.binding, "unbound"); assert.equal(state(f).token, ""); assert.equal(state(f).snapshot, null);
     assert.equal(JSON.stringify(barrier(f)), previous); assert.deepEqual(f.memory.get(core.CW_AUTH_STORE), oldAuth);
-    const model = await load(f); assert.equal(model.status, "setup"); assert.match(model.message, /正文合同尚未接受/); assert.equal(f.requests.length, 0);
+    const model = await load(f); assert.equal(model.status, "setup"); assert.equal(model.setupTitle, "等待菜鸟刷新"); assert.equal(f.requests.length, 0);
     const lines = official.cwOfficialLines(f.ctx, f.clock()).join("\n"); assert.match(lines, /屏障/); assert.match(lines, /RPC/); assert.match(lines, /version 类型=string/);
     for (const secret of [TOKEN, "synthetic-private", "syntheticUnknown"]) assert(!JSON.stringify([state(f), lines]).includes(secret));
     await capture(f); assert.equal(state(f).binding, "bearer"); assert.equal(state(f).status, "pending");

@@ -83,7 +83,7 @@ test('所有状态在七种尺寸均保留，失败缓存显示原更新时间',
       assert.ok(text.includes('14:20'), `${status}/${family}`);
       assert.ok(!text.includes('14:35'), `${status}/${family}`);
       assert.match(text, /缓存/, `${status}/${family}`);
-      assert.ok(!text.includes('没有待取包裹'));
+      assert.ok(!text.includes('暂无待取'));
     }
   }
 });
@@ -91,8 +91,12 @@ test('所有状态在七种尺寸均保留，失败缓存显示原更新时间',
 test('失败且无缓存不会显示为零件成功态，空列表成功态明确显示无待取', async () => {
   const { renderWidget } = await modulePromise;
   for (const family of FAMILIES) {
-    const ready = joined(renderWidget(sample({ items: [], total: 0 }), family, NOW));
-    assert.match(ready, /没有待取|暂无待取/);
+    for (const coverage of [undefined, 'official_summary']) {
+      const ready = texts(renderWidget(sample({ items: [], total: 0, coverage }), family, NOW));
+      if (family === 'accessoryInline') assert.match(ready[0], / · 暂无待取 · /);
+      else assert.ok(ready.includes('暂无待取'), family);
+      assert.doesNotMatch(ready.join('|'), /官方|摘要|包裹到站后/);
+    }
     const failed = joined(renderWidget(sample({ status: 'expired', items: [], total: 0, updatedAt: null }), family, NOW));
     assert.match(failed, /会话失效/);
     assert.match(failed, /尚未更新/);
@@ -145,6 +149,10 @@ test('过旧快照在所有尺寸提醒，不使用当前时间冒充更新时�
     assert.match(text, /数据较旧/);
     assert.match(text, /11\/07 14:20/);
     assert.match(text, /缓存/);
+    const empty = joined(renderWidget(sample({ total: 0, items: [], coverage: 'official_summary', updatedAt: UPDATED - 86400000 }), family, NOW));
+    assert.match(empty, /上次无待取/);
+    assert.match(empty, /数据较旧/);
+    assert.doesNotMatch(empty, /暂无待取/);
   }
 });
 

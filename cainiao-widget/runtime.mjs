@@ -9,6 +9,7 @@ import {captureCainiaoResponse, cwResponseLines} from "./response.mjs";
 import {runCainiaoTransportCheck, cwTransportLines, cwTransportResultLines} from "./transport.mjs";
 import {cwOfficialRoute, captureCainiaoOfficialRequest, captureCainiaoOfficialResponse, loadCainiaoOfficialModel, cwOfficialLines} from "./official.mjs";
 import {renderWidget} from "./render.mjs";
+import {renderCountWidget} from "./count-render.mjs";
 
 class CwFailure extends Error {
     constructor(kind, failure) {
@@ -85,9 +86,10 @@ export async function loadCainiaoModel(ctx, clock = () => Date.now()) {
             const official = await loadCainiaoOfficialModel(ctx, clock, base, cwBounded);
             if (official !== null) return official;
         } catch {
-            return {...base, status: "setup", setupTitle: "检查 Egern 存储", message: "官方小组件会话无法确认，未发送旧会话查询"};
+            return {...base, status: "setup", setupTitle: "检查 Egern 存储", message: "无法读取本机连接状态"};
         }
     }
+    if (env.CW_COUNT_ONLY === "true") return {...base, status: "setup", setupTitle: "等待首次连接", message: "打开菜鸟，等菜鸟自带小组件刷新后即可独立查询"};
     let automatic = null;
     if (mode === "auto") {
         try { automatic = cwReadAuth(ctx, now); }
@@ -420,5 +422,6 @@ export default async function(ctx) {
         return widget;
     }
     const model = await loadCainiaoModel(ctx);
+    if (ctx.env?.CW_COUNT_ONLY === "true") return renderCountWidget(model, ctx.widgetFamily, Date.now());
     return renderWidget(model, ctx.widgetFamily, Date.now());
 }

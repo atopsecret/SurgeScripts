@@ -8,6 +8,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 const {headers} = require("./auth-fixture.cjs");
+const FULL32 = require("./fixtures/official-revocation-full32-1.3.6.synthetic.json");
 
 const SOURCE = fs.readFileSync(path.join(__dirname, "../cainiao-widget.egern.js"), "utf8");
 const STORE = "cainiao-widget.official.v1";
@@ -153,6 +154,35 @@ test("实际发布入口合成 RPC-only 无 UID 直接接入，跨两次新查�
     for (const row of f.requests) {assert.equal(row.url, RPC); assert.equal(JSON.parse(row.options.body).argsObjs[0].token, TOKEN);}
 });
 
+test("隔离候选实际bundle连续101个新token不锁死，off仍保留全部旧token撤销", async () => {
+    const f = await fixture();
+    for (let index = 0; index <= 100; index++) {await bind(f, "synthetic-bundle-rotation-" + index); f.advance(1); assert.equal(f.state().status, "pending");}
+    const last = json(f.state());
+    for (let index = 0; index < 100; index++) await bind(f, "synthetic-bundle-rotation-" + index);
+    assert.deepEqual(json(f.state()), last); assert.equal(f.requests.length, 0);
+    f.replies.push(reply(summary())); await f.entry(f.ctx); assert.equal(f.state().successCount, 1);
+    await f.entry({...f.ctx, env: {CONNECTION_MODE: "off"}}); assert.equal(f.state(), null);
+    assert.equal([...f.memory].filter(([key, value]) => key.startsWith("cainiao-widget.official.revoked.v1.") && value === "REVOKED_V1").length, 101);
+    for (const index of [0, 50, 100]) await bind(f, "synthetic-bundle-rotation-" + index);
+    assert.equal(f.state(), null); assert.equal(f.requests.length, 1);
+});
+
+test("原1.3.6实际bundle形成的32满停只由候选本次新RPC恢复，generic不迁移放行", async () => {
+    assert.equal(FULL32.synthetic, true); assert.equal(FULL32.schema, "cainiao-official-full32-synthetic-v1");
+    assert.equal(FULL32.source.bundleSha256, "7d800eaed265f5fa2f754ca55456e7ad4eaf57d2e54f824309e9397f1faab5b1");
+    assert.equal(FULL32.state.captureResult, "revocation_full"); assert.equal(FULL32.barrier.stopped, true);
+    const frozen = JSON.stringify(FULL32), f = await fixture(); f.advance(Math.max(0, FULL32.clock - f.now()) + 1);
+    f.memory.set(STORE, json(FULL32.state)); f.memory.set(CACHE, json(FULL32.barrier));
+    const stopped = json(f.state()); await f.entry(f.ctx);
+    assert.deepEqual(json(f.state()), stopped); assert.equal(f.requests.length, 0);
+    await bind(f, OTHER_TOKEN); assert.equal(f.state().token, OTHER_TOKEN); assert.equal(f.state().successCount, 0);
+    assert.equal([...f.memory].filter(([key, value]) => key.startsWith("cainiao-widget.official.revoked.v1.") && value === "REVOKED_V1").length, 32);
+    for (let index = 0; index < 32; index++) await bind(f, "synthetic-legacy-" + index);
+    assert.equal(f.state().token, OTHER_TOKEN); f.replies.push(reply(summary())); await f.entry(f.ctx);
+    assert.equal(f.state().successCount, 1); assert.equal(f.requests.length, 1);
+    assert.equal(JSON.stringify(FULL32), frozen);
+});
+
 test("实际发布入口未知合成 RPC 只保存固定形状，不将字段值或 token 输出到诊断", async () => {
     const f = await fixture(); await bind(f, TOKEN, {version: "synthetic-private-version", secretUnknown: "synthetic-private-value"});
     assert.equal(f.state().binding, "unbound"); assert.equal(f.state().token, ""); assert.equal(f.requests.length, 0);
@@ -175,7 +205,7 @@ test("实际 bundle 从旧受限会话屏障记录未知合同，再以合法 RP
     const previous = JSON.stringify(f.memory.get(CACHE));
     await bind(f, TOKEN, {version: "synthetic-private-version"});
     assert.equal(f.state().binding, "unbound"); assert.equal(JSON.stringify(f.memory.get(CACHE)), previous);
-    const waiting = await f.entry(f.ctx); assert.match(JSON.stringify(waiting), /等待实际 RPC 合同/); assert.equal(f.requests.length, 0);
+    const waiting = await f.entry(f.ctx); assert.match(JSON.stringify(waiting), /等待菜鸟刷新/); assert.equal(f.requests.length, 0);
     const diagnosis = await f.entry({...f.ctx, env: {...f.ctx.env, CAINIAO_DIAGNOSTIC: "true"}});
     assert.match(JSON.stringify(diagnosis), /RPC version 类型=string/);
     for (const secret of [TOKEN, UID, COOKIE, "synthetic-private-version"]) assert(!JSON.stringify(diagnosis).includes(secret));
@@ -218,7 +248,7 @@ test("只有专用 token 而未观察到实际 RPC 模板时不请求，不硬�
     const f = await fixture(); await issue(f);
     const widget = await f.entry(f.ctx);
     assert.equal(f.requests.length, 0); assert.equal(f.state().status, "waiting_template");
-    assert.match(JSON.stringify(widget), /等待 App 官方查询/);
+    assert.match(JSON.stringify(widget), /等待菜鸟刷新/);
 });
 
 test("App 包裹响应不作为组件新查询缓存，实际入口必须单独 POST", async () => {

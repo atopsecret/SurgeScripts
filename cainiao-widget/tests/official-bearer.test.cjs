@@ -222,12 +222,13 @@ test("合成 bearer：UID 绑定 B 账号屏障未完成时 RPC 不得绕过旧�
     assert.deepEqual(state(f), previous); assert.deepEqual(barrier(f), fence); assert.notEqual((await load(f)).status, "ready"); assert.equal(f.requests.length, 0);
 });
 
-test("合成 bearer：撤销集合满时失败停止，不静默淘汰旧 token 放开倒灌", async () => {
-    const f = setup(); await capture(f); let stopped = false;
-    for (let i = 0; i < 70; i++) {f.advance(1); await capture(f, "synthetic-bounded-rotation-" + i); if (state(f).failure === "ACCOUNT_BLOCKED") {stopped = true; break;}}
-    assert(stopped, "有界撤销集合必须达到容量后停止"); const previous = structuredClone(state(f)), fence = structuredClone(barrier(f));
+test("合成 bearer：超过原32容量仍接入，精确永久撤销不允许旧 token 倒灌", async () => {
+    const f = setup(); await capture(f);
+    for (let i = 0; i < 100; i++) {f.advance(1); await capture(f, "synthetic-bounded-rotation-" + i); assert.equal(state(f).status, "pending");}
+    assert.equal(f.memory.get("cainiao-widget.official.revoked.v1." + core.md5(A)), "REVOKED_V1");
+    const previous = structuredClone(state(f)), fence = structuredClone(barrier(f));
     await capture(f, A); assert.deepEqual(state(f), previous); assert.deepEqual(barrier(f), fence);
-    assert.notEqual((await load(f)).status, "ready"); assert.equal(f.requests.length, 0);
+    f.replies.push(summary()); assert.equal((await load(f)).status, "ready"); assert.equal(f.requests.length, 1);
 });
 
 test("合成 bearer：业务失败和未知响应结构不能借 HTTP200 确认成功", async () => {

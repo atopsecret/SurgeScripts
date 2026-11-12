@@ -47,6 +47,10 @@ function previewSymbol(src) {
     'shippingbox.fill': '<path d="m3 6 9-4 9 4v12l-9 4-9-4V6Zm0 0 9 4 9-4M12 10v12M8 4l9 4v4"/>',
     'exclamationmark.triangle.fill': '<path d="M12 3 2 21h20L12 3Z"/><path d="M12 9v5m0 3v.1"/>',
     'checkmark.circle': '<circle cx="12" cy="12" r="9"/><path d="m7 12 3 3 7-7"/>',
+    'checkmark': '<path d="m5 12 4 4L19 6"/>',
+    'clock': '<circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/>',
+    'shippingbox': '<path d="m3 6 9-4 9 4v12l-9 4-9-4V6Zm0 0 9 4 9-4M12 10v12M8 4l9 4v4"/>',
+    'arrow.clockwise': '<path d="M20 10a8 8 0 1 0-2 8M20 4v6h-6"/>',
     'lock.fill': '<rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 5v2"/>',
   };
   const name = src.replace('sf-symbol:', '');

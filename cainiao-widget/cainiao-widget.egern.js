@@ -1,4 +1,4 @@
-// Egern 原生菜鸟取件小组件 1.3.6 · 自动构建，请编辑本目录源文件。
+// Egern 原生菜鸟取件小组件 1.4.0 · 自动构建，请编辑本目录源文件。
 // 构建：node cainiao-widget/build.mjs；来源与许可见 THIRD_PARTY_NOTICES.md。
 // 来源：core.mjs
 // 引擎：Egern JavaScript | 语言：JavaScript ES module
@@ -6,7 +6,7 @@
 // 运行：由 runtime.mjs 调用；离线验证 node --test cainiao-widget/tests/core.test.cjs
 // 依赖：无；协议来源见 THIRD_PARTY_NOTICES.md
 
-const CW_VERSION = "1.3.6";
+const CW_VERSION = "1.4.0";
 const CW_API = "mtop.cainiao.lpc.packageservice.queryPdsPackageDataList";
 const CW_COUNT_API = "mtop.cainiao.lpc.packageservice.user.package.count.query";
 const CW_IDENTITY_API = "mtop.user.getUserSimple";
@@ -65,7 +65,7 @@ function cwObject(value) {
 }
 
 function cwKnownVersion(value) {
-    return ["1.1.0", "1.2.0", "1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", CW_VERSION].includes(value);
+    return ["1.1.0", "1.2.0", "1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", "1.3.6", CW_VERSION].includes(value);
 }
 
 function cwText(value, limit = 160) {
@@ -330,7 +330,7 @@ function cwAppNames(value, allowed) {
 
 function cwAppState(value, now) {
     const rows = [], empty = {version: CW_VERSION, startedAt: now, rows};
-    if (!cwObject(value) || !["1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", CW_VERSION].includes(value.version) || !Array.isArray(value.rows)
+    if (!cwObject(value) || !["1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", "1.3.6", CW_VERSION].includes(value.version) || !Array.isArray(value.rows)
         || !Number.isSafeInteger(value.startedAt) || value.startedAt <= 0 || value.startedAt > now
         || now - value.startedAt > CW_APP_WINDOW) return empty;
     const seen = new Set();
@@ -469,7 +469,7 @@ function cwAuthState(value, now = Date.now()) {
     const accountSessionHash = legacy ? "" : value.accountSessionHash;
     const restricted = cwRequiresIdentity({captureKind});
     if (!["request_cookie", "native_session_candidate", "request_cookie_candidate", "response_cookie_candidate"].includes(captureKind)
-        || captureKind === "response_cookie_candidate" && !["1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", CW_VERSION].includes(value.version)
+        || captureKind === "response_cookie_candidate" && !["1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", "1.3.6", CW_VERSION].includes(value.version)
         || value.version === "1.2.0" && captureKind === "request_cookie_candidate" || !["h5", "gw"].includes(sourceChannel)
         || !(accountCheckedAt === null || Number.isFinite(accountCheckedAt) && accountCheckedAt > 0 && accountCheckedAt <= now + 60000)
         || typeof accountSessionHash !== "string" || accountSessionHash !== "" && !/^[0-9a-f]{32}$/.test(accountSessionHash)
@@ -522,7 +522,7 @@ function cwQueryFields(record, now = Date.now()) {
 
 function cwQueryDiagnostic(cached, auth, now = Date.now()) {
     const checked = cwAuthState(auth, now);
-    return checked && cwObject(cached) && ["1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", CW_VERSION].includes(cached.version) && cached.source === "auto" && cached.blocked !== true
+    return checked && cwObject(cached) && ["1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", "1.3.6", CW_VERSION].includes(cached.version) && cached.source === "auto" && cached.blocked !== true
         && cached.owner === checked.owner && cached.inputHash === checked.inputHash && cached.generation === checked.generation
         && typeof cached.runId === "string" && /^[0-9a-f]{32}$/.test(cached.runId) ? cwQueryFields(cached.queryDiagnostic, now) : null;
 }
@@ -552,6 +552,8 @@ function cwWriteAuth(ctx, state, now = Date.now()) {
 
 function cwClearLocal(ctx) {
     // off 模式只清本组件键，不改系统代理、CA 或其他模块。
+    // 永久撤销键只增不删；先确认旧热项与当前凭据指纹归档，失败不清掉最后的隔离证据。
+    preserveCainiaoOfficialRevocations(ctx);
     const keys = [CW_AUTH_STORE, CW_STORE, CW_CAPTURE_STORE, CW_APP_STORE, CW_RESPONSE_STORE, CW_TRANSPORT_STORE, CW_OFFICIAL_STORE];
     for (const key of keys) ctx.storage.setJSON(key, null);
     if (keys.some(key => ctx.storage.getJSON(key) !== null)) throw new Error("storage-not-confirmed");
@@ -855,7 +857,7 @@ function cwTransportCleanSample(value, startedAt, at) {
 function cwTransportState(value, now = Date.now()) {
     try {
         if (!cwTransportObject(value) || !cwTransportExactKeys(value, ["schema", "version", "runId", "kind", "startedAt", "leaseUntil", "at", "expiresAt", "omit", "include"])
-            || value.schema !== 1 || !["1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", CW_VERSION].includes(value.version) || !["RUNNING", "COMPLETE"].includes(value.kind)
+            || value.schema !== 1 || !["1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", "1.3.6", CW_VERSION].includes(value.version) || !["RUNNING", "COMPLETE"].includes(value.kind)
             || typeof value.runId !== "string" || !/^[0-9a-f]{32}$/.test(value.runId) || !cwTransportTime(now)
             || !cwTransportTime(value.startedAt) || value.startedAt > now + 60000 || !cwTransportTime(value.at)
             || value.at < value.startedAt || value.at > now + 60000 || !cwTransportTime(value.leaseUntil)
@@ -1464,7 +1466,7 @@ function cwResponseCleanSchema(value) {
 
 function cwResponseState(value, now) {
     const empty = {version: CW_VERSION, startedAt: now, rows: []};
-    if (!cwResponseTime(now) || !cwObject(value) || !["1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", CW_VERSION].includes(value.version)
+    if (!cwResponseTime(now) || !cwObject(value) || !["1.2.3", "1.2.4", "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", "1.3.6", CW_VERSION].includes(value.version)
         || !cwResponseTime(value.startedAt) || value.startedAt > now || now - value.startedAt >= CW_RESPONSE_WINDOW
         || !Array.isArray(value.rows) || value.rows.length > 32) return empty;
     const rows = [], seen = new Set();
@@ -1612,7 +1614,7 @@ function cwResponseLines(ctx, now = Date.now()) {
 }
 
 // 来源：official.mjs
-// 引擎：Egern JavaScript | 版本：1.3.6 | 语言：JavaScript ES module
+// 引擎：Egern JavaScript | 版本：1.4.0 | 语言：JavaScript ES module
 // 构建：node cainiao-widget/build.mjs
 // 运行：同一模块捕获实际 RPC bearer 或本人签发 token，再由 generic 独立查询
 // 依赖：core.mjs、app.mjs；不执行 APK、不调用原生签名、不在 hook 发送个人查询
@@ -1629,6 +1631,9 @@ const CW_OFFICIAL_QUERY_PATH = CW_OFFICIAL_QUERY_URL.slice("https://guoguouser.c
 const CW_OFFICIAL_CONFLICT_OWNER = md5("capture-conflicting-identities");
 const CW_OFFICIAL_UNBOUND_OWNER = md5("official-rpc-unbound");
 const CW_OFFICIAL_RETIRED_LIMIT = 32;
+// 旧指纹按键只增不删；32 项仅保留兼容/转换屏障，不再代表永久集合容量。
+const CW_OFFICIAL_REVOKED_PREFIX = "cainiao-widget.official.revoked.v1.";
+const CW_OFFICIAL_REVOKED_MARK = "REVOKED_V1";
 const CW_OFFICIAL_INSTALL_KEYS = ["isLargeInstall", "isMediumInstall", "isSmallInstall", "isNewSmallInstall", "isLargeV2Install"];
 const CW_OFFICIAL_RPC_KEYS = ["appName", "source", "channel", "brand", "installStatus", "version", "ext", "token", "timestamp", "lbs"];
 const CW_OFFICIAL_TYPES = ["missing", "null", "object", "array", "string", "number", "boolean", "invalid", "unread"];
@@ -1957,7 +1962,7 @@ function cwOfficialState(value, now = Date.now()) {
     try {
         const legacy = value?.version === "1.3.0", binding = value?.binding === undefined ? "uid" : value.binding;
         const retiredTokenHashes = value?.retiredTokenHashes === undefined ? [] : value.retiredTokenHashes;
-        if (!cwOfficialTime(now) || !cwObject(value) || ![CW_VERSION, "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5"].includes(value.version) || !cwOfficialHash(value.owner)
+        if (!cwOfficialTime(now) || !cwObject(value) || ![CW_VERSION, "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", "1.3.6"].includes(value.version) || !cwOfficialHash(value.owner)
             || !["uid", "bearer", "unbound"].includes(binding) || legacy && binding !== "uid" || !cwOfficialHashes(retiredTokenHashes)
             || !cwOfficialHash(value.generation) || !cwOfficialHash(value.revision) || !CW_OFFICIAL_STATUSES.includes(value.status)
             || !cwOfficialTime(value.at) || value.at > now || !CW_OFFICIAL_FAILURES.includes(value.failure) || !CW_OFFICIAL_CAPTURES.includes(value.captureResult)
@@ -2010,20 +2015,22 @@ function cwOfficialAccess(ctx, now) {
         const raw = ctx.storage.getJSON(CW_OFFICIAL_STORE), barrier = ctx.storage.getJSON(CW_STORE);
         const reference = {raw, state: cwOfficialState(raw, now), signature: cwOfficialSignature(raw), barrier, barrierSignature: cwOfficialSignature(barrier)};
         cwOfficialBearerBarrier(reference);
+        reference.revokedCurrent = !!reference.state?.tokenHash && cwOfficialRevoked(ctx, reference.state.tokenHash);
         return reference;
     } catch { throw cwOfficialFail("STORAGE_UNCONFIRMED"); }
 }
 
-function cwOfficialGuard(ctx, reference, now) {
-    if (!cwOfficialAuto(ctx) || !cwOfficialTime(now)) throw cwOfficialFail("SUPERSEDED");
+function cwOfficialGuard(ctx, reference, now, clearing = false) {
+    if (!clearing && !cwOfficialAuto(ctx) || !cwOfficialTime(now)) throw cwOfficialFail("SUPERSEDED");
     const current = cwOfficialAccess(ctx, now);
-    if (current.signature !== reference.signature || current.barrierSignature !== reference.barrierSignature) throw cwOfficialFail("SUPERSEDED");
+    if (current.signature !== reference.signature || current.barrierSignature !== reference.barrierSignature
+        || current.revokedCurrent !== reference.revokedCurrent) throw cwOfficialFail("SUPERSEDED");
     return current;
 }
 
 function cwOfficialBlocked(reference, owner) {
     const bearer = cwOfficialBearerBarrier(reference);
-    return bearer?.stopped === true || reference.state?.binding === "bearer" && bearer?.retiredTokenHashes.includes(reference.state.tokenHash)
+    return reference.revokedCurrent === true || bearer?.stopped === true || reference.state?.binding === "bearer" && bearer?.retiredTokenHashes.includes(reference.state.tokenHash)
         || cwObject(reference.barrier) && reference.barrier.blocked === true && reference.barrier.owner !== owner;
 }
 
@@ -2054,6 +2061,8 @@ function cwOfficialWrite(ctx, reference, value, now) {
     cwOfficialGuard(ctx, reference, now);
     const state = cwOfficialState(value, now);
     if (!state) throw cwOfficialFail("STORAGE_UNCONFIRMED");
+    // UID 签发路径也不能重新接纳已永久撤销的 bearer；不因 off 或新票据绕过撤销。
+    if (state.token && cwOfficialRevoked(ctx, state.tokenHash)) throw cwOfficialFail("ACCOUNT_BLOCKED");
     try { ctx.storage.setJSON(CW_OFFICIAL_STORE, state); } catch { throw cwOfficialFail("STORAGE_UNCONFIRMED"); }
     const saved = cwOfficialAccess(ctx, now);
     if (saved.barrierSignature !== reference.barrierSignature) throw cwOfficialFail("SUPERSEDED");
@@ -2078,14 +2087,63 @@ function cwOfficialRetired(reference) {
     return [...new Set([...(reference.state?.retiredTokenHashes || []), ...(cwOfficialBearerBarrier(reference)?.retiredTokenHashes || [])])];
 }
 
+function cwOfficialRevoked(ctx, hash) {
+    if (!cwOfficialHash(hash)) throw cwOfficialFail("STORAGE_UNCONFIRMED");
+    try {
+        const value = ctx.storage.getJSON(CW_OFFICIAL_REVOKED_PREFIX + hash);
+        if (value === null || value === undefined) return false;
+        if (value !== CW_OFFICIAL_REVOKED_MARK) throw cwOfficialFail("STORAGE_UNCONFIRMED");
+        return true;
+    } catch { throw cwOfficialFail("STORAGE_UNCONFIRMED"); }
+}
+
+function cwOfficialArchiveRetired(ctx, reference, hashes, now, clearing = false) {
+    for (const hash of new Set(hashes)) {
+        cwOfficialGuard(ctx, reference, now, clearing);
+        if (!cwOfficialRevoked(ctx, hash)) {
+            try { ctx.storage.setJSON(CW_OFFICIAL_REVOKED_PREFIX + hash, CW_OFFICIAL_REVOKED_MARK); }
+            catch { throw cwOfficialFail("STORAGE_UNCONFIRMED"); }
+            if (!cwOfficialRevoked(ctx, hash)) throw cwOfficialFail("STORAGE_UNCONFIRMED");
+        }
+        const saved = cwOfficialAccess(ctx, now);
+        if (saved.signature !== reference.signature || saved.barrierSignature !== reference.barrierSignature
+            || saved.revokedCurrent !== reference.revokedCurrent && hash !== reference.state?.tokenHash) throw cwOfficialFail("SUPERSEDED");
+        reference = saved;
+    }
+    return reference;
+}
+
+function cwOfficialCapacityRecovery(reference) {
+    const state = reference.state, fence = cwOfficialBearerBarrier(reference);
+    return state?.binding === "bearer" && state.status === "invalid" && state.failure === "ACCOUNT_BLOCKED" && state.captureResult === "revocation_full"
+        && state.token === "" && state.template === null && state.issueTicket === null && reference.raw.snapshot === null
+        && state.lastIssueHash === "" && state.runId === ""
+        && state.requestCount === 0 && state.successCount === 0 && state.lastRequestAt === null && state.lastSuccessAt === null
+        && fence?.stopped === true && fence.owner === state.owner && cwKnownVersion(fence.version)
+        && cwOfficialSameKeys(fence, ["version", "owner", "source", "blocked", "cookie", "snapshot", "officialBinding", "retiredTokenHashes", "stopped"])
+        && state.retiredTokenHashes.length === CW_OFFICIAL_RETIRED_LIMIT && fence.retiredTokenHashes.length === CW_OFFICIAL_RETIRED_LIMIT
+        && state.retiredTokenHashes.includes(state.tokenHash) && state.retiredTokenHashes.every(hash => fence.retiredTokenHashes.includes(hash));
+}
+
+function preserveCainiaoOfficialRevocations(ctx, now = Date.now()) {
+    if (!cwOfficialTime(now)) throw cwOfficialFail("STORAGE_UNCONFIRMED");
+    const reference = cwOfficialAccess(ctx, now);
+    if (reference.raw !== null && reference.raw !== undefined && !reference.state) throw cwOfficialFail("STORAGE_UNCONFIRMED");
+    const hashes = cwOfficialRetired(reference);
+    if (reference.state?.tokenHash) hashes.push(reference.state.tokenHash);
+    cwOfficialArchiveRetired(ctx, reference, hashes, now, true);
+}
+
 function cwOfficialStopBearer(ctx, reference, now, failure, captureResult, status, full = false) {
     const state = reference.state;
     if (!state || state.binding !== "bearer") return reference;
-    let retired = cwOfficialRetired(reference);
-    if (!retired.includes(state.tokenHash)) {
-        if (retired.length >= CW_OFFICIAL_RETIRED_LIMIT) full = true;
-        else retired.push(state.tokenHash);
-    }
+    const legacy = cwOfficialRetired(reference);
+    if (legacy.length > CW_OFFICIAL_RETIRED_LIMIT) throw cwOfficialFail("STORAGE_UNCONFIRMED");
+    // 同 owner 的终止也先保存阻断，再归档；归档失败不能继续使用旧 ready。
+    // 完整旧集合仍在尚未改写的 state；单当前指纹使新终止失败不同于旧容量停止。
+    reference = cwOfficialIsolate(ctx, reference, state.owner, now, {retiredTokenHashes: [state.tokenHash], stopped: true});
+    reference = cwOfficialArchiveRetired(ctx, reference, [...legacy, state.tokenHash], now);
+    const retired = [state.tokenHash];
     reference = cwOfficialIsolate(ctx, reference, state.owner, now, {retiredTokenHashes: retired, stopped: full});
     return cwOfficialWrite(ctx, reference, {...cwOfficialInitial(state.owner, now, status, state.tokenHash, "bearer", retired),
         failure, captureResult, rpcShape: state.rpcShape}, now);
@@ -2105,9 +2163,9 @@ function cwOfficialCaptureBearer(ctx, reference, parsed, now, shape) {
     // 已有官方 UID 与未知账号屏障不由 RPC 撤销；严格识别的旧 H5 屏障只允许全新 bearer 接管。
     if (reference.raw !== null && reference.raw !== undefined && !state || state?.binding === "uid"
         || cwObject(reference.barrier) && reference.barrier.blocked === true && !fence && !cwOfficialLegacyHandoff(reference)) return reference;
-    let retired = cwOfficialRetired(reference);
+    const retired = cwOfficialRetired(reference);
     if (retired.length > CW_OFFICIAL_RETIRED_LIMIT) throw cwOfficialFail("STORAGE_UNCONFIRMED");
-    if (fence?.stopped || retired.includes(tokenHash)) return reference;
+    if (fence?.stopped && !cwOfficialCapacityRecovery(reference) || retired.includes(tokenHash) || cwOfficialRevoked(ctx, tokenHash)) return reference;
     // B 已经留下屏障而状态仍是 A，只有 B 本身可完成保存，旧 A 或第三个候选不能撤回 B。
     if (fence && fence.owner !== state?.owner && fence.owner !== owner) return reference;
     if (state?.binding === "bearer" && state.tokenHash === tokenHash) {
@@ -2117,15 +2175,13 @@ function cwOfficialCaptureBearer(ctx, reference, parsed, now, shape) {
         return cwOfficialWrite(ctx, reference, {...state, template: parsed.template, templateHash, templateCapturedAt: now,
             status: "pending", revision: cwOfficialNonce(now), runId: "", failure: "NONE", captureResult: "template", rpcShape: shape, at: now}, now);
     }
-    if (state?.binding === "bearer" && state.tokenHash && !retired.includes(state.tokenHash)) {
-        if (retired.length >= CW_OFFICIAL_RETIRED_LIMIT)
-            return cwOfficialStopBearer(ctx, reference, now, "ACCOUNT_BLOCKED", "revocation_full", "invalid", true);
-        retired.push(state.tokenHash);
-    }
-    if (retired.length >= CW_OFFICIAL_RETIRED_LIMIT)
-        return cwOfficialStopBearer(ctx, reference, now, "ACCOUNT_BLOCKED", "revocation_full", "invalid", true);
+    // 先保留完整旧热集合的新候选屏障，归档失败仍只允许该候选重试，不允许 A 或 C 撤回屏障。
     reference = cwOfficialIsolate(ctx, reference, owner, now, {retiredTokenHashes: retired, stopped: false});
-    return cwOfficialWrite(ctx, reference, {...cwOfficialInitial(owner, now, "pending", tokenHash, "bearer", retired),
+    const previous = state?.binding === "bearer" && state.tokenHash ? [state.tokenHash] : [];
+    reference = cwOfficialArchiveRetired(ctx, reference, [...retired, ...previous], now);
+    // 所有旧项均确认永久归档后才替代热列表；不是丢弃撤销记录。
+    reference = cwOfficialIsolate(ctx, reference, owner, now, {retiredTokenHashes: previous, stopped: false});
+    return cwOfficialWrite(ctx, reference, {...cwOfficialInitial(owner, now, "pending", tokenHash, "bearer", previous),
         token: parsed.token, tokenCapturedAt: now, template: parsed.template, templateHash: md5(JSON.stringify(parsed.template)), templateCapturedAt: now,
         rpcShape: shape, captureResult: "rpc_bearer"}, now);
 }
@@ -2295,9 +2351,9 @@ function cwOfficialModel(base, snapshot, status, message, extra = {}) {
 }
 
 function cwOfficialStop(base, code) {
-    return cwOfficialModel(base, null, "setup", code === "STORAGE_UNCONFIRMED" ? "本机专用会话或账号屏障无法确认，请检查 Egern"
-        : code === "ACCOUNT_BLOCKED" ? "账号已变化，旧专用会话和摘要已隔离" : "专用会话已更新，本轮旧查询未被采纳",
-    {setupTitle: code === "STORAGE_UNCONFIRMED" ? "检查 Egern 存储" : "重新连接 App"});
+    return cwOfficialModel(base, null, "setup", code === "STORAGE_UNCONFIRMED" ? "无法读取本机连接状态"
+        : code === "ACCOUNT_BLOCKED" ? "连接已停止，请打开菜鸟" : "连接已更新，请重试",
+    {setupTitle: code === "STORAGE_UNCONFIRMED" ? "检查 Egern 存储" : "重新连接菜鸟"});
 }
 
 async function loadCainiaoOfficialModel(ctx, clock, base, bounded) {
@@ -2311,10 +2367,10 @@ async function loadCainiaoOfficialModel(ctx, clock, base, bounded) {
     if (!original) return cwOfficialStop(base, "STORAGE_UNCONFIRMED");
     if (cwOfficialBlocked(reference, original.owner) && !(original.binding === "unbound" && cwOfficialLegacyHandoff(reference))) return cwOfficialStop(base, "ACCOUNT_BLOCKED");
     if (["invalid", "signed_out"].includes(original.status)) return cwOfficialStop(base, "ACCOUNT_BLOCKED");
-    if (original.binding === "unbound") return cwOfficialModel(base, null, "setup", "已观察到官方 RPC，请求正文合同尚未接受；连接状态保留固定字段类型，未猜测 iOS 参数", {setupTitle: "等待实际 RPC 合同"});
-    if (original.status === "expired") return cwOfficialModel(base, original.snapshot, "expired", "官方专用 token 已失效，请在 App 重新签发" + (original.snapshot ? " · 上次官方摘要" : ""));
-    if (!original.token) return cwOfficialModel(base, null, "setup", "已观察到 App 身份，尚未取得本人专用 widget token", {setupTitle: "等待 App 专用会话"});
-    if (!original.template) return cwOfficialModel(base, null, "setup", "已取得专用 token，尚未观察到匹配的实际查询参数；未猜测平台字段", {setupTitle: "等待 App 官方查询"});
+    if (original.binding !== "unbound" && original.status === "expired") return cwOfficialModel(base, original.snapshot, "expired", "请打开菜鸟后再刷新");
+    if (original.binding === "unbound" || !original.token || !original.template) {
+        return cwOfficialModel(base, null, "setup", "打开菜鸟，等菜鸟自带小组件刷新", {setupTitle: "等待菜鸟刷新"});
+    }
     if (!cwOfficialTime(now) || typeof bounded !== "function") return cwOfficialStop(base, "STORAGE_UNCONFIRMED");
     const deadline = now + 18000;
     const timestamp = Math.max(now, (original.lastRequestAt || 0) + 1);
@@ -2352,8 +2408,7 @@ async function loadCainiaoOfficialModel(ctx, clock, base, bounded) {
         state = {...state, snapshot, status: "ready", successCount: Math.min(state.successCount + 1, 999999), lastSuccessAt: after, failure: "NONE", at: after};
         reference = cwOfficialWrite(ctx, reference, state, after); state = reference.state;
         guard();
-        return cwOfficialModel(base, snapshot, "ready", snapshot.total > 0 && !snapshot.items.length
-            ? "官方摘要独立查询成功 · 有待取包裹，摘要未提供" : "官方摘要独立查询成功", {officialRequestCount: state.requestCount, officialSuccessCount: state.successCount});
+        return cwOfficialModel(base, snapshot, "ready", "", {officialRequestCount: state.requestCount, officialSuccessCount: state.successCount});
     } catch (error) {
         const code = error?.officialCode || "SCHEMA_INVALID";
         if (["SUPERSEDED", "STORAGE_UNCONFIRMED"].includes(code)) return cwOfficialStop(base, code);
@@ -2366,10 +2421,9 @@ async function loadCainiaoOfficialModel(ctx, clock, base, bounded) {
             if (code === "INVALID_TOKEN") state = {...state, token: "", tokenCapturedAt: null, template: null, templateHash: "", templateCapturedAt: null, issueTicket: null};
             reference = cwOfficialWrite(ctx, reference, state, after); state = reference.state;
         } catch (failure) { return cwOfficialStop(base, failure?.officialCode); }
-        const snapshot = state.snapshot, labels = {INVALID_TOKEN: "官方专用 token 已失效，请在 App 重新签发", QUERY_ERROR: "官方摘要查询未成功", BUSINESS_FAILURE: "官方摘要业务请求未成功",
-            HTTP_REJECTED: "官方摘要请求被服务器拒绝", SCHEMA_INVALID: "官方摘要结构未确认，未伪造空包裹", OFFLINE: "暂时无法取得新的官方摘要", DEADLINE: "本次官方摘要查询超时"};
+        const snapshot = state.snapshot, labels = {INVALID_TOKEN: "请打开菜鸟后再刷新", OFFLINE: "请检查网络后重试", DEADLINE: "查询超时，请稍后重试"};
         return cwOfficialModel(base, snapshot, code === "INVALID_TOKEN" ? "expired" : code === "OFFLINE" ? "offline" : "error",
-            (labels[code] || labels.SCHEMA_INVALID) + (snapshot ? " · 上次官方摘要" : ""), {officialRequestCount: state.requestCount, officialSuccessCount: state.successCount});
+            labels[code] || "暂时查不到包裹", {officialRequestCount: state.requestCount, officialSuccessCount: state.successCount});
     }
 }
 
@@ -2440,7 +2494,7 @@ const CNW_FAMILIES = {
   systemExtraLarge: { capacity: 8, columns: 4, padding: 16, codeSize: 30 },
 };
 const CNW_STATES = {
-  ready: { label: '待取包裹', title: '没有待取包裹', detail: '包裹到站后会显示在这里' },
+  ready: { label: '待取包裹', title: '暂无待取' },
   setup: { label: '尚未连接', title: '先打开淘宝或菜鸟', detail: '刷新 App 快递列表后回到组件' },
   expired: { label: '会话失效', title: '重开 App 快递列表', detail: '重新接入后回到 Egern 刷新' },
   offline: { label: '连接失败', title: '暂时无法连接', detail: '稍后会自动重试' },
@@ -2448,6 +2502,7 @@ const CNW_STATES = {
   partial: { label: '数据未取全', title: '暂未取得完整列表', detail: '仅显示已确认的待取件' },
   error: { label: '更新失败', title: '更新没有完成', detail: '稍后会自动重试' },
 };
+const CNW_MISSING_DETAILS = '暂无包裹详情';
 
 function cnwString(value) {
   return typeof value === 'string' ? value.replace(/[\r\n\t]+/g, ' ').trim() : '';
@@ -2498,7 +2553,7 @@ function cnwContext(model, family, now) {
   const officialSummary = input.coverage === 'official_summary';
   const warning = status !== 'ready' || partial || stale;
   const state = partial && status === 'ready' ? CNW_STATES.partial : CNW_STATES[status];
-  const label = stale ? '数据较旧' : (officialSummary && status === 'ready' && !partial ? '官方待取摘要' : state.label);
+  const label = stale ? '数据较旧' : state.label;
   const lock = family.startsWith('accessory');
   const hideCode = input.privacy === true || (lock && input.privacy !== false);
   return {
@@ -2513,7 +2568,7 @@ function cnwContext(model, family, now) {
 function cnwCode(item, hideCode, officialSummary = false) {
   // 官方返回的是描述，不从数字猜码；锁屏默认连描述一起隐藏。
   if (officialSummary) return {
-    text: hideCode ? '取件信息已隐藏' : (cnwString(item.summary) || '摘要未提供'),
+    text: hideCode ? '取件信息已隐藏' : (cnwString(item.summary) || '暂无取件信息'),
     usable: false, summary: true, private: hideCode,
   };
   if (hideCode) return { text: '取件码已隐藏', usable: false, private: true };
@@ -2604,17 +2659,17 @@ function cnwItemCard(item, context, options, small) {
 function cnwEmpty(context, small, tight = false) {
   const ready = context.status === 'ready' && !context.partial;
   const compact = tight || (small && context.warning);
-  const title = ready && context.officialSummary ? (context.total > 0 ? `${context.total}件待取` : '官方摘要暂无待取')
-    : ready ? CNW_STATES.ready.title : (context.status === 'setup' && context.setupTitle ? context.setupTitle : context.state.title);
-  const detail = ready && context.officialSummary && context.total > 0 ? '有待取包裹，官方摘要未提供'
-    : context.message || context.state.detail;
+  const hasCount = context.total > 0;
+  const title = ready ? (hasCount ? `${context.total}件待取` : (context.stale ? '上次无待取' : CNW_STATES.ready.title))
+    : (context.status === 'setup' && context.setupTitle ? context.setupTitle : context.state.title);
+  const detail = ready ? (hasCount ? CNW_MISSING_DETAILS : '') : (context.message || context.state.detail);
   return cnwStack('column', [
     { type: 'spacer' },
-    cnwIcon(ready ? (context.officialSummary && context.total > 0 ? 'shippingbox.fill' : 'checkmark.circle')
+    cnwIcon(ready ? (hasCount ? 'shippingbox.fill' : 'checkmark.circle')
       : (context.status === 'setup' ? 'lock.fill' : 'exclamationmark.triangle.fill'), compact ? 18 : (small ? 23 : 28),
       ready || context.status === 'setup' ? CNW_COLORS.accent : CNW_COLORS.warning),
     cnwText(title, compact ? 14 : (small ? 15 : 18), CNW_COLORS.primary, { font: { size: compact ? 14 : (small ? 15 : 18), weight: 'semibold' }, minScale: 0.8 }),
-    cnwText(detail, compact ? 9 : (small ? 10 : 12), CNW_COLORS.secondary, { maxLines: compact ? 1 : 2, minScale: 0.85 }),
+    ...(detail ? [cnwText(detail, compact ? 9 : (small ? 10 : 12), CNW_COLORS.secondary, { maxLines: compact ? 1 : 2, minScale: 0.85 })] : []),
     { type: 'spacer' },
   ], { flex: 1, gap: compact ? 4 : (small ? 5 : 7) });
 }
@@ -2678,15 +2733,16 @@ function cnwLock(context, family) {
   const first = hasItems ? cnwCode(context.items[0], context.hideCode, context.officialSummary) : null;
   const count = context.warning && !hasItems && !context.cached ? '—' : context.count;
   const status = cnwLockStatus(context);
+  const ready = context.status === 'ready' && !context.partial;
+  const empty = ready ? (context.total > 0 ? CNW_MISSING_DETAILS : (context.stale ? '上次无待取' : CNW_STATES.ready.title)) : '待更新';
+  const hidden = context.officialSummary ? '信息已隐藏' : '码已隐藏';
   let children;
   if (family === 'accessoryInline') {
-    const code = first ? (context.hideCode ? (context.officialSummary ? '摘要已隐藏' : '码已隐藏') : first.text)
-      : (context.status === 'ready' ? (context.officialSummary && context.total > 0 ? '摘要未提供' : '暂无待取') : '待更新');
+    const code = first ? (context.hideCode ? hidden : first.text) : empty;
     children = [cnwText(`${context.warning || context.message ? status : '菜鸟'} · ${count}件 · ${code} · ${cnwLockTimestamp(context, true)}`,
       12, CNW_COLORS.primary, { minScale: 0.45, font: { size: 12, weight: 'medium', ...(first?.usable && !context.hideCode ? { family: 'Menlo' } : {}) } })];
   } else if (family === 'accessoryCircular') {
-    const codeText = first ? (context.hideCode ? (context.officialSummary ? '摘要已隐藏' : '码已隐藏') : (first.usable ? cnwWrapCode(first.text) : first.text))
-      : (context.status === 'ready' ? (context.officialSummary && context.total > 0 ? '摘要未提供' : '暂无待取') : '待更新');
+    const codeText = first ? (context.hideCode ? hidden : (first.usable ? cnwWrapCode(first.text) : first.text)) : empty;
     children = [
       cnwText(status, 8, CNW_COLORS.primary, { textAlign: 'center', minScale: 0.7, font: { size: 8, weight: 'semibold' } }),
       cnwText(context.partial && hasItems ? `≥${context.total}` : count, first && !context.hideCode ? 18 : 22, CNW_COLORS.primary, {
@@ -2708,8 +2764,7 @@ function cnwLock(context, family) {
       ...(first ? [cnwText(context.hideCode ? (context.officialSummary ? '取件信息已隐藏' : '取件码已隐藏') : first.text, context.hideCode || !first.usable ? 12 : 18, CNW_COLORS.primary, {
         font: { size: context.hideCode || !first.usable ? 12 : 18, weight: first.usable && !context.hideCode ? 'bold' : 'medium', ...(first.usable && !context.hideCode ? { family: 'Menlo' } : {}) }, minScale: 0.45,
         ...(context.officialSummary ? { maxLines: 2 } : {}),
-      })] : [cnwText(context.status === 'ready' ? (context.officialSummary ? (context.total > 0 ? '有待取，摘要未提供' : '官方摘要暂无待取') : '没有待取包裹')
-        : (context.setupTitle || context.state.title), 12, CNW_COLORS.primary, { minScale: 0.8 })]),
+      })] : [cnwText(ready ? empty : (context.setupTitle || context.state.title), 12, CNW_COLORS.primary, { minScale: 0.8 })]),
       cnwText(cnwLockTimestamp(context), 8, CNW_COLORS.secondary, { minScale: 0.75 }),
     ];
   }
@@ -2728,6 +2783,178 @@ function renderWidget(model, family, now = Date.now()) {
   const resolved = supported ? requested : 'systemSmall';
   const context = cnwContext(model, resolved, now);
   return resolved.startsWith('accessory') ? cnwLock(context, resolved) : cnwDesktop(context, resolved);
+}
+
+// 来源：count-render.mjs
+// 引擎：Egern 原生小组件 DSL | 语言：JavaScript ES module
+// 构建：node cainiao-widget/build.mjs
+// 运行：模块主脚本设置 CW_COUNT_ONLY=true；离线 node --test cainiao-widget/tests/count-render.test.cjs
+// 依赖：无；只读已校验总数、状态和更新时间，不读取包裹明细。
+
+const CWC_COLORS = {
+  background: {light: '#FFF9F1', dark: '#201A15'},
+  end: {light: '#FFF1E0', dark: '#2B2119'},
+  text: {light: '#34271D', dark: '#FFF4E8'},
+  muted: {light: '#957E69', dark: '#C4AC96'},
+  accent: {light: '#D66C25', dark: '#FFB575'},
+  tile: {light: '#FFE8D0', dark: '#47301E'},
+  warning: {light: '#A56425', dark: '#F2C18A'},
+  warningTile: {light: '#F6E7D3', dark: '#423426'},
+};
+const CWC_DESKTOP = {
+  systemSmall: {padding: 14, size: 65, icon: 25},
+  systemMedium: {padding: 13, size: 52, icon: 30},
+  systemLarge: {padding: 21, size: 106, icon: 49},
+  systemExtraLarge: {padding: 23, size: 112, icon: 58},
+};
+const CWC_LABELS = {
+  setup: '尚未连接', expired: '连接已过期', offline: '暂时离线',
+  verify: '需要验证', partial: '数量未取全', error: '更新失败',
+};
+
+function cwcText(text, size, color = CWC_COLORS.text, extra = {}) {
+  return {type: 'text', text: String(text), font: {size, weight: 'regular'}, textColor: color,
+    maxLines: 1, minScale: 0.8, ...extra};
+}
+function cwcStack(direction, children, extra = {}) {
+  return {type: 'stack', direction, alignItems: 'start', children, ...extra};
+}
+function cwcIcon(symbol, size, color = CWC_COLORS.accent) {
+  return {type: 'image', src: 'sf-symbol:' + symbol, width: size, height: size, color};
+}
+function cwcTime(value) {
+  const time = typeof value === 'number' ? value : typeof value === 'string' ? Date.parse(value) : NaN;
+  return Number.isFinite(time) && time > 0 ? time : null;
+}
+function cwcClock(time, now, forceDate = false) {
+  if (time === null) return '尚未更新';
+  const date = new Date(time), today = new Date(now), pad = value => String(value).padStart(2, '0');
+  const clock = pad(date.getHours()) + ':' + pad(date.getMinutes());
+  return forceDate || date.toDateString() !== today.toDateString()
+    ? pad(date.getMonth() + 1) + '/' + pad(date.getDate()) + ' ' + clock : clock;
+}
+function cwcContext(model, now) {
+  const input = model && typeof model === 'object' ? model : {};
+  const current = Number.isFinite(now) ? now : Date.now();
+  const status = input.status === 'ready' || Object.hasOwn(CWC_LABELS, input.status) ? input.status : 'error';
+  const refresh = Number(input.refreshMinutes);
+  const minutes = Number.isFinite(refresh) && refresh >= 5 ? Math.min(120, refresh) : 15;
+  const suppliedTime = cwcTime(input.updatedAt);
+  const updatedAt = suppliedTime !== null && suppliedTime <= current + 60000 ? suppliedTime : null;
+  const total = Number.isSafeInteger(input.total) && input.total >= 0 && input.total <= 1000000 ? input.total : null;
+  const partial = status === 'partial' || input.partial === true;
+  const known = status !== 'setup' && updatedAt !== null && total !== null;
+  const stale = status === 'ready' && updatedAt !== null && current - updatedAt > Math.max(60, minutes * 3) * 60000;
+  const warning = status !== 'ready' || partial || stale || !known;
+  const cached = known && (status !== 'ready' && !partial || stale);
+  const label = stale ? '数据较旧' : partial ? CWC_LABELS.partial : status === 'ready' && !known ? '等待更新' : CWC_LABELS[status] || '';
+  const number = known ? (partial ? '≥' : '') + total : '—';
+  const empty = known && total === 0 && !partial;
+  const caption = !known ? (status === 'setup' ? '等待首次连接' : '等待更新')
+    : empty ? (cached ? '上次无待取' : '暂无待取') : cached ? '上次待取' : partial ? '至少待取' : '待取包裹';
+  return {now: current, status, updatedAt, total, known, partial, stale, warning, cached, label, number, empty, caption,
+    stamp: updatedAt === null ? '尚未更新' : (cached ? '上次 ' : '更新 ') + cwcClock(updatedAt, current, cached),
+    refreshAfter: new Date(current + minutes * 60000).toISOString()};
+}
+function cwcHeader(context, small) {
+  return cwcStack('row', [
+    cwcIcon('shippingbox.fill', small ? 13 : 15),
+    cwcText('菜鸟取件', small ? 10 : 12, CWC_COLORS.text, {font: {size: small ? 10 : 12, weight: 'semibold'}}),
+    {type: 'spacer'},
+    ...(context.warning ? [cwcText(context.label, small ? 9 : 10, CWC_COLORS.warning,
+      {font: {size: small ? 9 : 10, weight: 'medium'}, minScale: 0.65})] : []),
+  ], {alignItems: 'center', gap: 5});
+}
+function cwcFooter(context, small) {
+  return cwcStack('row', [
+    cwcIcon('clock', small ? 8 : 9, CWC_COLORS.muted),
+    cwcText(context.stamp, small ? 8 : 9, CWC_COLORS.muted, {minScale: 0.75}),
+  ], {alignItems: 'center', gap: 4});
+}
+function cwcEmpty(context, options, small, medium) {
+  if (medium) return cwcStack('column', [
+    {type: 'spacer'},
+    cwcStack('row', [
+      cwcStack('row', [cwcIcon(context.cached ? 'shippingbox' : 'checkmark', 26)], {
+        padding: 10, borderRadius: 17, backgroundColor: CWC_COLORS.tile,
+      }),
+      cwcText(context.caption, 21, CWC_COLORS.text, {font: {size: 21, weight: 'semibold'}}),
+    ], {gap: 13, alignItems: 'center'}),
+    {type: 'spacer'},
+  ], {flex: 1});
+  return cwcStack('column', [
+    {type: 'spacer'},
+    cwcStack('row', [cwcIcon(context.cached ? 'shippingbox' : 'checkmark', options.icon)], {
+      padding: small ? 8 : 12, borderRadius: small ? 14 : 20, backgroundColor: CWC_COLORS.tile,
+    }),
+    cwcText(context.caption, small ? 16 : 22, CWC_COLORS.text, {
+      font: {size: small ? 16 : 22, weight: 'semibold'}, minScale: 0.8,
+    }),
+    {type: 'spacer'},
+  ], {flex: 1, gap: small ? 8 : 12});
+}
+function cwcNumber(context, options, small, medium) {
+  const color = context.warning ? CWC_COLORS.warning : CWC_COLORS.accent;
+  const size = context.number.length > 4 ? Math.floor(options.size * 0.75) : options.size;
+  const number = cwcText(context.number, size, color, {font: {size, weight: 'bold'}, minScale: 0.42});
+  if (small) return cwcStack('column', [
+    {type: 'spacer'}, number,
+    cwcText(context.caption, 10, CWC_COLORS.muted, {font: {size: 10, weight: 'medium'}}),
+    {type: 'spacer'},
+  ], {flex: 1, gap: 1});
+  const labelSize = medium ? 12 : 16;
+  const count = cwcStack('column', [number, cwcText(context.caption, labelSize, CWC_COLORS.muted,
+    {font: {size: labelSize, weight: 'medium'}})], {flex: 1, gap: medium ? 0 : 4});
+  const tile = cwcStack('column', [cwcIcon(context.known ? 'shippingbox.fill' : 'arrow.clockwise', options.icon, color)], {
+    padding: medium ? 14 : 22, borderRadius: medium ? 20 : 29,
+    backgroundColor: context.warning ? CWC_COLORS.warningTile : CWC_COLORS.tile,
+  });
+  return cwcStack('column', [{type: 'spacer'}, cwcStack('row', [count, tile], {
+    alignItems: 'center', gap: medium ? 16 : 24,
+  }), {type: 'spacer'}], {flex: 1});
+}
+function cwcDesktop(context, family) {
+  const options = CWC_DESKTOP[family], small = family === 'systemSmall', medium = family === 'systemMedium';
+  return {type: 'widget', refreshAfter: context.refreshAfter, backgroundColor: CWC_COLORS.background,
+    backgroundGradient: {type: 'linear', colors: [CWC_COLORS.background, CWC_COLORS.end],
+      startPoint: {x: 0, y: 0}, endPoint: {x: 1, y: 1}},
+    padding: options.padding, gap: small ? 5 : medium ? 6 : 8,
+    children: [cwcHeader(context, small),
+      context.empty ? cwcEmpty(context, options, small, medium) : cwcNumber(context, options, small, medium),
+      cwcFooter(context, small)]};
+}
+function cwcLock(context, family) {
+  const color = context.warning ? CWC_COLORS.warning : CWC_COLORS.accent;
+  if (family === 'accessoryInline') {
+    const value = context.empty ? context.caption : context.known ? context.number + '件待取' : '待更新';
+    const warning = context.warning ? ' · ' + context.label : '';
+    return {type: 'widget', refreshAfter: context.refreshAfter, padding: 0, children: [
+      cwcText('菜鸟 · ' + value + warning + ' · ' + context.stamp, 11, color, {minScale: 0.5}),
+    ]};
+  }
+  if (family === 'accessoryCircular') {
+    return {type: 'widget', refreshAfter: context.refreshAfter, padding: 3, gap: 1, children: [
+      cwcText(context.warning ? context.label : '菜鸟待取', 8, color, {textAlign: 'center', minScale: 0.6}),
+      cwcText(context.empty ? context.caption : context.number, context.empty ? 11 : 23, color, {
+        textAlign: 'center', font: {size: context.empty ? 11 : 23, weight: 'bold'}, minScale: 0.4,
+      }),
+      cwcText(context.stamp, 6.5, CWC_COLORS.muted, {textAlign: 'center', minScale: 0.4}),
+    ]};
+  }
+  return {type: 'widget', refreshAfter: context.refreshAfter, padding: 3, gap: 2, children: [
+    cwcStack('row', [cwcIcon('shippingbox.fill', 10, color),
+      cwcText(context.warning ? context.label : '菜鸟取件', 10, color, {font: {size: 10, weight: 'semibold'}})], {gap: 4, alignItems: 'center'}),
+    cwcText(context.empty ? context.caption : context.known ? context.number + ' 件待取' : '等待更新', 20, color,
+      {font: {size: 20, weight: 'bold'}, minScale: 0.6}),
+    cwcText(context.stamp, 8, CWC_COLORS.muted, {minScale: 0.7}),
+  ]};
+}
+
+function renderCountWidget(model, family = 'systemSmall', now = Date.now()) {
+  const chosen = Object.hasOwn(CWC_DESKTOP, family) || ['accessoryCircular', 'accessoryRectangular', 'accessoryInline'].includes(family)
+    ? family : 'systemSmall';
+  const context = cwcContext(model, now);
+  return chosen.startsWith('accessory') ? cwcLock(context, chosen) : cwcDesktop(context, chosen);
 }
 
 // 来源：runtime.mjs
@@ -2811,9 +3038,10 @@ async function loadCainiaoModel(ctx, clock = () => Date.now()) {
             const official = await loadCainiaoOfficialModel(ctx, clock, base, cwBounded);
             if (official !== null) return official;
         } catch {
-            return {...base, status: "setup", setupTitle: "检查 Egern 存储", message: "官方小组件会话无法确认，未发送旧会话查询"};
+            return {...base, status: "setup", setupTitle: "检查 Egern 存储", message: "无法读取本机连接状态"};
         }
     }
+    if (env.CW_COUNT_ONLY === "true") return {...base, status: "setup", setupTitle: "等待首次连接", message: "打开菜鸟，等菜鸟自带小组件刷新后即可独立查询"};
     let automatic = null;
     if (mode === "auto") {
         try { automatic = cwReadAuth(ctx, now); }
@@ -3146,5 +3374,6 @@ export default async function(ctx) {
         return widget;
     }
     const model = await loadCainiaoModel(ctx);
+    if (ctx.env?.CW_COUNT_ONLY === "true") return renderCountWidget(model, ctx.widgetFamily, Date.now());
     return renderWidget(model, ctx.widgetFamily, Date.now());
 }

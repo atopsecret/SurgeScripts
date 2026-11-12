@@ -22,7 +22,7 @@ const CNW_FAMILIES = {
   systemExtraLarge: { capacity: 8, columns: 4, padding: 16, codeSize: 30 },
 };
 const CNW_STATES = {
-  ready: { label: '待取包裹', title: '没有待取包裹', detail: '包裹到站后会显示在这里' },
+  ready: { label: '待取包裹', title: '暂无待取' },
   setup: { label: '尚未连接', title: '先打开淘宝或菜鸟', detail: '刷新 App 快递列表后回到组件' },
   expired: { label: '会话失效', title: '重开 App 快递列表', detail: '重新接入后回到 Egern 刷新' },
   offline: { label: '连接失败', title: '暂时无法连接', detail: '稍后会自动重试' },
@@ -30,6 +30,7 @@ const CNW_STATES = {
   partial: { label: '数据未取全', title: '暂未取得完整列表', detail: '仅显示已确认的待取件' },
   error: { label: '更新失败', title: '更新没有完成', detail: '稍后会自动重试' },
 };
+const CNW_MISSING_DETAILS = '暂无包裹详情';
 
 function cnwString(value) {
   return typeof value === 'string' ? value.replace(/[\r\n\t]+/g, ' ').trim() : '';
@@ -80,7 +81,7 @@ function cnwContext(model, family, now) {
   const officialSummary = input.coverage === 'official_summary';
   const warning = status !== 'ready' || partial || stale;
   const state = partial && status === 'ready' ? CNW_STATES.partial : CNW_STATES[status];
-  const label = stale ? '数据较旧' : (officialSummary && status === 'ready' && !partial ? '官方待取摘要' : state.label);
+  const label = stale ? '数据较旧' : state.label;
   const lock = family.startsWith('accessory');
   const hideCode = input.privacy === true || (lock && input.privacy !== false);
   return {
@@ -95,7 +96,7 @@ function cnwContext(model, family, now) {
 function cnwCode(item, hideCode, officialSummary = false) {
   // 官方返回的是描述，不从数字猜码；锁屏默认连描述一起隐藏。
   if (officialSummary) return {
-    text: hideCode ? '取件信息已隐藏' : (cnwString(item.summary) || '摘要未提供'),
+    text: hideCode ? '取件信息已隐藏' : (cnwString(item.summary) || '暂无取件信息'),
     usable: false, summary: true, private: hideCode,
   };
   if (hideCode) return { text: '取件码已隐藏', usable: false, private: true };
@@ -186,17 +187,17 @@ function cnwItemCard(item, context, options, small) {
 function cnwEmpty(context, small, tight = false) {
   const ready = context.status === 'ready' && !context.partial;
   const compact = tight || (small && context.warning);
-  const title = ready && context.officialSummary ? (context.total > 0 ? `${context.total}件待取` : '官方摘要暂无待取')
-    : ready ? CNW_STATES.ready.title : (context.status === 'setup' && context.setupTitle ? context.setupTitle : context.state.title);
-  const detail = ready && context.officialSummary && context.total > 0 ? '有待取包裹，官方摘要未提供'
-    : context.message || context.state.detail;
+  const hasCount = context.total > 0;
+  const title = ready ? (hasCount ? `${context.total}件待取` : (context.stale ? '上次无待取' : CNW_STATES.ready.title))
+    : (context.status === 'setup' && context.setupTitle ? context.setupTitle : context.state.title);
+  const detail = ready ? (hasCount ? CNW_MISSING_DETAILS : '') : (context.message || context.state.detail);
   return cnwStack('column', [
     { type: 'spacer' },
-    cnwIcon(ready ? (context.officialSummary && context.total > 0 ? 'shippingbox.fill' : 'checkmark.circle')
+    cnwIcon(ready ? (hasCount ? 'shippingbox.fill' : 'checkmark.circle')
       : (context.status === 'setup' ? 'lock.fill' : 'exclamationmark.triangle.fill'), compact ? 18 : (small ? 23 : 28),
       ready || context.status === 'setup' ? CNW_COLORS.accent : CNW_COLORS.warning),
     cnwText(title, compact ? 14 : (small ? 15 : 18), CNW_COLORS.primary, { font: { size: compact ? 14 : (small ? 15 : 18), weight: 'semibold' }, minScale: 0.8 }),
-    cnwText(detail, compact ? 9 : (small ? 10 : 12), CNW_COLORS.secondary, { maxLines: compact ? 1 : 2, minScale: 0.85 }),
+    ...(detail ? [cnwText(detail, compact ? 9 : (small ? 10 : 12), CNW_COLORS.secondary, { maxLines: compact ? 1 : 2, minScale: 0.85 })] : []),
     { type: 'spacer' },
   ], { flex: 1, gap: compact ? 4 : (small ? 5 : 7) });
 }
@@ -260,15 +261,16 @@ function cnwLock(context, family) {
   const first = hasItems ? cnwCode(context.items[0], context.hideCode, context.officialSummary) : null;
   const count = context.warning && !hasItems && !context.cached ? '—' : context.count;
   const status = cnwLockStatus(context);
+  const ready = context.status === 'ready' && !context.partial;
+  const empty = ready ? (context.total > 0 ? CNW_MISSING_DETAILS : (context.stale ? '上次无待取' : CNW_STATES.ready.title)) : '待更新';
+  const hidden = context.officialSummary ? '信息已隐藏' : '码已隐藏';
   let children;
   if (family === 'accessoryInline') {
-    const code = first ? (context.hideCode ? (context.officialSummary ? '摘要已隐藏' : '码已隐藏') : first.text)
-      : (context.status === 'ready' ? (context.officialSummary && context.total > 0 ? '摘要未提供' : '暂无待取') : '待更新');
+    const code = first ? (context.hideCode ? hidden : first.text) : empty;
     children = [cnwText(`${context.warning || context.message ? status : '菜鸟'} · ${count}件 · ${code} · ${cnwLockTimestamp(context, true)}`,
       12, CNW_COLORS.primary, { minScale: 0.45, font: { size: 12, weight: 'medium', ...(first?.usable && !context.hideCode ? { family: 'Menlo' } : {}) } })];
   } else if (family === 'accessoryCircular') {
-    const codeText = first ? (context.hideCode ? (context.officialSummary ? '摘要已隐藏' : '码已隐藏') : (first.usable ? cnwWrapCode(first.text) : first.text))
-      : (context.status === 'ready' ? (context.officialSummary && context.total > 0 ? '摘要未提供' : '暂无待取') : '待更新');
+    const codeText = first ? (context.hideCode ? hidden : (first.usable ? cnwWrapCode(first.text) : first.text)) : empty;
     children = [
       cnwText(status, 8, CNW_COLORS.primary, { textAlign: 'center', minScale: 0.7, font: { size: 8, weight: 'semibold' } }),
       cnwText(context.partial && hasItems ? `≥${context.total}` : count, first && !context.hideCode ? 18 : 22, CNW_COLORS.primary, {
@@ -290,8 +292,7 @@ function cnwLock(context, family) {
       ...(first ? [cnwText(context.hideCode ? (context.officialSummary ? '取件信息已隐藏' : '取件码已隐藏') : first.text, context.hideCode || !first.usable ? 12 : 18, CNW_COLORS.primary, {
         font: { size: context.hideCode || !first.usable ? 12 : 18, weight: first.usable && !context.hideCode ? 'bold' : 'medium', ...(first.usable && !context.hideCode ? { family: 'Menlo' } : {}) }, minScale: 0.45,
         ...(context.officialSummary ? { maxLines: 2 } : {}),
-      })] : [cnwText(context.status === 'ready' ? (context.officialSummary ? (context.total > 0 ? '有待取，摘要未提供' : '官方摘要暂无待取') : '没有待取包裹')
-        : (context.setupTitle || context.state.title), 12, CNW_COLORS.primary, { minScale: 0.8 })]),
+      })] : [cnwText(ready ? empty : (context.setupTitle || context.state.title), 12, CNW_COLORS.primary, { minScale: 0.8 })]),
       cnwText(cnwLockTimestamp(context), 8, CNW_COLORS.secondary, { minScale: 0.75 }),
     ];
   }

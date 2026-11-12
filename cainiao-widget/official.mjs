@@ -1,4 +1,4 @@
-// 引擎：Egern JavaScript | 版本：1.3.6 | 语言：JavaScript ES module
+// 引擎：Egern JavaScript | 版本：1.4.0 | 语言：JavaScript ES module
 // 构建：node cainiao-widget/build.mjs
 // 运行：同一模块捕获实际 RPC bearer 或本人签发 token，再由 generic 独立查询
 // 依赖：core.mjs、app.mjs；不执行 APK、不调用原生签名、不在 hook 发送个人查询
@@ -17,6 +17,9 @@ const CW_OFFICIAL_QUERY_PATH = CW_OFFICIAL_QUERY_URL.slice("https://guoguouser.c
 const CW_OFFICIAL_CONFLICT_OWNER = md5("capture-conflicting-identities");
 const CW_OFFICIAL_UNBOUND_OWNER = md5("official-rpc-unbound");
 const CW_OFFICIAL_RETIRED_LIMIT = 32;
+// 旧指纹按键只增不删；32 项仅保留兼容/转换屏障，不再代表永久集合容量。
+const CW_OFFICIAL_REVOKED_PREFIX = "cainiao-widget.official.revoked.v1.";
+const CW_OFFICIAL_REVOKED_MARK = "REVOKED_V1";
 const CW_OFFICIAL_INSTALL_KEYS = ["isLargeInstall", "isMediumInstall", "isSmallInstall", "isNewSmallInstall", "isLargeV2Install"];
 const CW_OFFICIAL_RPC_KEYS = ["appName", "source", "channel", "brand", "installStatus", "version", "ext", "token", "timestamp", "lbs"];
 const CW_OFFICIAL_TYPES = ["missing", "null", "object", "array", "string", "number", "boolean", "invalid", "unread"];
@@ -345,7 +348,7 @@ export function cwOfficialState(value, now = Date.now()) {
     try {
         const legacy = value?.version === "1.3.0", binding = value?.binding === undefined ? "uid" : value.binding;
         const retiredTokenHashes = value?.retiredTokenHashes === undefined ? [] : value.retiredTokenHashes;
-        if (!cwOfficialTime(now) || !cwObject(value) || ![CW_VERSION, "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5"].includes(value.version) || !cwOfficialHash(value.owner)
+        if (!cwOfficialTime(now) || !cwObject(value) || ![CW_VERSION, "1.3.0", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", "1.3.6"].includes(value.version) || !cwOfficialHash(value.owner)
             || !["uid", "bearer", "unbound"].includes(binding) || legacy && binding !== "uid" || !cwOfficialHashes(retiredTokenHashes)
             || !cwOfficialHash(value.generation) || !cwOfficialHash(value.revision) || !CW_OFFICIAL_STATUSES.includes(value.status)
             || !cwOfficialTime(value.at) || value.at > now || !CW_OFFICIAL_FAILURES.includes(value.failure) || !CW_OFFICIAL_CAPTURES.includes(value.captureResult)
@@ -398,20 +401,22 @@ function cwOfficialAccess(ctx, now) {
         const raw = ctx.storage.getJSON(CW_OFFICIAL_STORE), barrier = ctx.storage.getJSON(CW_STORE);
         const reference = {raw, state: cwOfficialState(raw, now), signature: cwOfficialSignature(raw), barrier, barrierSignature: cwOfficialSignature(barrier)};
         cwOfficialBearerBarrier(reference);
+        reference.revokedCurrent = !!reference.state?.tokenHash && cwOfficialRevoked(ctx, reference.state.tokenHash);
         return reference;
     } catch { throw cwOfficialFail("STORAGE_UNCONFIRMED"); }
 }
 
-function cwOfficialGuard(ctx, reference, now) {
-    if (!cwOfficialAuto(ctx) || !cwOfficialTime(now)) throw cwOfficialFail("SUPERSEDED");
+function cwOfficialGuard(ctx, reference, now, clearing = false) {
+    if (!clearing && !cwOfficialAuto(ctx) || !cwOfficialTime(now)) throw cwOfficialFail("SUPERSEDED");
     const current = cwOfficialAccess(ctx, now);
-    if (current.signature !== reference.signature || current.barrierSignature !== reference.barrierSignature) throw cwOfficialFail("SUPERSEDED");
+    if (current.signature !== reference.signature || current.barrierSignature !== reference.barrierSignature
+        || current.revokedCurrent !== reference.revokedCurrent) throw cwOfficialFail("SUPERSEDED");
     return current;
 }
 
 function cwOfficialBlocked(reference, owner) {
     const bearer = cwOfficialBearerBarrier(reference);
-    return bearer?.stopped === true || reference.state?.binding === "bearer" && bearer?.retiredTokenHashes.includes(reference.state.tokenHash)
+    return reference.revokedCurrent === true || bearer?.stopped === true || reference.state?.binding === "bearer" && bearer?.retiredTokenHashes.includes(reference.state.tokenHash)
         || cwObject(reference.barrier) && reference.barrier.blocked === true && reference.barrier.owner !== owner;
 }
 
@@ -442,6 +447,8 @@ function cwOfficialWrite(ctx, reference, value, now) {
     cwOfficialGuard(ctx, reference, now);
     const state = cwOfficialState(value, now);
     if (!state) throw cwOfficialFail("STORAGE_UNCONFIRMED");
+    // UID 签发路径也不能重新接纳已永久撤销的 bearer；不因 off 或新票据绕过撤销。
+    if (state.token && cwOfficialRevoked(ctx, state.tokenHash)) throw cwOfficialFail("ACCOUNT_BLOCKED");
     try { ctx.storage.setJSON(CW_OFFICIAL_STORE, state); } catch { throw cwOfficialFail("STORAGE_UNCONFIRMED"); }
     const saved = cwOfficialAccess(ctx, now);
     if (saved.barrierSignature !== reference.barrierSignature) throw cwOfficialFail("SUPERSEDED");
@@ -466,14 +473,63 @@ function cwOfficialRetired(reference) {
     return [...new Set([...(reference.state?.retiredTokenHashes || []), ...(cwOfficialBearerBarrier(reference)?.retiredTokenHashes || [])])];
 }
 
+function cwOfficialRevoked(ctx, hash) {
+    if (!cwOfficialHash(hash)) throw cwOfficialFail("STORAGE_UNCONFIRMED");
+    try {
+        const value = ctx.storage.getJSON(CW_OFFICIAL_REVOKED_PREFIX + hash);
+        if (value === null || value === undefined) return false;
+        if (value !== CW_OFFICIAL_REVOKED_MARK) throw cwOfficialFail("STORAGE_UNCONFIRMED");
+        return true;
+    } catch { throw cwOfficialFail("STORAGE_UNCONFIRMED"); }
+}
+
+function cwOfficialArchiveRetired(ctx, reference, hashes, now, clearing = false) {
+    for (const hash of new Set(hashes)) {
+        cwOfficialGuard(ctx, reference, now, clearing);
+        if (!cwOfficialRevoked(ctx, hash)) {
+            try { ctx.storage.setJSON(CW_OFFICIAL_REVOKED_PREFIX + hash, CW_OFFICIAL_REVOKED_MARK); }
+            catch { throw cwOfficialFail("STORAGE_UNCONFIRMED"); }
+            if (!cwOfficialRevoked(ctx, hash)) throw cwOfficialFail("STORAGE_UNCONFIRMED");
+        }
+        const saved = cwOfficialAccess(ctx, now);
+        if (saved.signature !== reference.signature || saved.barrierSignature !== reference.barrierSignature
+            || saved.revokedCurrent !== reference.revokedCurrent && hash !== reference.state?.tokenHash) throw cwOfficialFail("SUPERSEDED");
+        reference = saved;
+    }
+    return reference;
+}
+
+function cwOfficialCapacityRecovery(reference) {
+    const state = reference.state, fence = cwOfficialBearerBarrier(reference);
+    return state?.binding === "bearer" && state.status === "invalid" && state.failure === "ACCOUNT_BLOCKED" && state.captureResult === "revocation_full"
+        && state.token === "" && state.template === null && state.issueTicket === null && reference.raw.snapshot === null
+        && state.lastIssueHash === "" && state.runId === ""
+        && state.requestCount === 0 && state.successCount === 0 && state.lastRequestAt === null && state.lastSuccessAt === null
+        && fence?.stopped === true && fence.owner === state.owner && cwKnownVersion(fence.version)
+        && cwOfficialSameKeys(fence, ["version", "owner", "source", "blocked", "cookie", "snapshot", "officialBinding", "retiredTokenHashes", "stopped"])
+        && state.retiredTokenHashes.length === CW_OFFICIAL_RETIRED_LIMIT && fence.retiredTokenHashes.length === CW_OFFICIAL_RETIRED_LIMIT
+        && state.retiredTokenHashes.includes(state.tokenHash) && state.retiredTokenHashes.every(hash => fence.retiredTokenHashes.includes(hash));
+}
+
+export function preserveCainiaoOfficialRevocations(ctx, now = Date.now()) {
+    if (!cwOfficialTime(now)) throw cwOfficialFail("STORAGE_UNCONFIRMED");
+    const reference = cwOfficialAccess(ctx, now);
+    if (reference.raw !== null && reference.raw !== undefined && !reference.state) throw cwOfficialFail("STORAGE_UNCONFIRMED");
+    const hashes = cwOfficialRetired(reference);
+    if (reference.state?.tokenHash) hashes.push(reference.state.tokenHash);
+    cwOfficialArchiveRetired(ctx, reference, hashes, now, true);
+}
+
 function cwOfficialStopBearer(ctx, reference, now, failure, captureResult, status, full = false) {
     const state = reference.state;
     if (!state || state.binding !== "bearer") return reference;
-    let retired = cwOfficialRetired(reference);
-    if (!retired.includes(state.tokenHash)) {
-        if (retired.length >= CW_OFFICIAL_RETIRED_LIMIT) full = true;
-        else retired.push(state.tokenHash);
-    }
+    const legacy = cwOfficialRetired(reference);
+    if (legacy.length > CW_OFFICIAL_RETIRED_LIMIT) throw cwOfficialFail("STORAGE_UNCONFIRMED");
+    // 同 owner 的终止也先保存阻断，再归档；归档失败不能继续使用旧 ready。
+    // 完整旧集合仍在尚未改写的 state；单当前指纹使新终止失败不同于旧容量停止。
+    reference = cwOfficialIsolate(ctx, reference, state.owner, now, {retiredTokenHashes: [state.tokenHash], stopped: true});
+    reference = cwOfficialArchiveRetired(ctx, reference, [...legacy, state.tokenHash], now);
+    const retired = [state.tokenHash];
     reference = cwOfficialIsolate(ctx, reference, state.owner, now, {retiredTokenHashes: retired, stopped: full});
     return cwOfficialWrite(ctx, reference, {...cwOfficialInitial(state.owner, now, status, state.tokenHash, "bearer", retired),
         failure, captureResult, rpcShape: state.rpcShape}, now);
@@ -493,9 +549,9 @@ function cwOfficialCaptureBearer(ctx, reference, parsed, now, shape) {
     // 已有官方 UID 与未知账号屏障不由 RPC 撤销；严格识别的旧 H5 屏障只允许全新 bearer 接管。
     if (reference.raw !== null && reference.raw !== undefined && !state || state?.binding === "uid"
         || cwObject(reference.barrier) && reference.barrier.blocked === true && !fence && !cwOfficialLegacyHandoff(reference)) return reference;
-    let retired = cwOfficialRetired(reference);
+    const retired = cwOfficialRetired(reference);
     if (retired.length > CW_OFFICIAL_RETIRED_LIMIT) throw cwOfficialFail("STORAGE_UNCONFIRMED");
-    if (fence?.stopped || retired.includes(tokenHash)) return reference;
+    if (fence?.stopped && !cwOfficialCapacityRecovery(reference) || retired.includes(tokenHash) || cwOfficialRevoked(ctx, tokenHash)) return reference;
     // B 已经留下屏障而状态仍是 A，只有 B 本身可完成保存，旧 A 或第三个候选不能撤回 B。
     if (fence && fence.owner !== state?.owner && fence.owner !== owner) return reference;
     if (state?.binding === "bearer" && state.tokenHash === tokenHash) {
@@ -505,15 +561,13 @@ function cwOfficialCaptureBearer(ctx, reference, parsed, now, shape) {
         return cwOfficialWrite(ctx, reference, {...state, template: parsed.template, templateHash, templateCapturedAt: now,
             status: "pending", revision: cwOfficialNonce(now), runId: "", failure: "NONE", captureResult: "template", rpcShape: shape, at: now}, now);
     }
-    if (state?.binding === "bearer" && state.tokenHash && !retired.includes(state.tokenHash)) {
-        if (retired.length >= CW_OFFICIAL_RETIRED_LIMIT)
-            return cwOfficialStopBearer(ctx, reference, now, "ACCOUNT_BLOCKED", "revocation_full", "invalid", true);
-        retired.push(state.tokenHash);
-    }
-    if (retired.length >= CW_OFFICIAL_RETIRED_LIMIT)
-        return cwOfficialStopBearer(ctx, reference, now, "ACCOUNT_BLOCKED", "revocation_full", "invalid", true);
+    // 先保留完整旧热集合的新候选屏障，归档失败仍只允许该候选重试，不允许 A 或 C 撤回屏障。
     reference = cwOfficialIsolate(ctx, reference, owner, now, {retiredTokenHashes: retired, stopped: false});
-    return cwOfficialWrite(ctx, reference, {...cwOfficialInitial(owner, now, "pending", tokenHash, "bearer", retired),
+    const previous = state?.binding === "bearer" && state.tokenHash ? [state.tokenHash] : [];
+    reference = cwOfficialArchiveRetired(ctx, reference, [...retired, ...previous], now);
+    // 所有旧项均确认永久归档后才替代热列表；不是丢弃撤销记录。
+    reference = cwOfficialIsolate(ctx, reference, owner, now, {retiredTokenHashes: previous, stopped: false});
+    return cwOfficialWrite(ctx, reference, {...cwOfficialInitial(owner, now, "pending", tokenHash, "bearer", previous),
         token: parsed.token, tokenCapturedAt: now, template: parsed.template, templateHash: md5(JSON.stringify(parsed.template)), templateCapturedAt: now,
         rpcShape: shape, captureResult: "rpc_bearer"}, now);
 }
@@ -683,9 +737,9 @@ function cwOfficialModel(base, snapshot, status, message, extra = {}) {
 }
 
 function cwOfficialStop(base, code) {
-    return cwOfficialModel(base, null, "setup", code === "STORAGE_UNCONFIRMED" ? "本机专用会话或账号屏障无法确认，请检查 Egern"
-        : code === "ACCOUNT_BLOCKED" ? "账号已变化，旧专用会话和摘要已隔离" : "专用会话已更新，本轮旧查询未被采纳",
-    {setupTitle: code === "STORAGE_UNCONFIRMED" ? "检查 Egern 存储" : "重新连接 App"});
+    return cwOfficialModel(base, null, "setup", code === "STORAGE_UNCONFIRMED" ? "无法读取本机连接状态"
+        : code === "ACCOUNT_BLOCKED" ? "连接已停止，请打开菜鸟" : "连接已更新，请重试",
+    {setupTitle: code === "STORAGE_UNCONFIRMED" ? "检查 Egern 存储" : "重新连接菜鸟"});
 }
 
 export async function loadCainiaoOfficialModel(ctx, clock, base, bounded) {
@@ -699,10 +753,10 @@ export async function loadCainiaoOfficialModel(ctx, clock, base, bounded) {
     if (!original) return cwOfficialStop(base, "STORAGE_UNCONFIRMED");
     if (cwOfficialBlocked(reference, original.owner) && !(original.binding === "unbound" && cwOfficialLegacyHandoff(reference))) return cwOfficialStop(base, "ACCOUNT_BLOCKED");
     if (["invalid", "signed_out"].includes(original.status)) return cwOfficialStop(base, "ACCOUNT_BLOCKED");
-    if (original.binding === "unbound") return cwOfficialModel(base, null, "setup", "已观察到官方 RPC，请求正文合同尚未接受；连接状态保留固定字段类型，未猜测 iOS 参数", {setupTitle: "等待实际 RPC 合同"});
-    if (original.status === "expired") return cwOfficialModel(base, original.snapshot, "expired", "官方专用 token 已失效，请在 App 重新签发" + (original.snapshot ? " · 上次官方摘要" : ""));
-    if (!original.token) return cwOfficialModel(base, null, "setup", "已观察到 App 身份，尚未取得本人专用 widget token", {setupTitle: "等待 App 专用会话"});
-    if (!original.template) return cwOfficialModel(base, null, "setup", "已取得专用 token，尚未观察到匹配的实际查询参数；未猜测平台字段", {setupTitle: "等待 App 官方查询"});
+    if (original.binding !== "unbound" && original.status === "expired") return cwOfficialModel(base, original.snapshot, "expired", "请打开菜鸟后再刷新");
+    if (original.binding === "unbound" || !original.token || !original.template) {
+        return cwOfficialModel(base, null, "setup", "打开菜鸟，等菜鸟自带小组件刷新", {setupTitle: "等待菜鸟刷新"});
+    }
     if (!cwOfficialTime(now) || typeof bounded !== "function") return cwOfficialStop(base, "STORAGE_UNCONFIRMED");
     const deadline = now + 18000;
     const timestamp = Math.max(now, (original.lastRequestAt || 0) + 1);
@@ -740,8 +794,7 @@ export async function loadCainiaoOfficialModel(ctx, clock, base, bounded) {
         state = {...state, snapshot, status: "ready", successCount: Math.min(state.successCount + 1, 999999), lastSuccessAt: after, failure: "NONE", at: after};
         reference = cwOfficialWrite(ctx, reference, state, after); state = reference.state;
         guard();
-        return cwOfficialModel(base, snapshot, "ready", snapshot.total > 0 && !snapshot.items.length
-            ? "官方摘要独立查询成功 · 有待取包裹，摘要未提供" : "官方摘要独立查询成功", {officialRequestCount: state.requestCount, officialSuccessCount: state.successCount});
+        return cwOfficialModel(base, snapshot, "ready", "", {officialRequestCount: state.requestCount, officialSuccessCount: state.successCount});
     } catch (error) {
         const code = error?.officialCode || "SCHEMA_INVALID";
         if (["SUPERSEDED", "STORAGE_UNCONFIRMED"].includes(code)) return cwOfficialStop(base, code);
@@ -754,10 +807,9 @@ export async function loadCainiaoOfficialModel(ctx, clock, base, bounded) {
             if (code === "INVALID_TOKEN") state = {...state, token: "", tokenCapturedAt: null, template: null, templateHash: "", templateCapturedAt: null, issueTicket: null};
             reference = cwOfficialWrite(ctx, reference, state, after); state = reference.state;
         } catch (failure) { return cwOfficialStop(base, failure?.officialCode); }
-        const snapshot = state.snapshot, labels = {INVALID_TOKEN: "官方专用 token 已失效，请在 App 重新签发", QUERY_ERROR: "官方摘要查询未成功", BUSINESS_FAILURE: "官方摘要业务请求未成功",
-            HTTP_REJECTED: "官方摘要请求被服务器拒绝", SCHEMA_INVALID: "官方摘要结构未确认，未伪造空包裹", OFFLINE: "暂时无法取得新的官方摘要", DEADLINE: "本次官方摘要查询超时"};
+        const snapshot = state.snapshot, labels = {INVALID_TOKEN: "请打开菜鸟后再刷新", OFFLINE: "请检查网络后重试", DEADLINE: "查询超时，请稍后重试"};
         return cwOfficialModel(base, snapshot, code === "INVALID_TOKEN" ? "expired" : code === "OFFLINE" ? "offline" : "error",
-            (labels[code] || labels.SCHEMA_INVALID) + (snapshot ? " · 上次官方摘要" : ""), {officialRequestCount: state.requestCount, officialSuccessCount: state.successCount});
+            labels[code] || "暂时查不到包裹", {officialRequestCount: state.requestCount, officialSuccessCount: state.successCount});
     }
 }
 

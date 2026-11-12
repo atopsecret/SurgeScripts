@@ -2,9 +2,9 @@
 # Build: 无需构建；源码构建见本目录 README.md
 # Run: Egern 模块中添加本文件 URL；HTTPS 需启用 MITM 并信任当前 CA
 # Deps: 本目录 apple-weather-enhancer.egern.js；不加载 Loon 兼容脚本
-name: Apple 天气增强 · Egern
+name: Apple 天气增强
 description: 1.0.0 原生版；基于 WeatherKit v3.1.0，扩展可用数据集、天气数据源、下一小时降水及 AQI 算法。适用 iOS 18+；需 MITM。
-author: atopsecret（原作者 VirgilClyne、WordlessEcho、001）
+author: atopsecret
 homepage: https://github.com/atopsecret/SurgeScripts/tree/main/apple-weather
 manual: https://github.com/atopsecret/SurgeScripts/blob/main/apple-weather/README.md
 icon: cloud.sun.fill

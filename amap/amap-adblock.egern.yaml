@@ -2,9 +2,9 @@
 # Build: 无需构建
 # Run: 在 Egern 模块中导入本文件；HTTPS 需信任 Egern 当前 CA
 # Deps: 本目录 amap-cleaner.egern.js；不加载旧 Surge 脚本
-name: 高德地图去广告 · Egern
-description: 2.1.0 原生版；保留 RT 开屏，修复个人页 v3，十五类页面与嵌套配置定点净化，无第三方脚本依赖。
-author: atopsecret（Surge 原版 skernelx；端点参考 ddgksf2013 / Kelee）
+name: 高德地图去广告
+description: 2.1.0版；保留 RT 开屏，修复个人页 v3，十五类页面与嵌套配置定点净化，无第三方脚本依赖。
+author: atopsecret（Surge 原版 skernelx）
 homepage: https://github.com/atopsecret/SurgeScripts/tree/main/amap
 icon: map.fill
 rules:

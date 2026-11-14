@@ -351,6 +351,26 @@ await test('portable module keeps narrow QUIC scope and exact MITM exclusions',a
   for(const entry of manifest.scriptEntries)assert.ok(entry.name.startsWith('ios-youtube-'));
   for(const source of [requestCode,responseCode])assert.equal(/^\s*(import|export)\s|export default\s*\(ctx\)/m.test(source),false);
 });
+await test('only core response gains the finite 8 MiB cap',async()=>{
+  const entries=scriptEntries(read('youtube-enhancer.sgmodule'));
+  const limits=new Map(entries.map(entry=>[entry.name,Number(entry['max-size'])]));
+  assert.equal(limits.get('ios-youtube-response'),8388608);
+  for(const name of ['ios-youtube-download-player','ios-youtube-init','ios-youtube-auto-hd','ios-youtube-download-action'])assert.equal(limits.get(name),1048576);
+  assert.equal(limits.get('ios-youtube-ump'),4194304);
+  assert.equal(limits.get('ios-youtube-dual-subs'),2097152);
+  assert.equal(entries.length,9);
+  assert.ok(4201460>4194304&&4201460<=limits.get('ios-youtube-response'));
+  for(const entry of entries.filter(entry=>entry['requires-body']==='true'))assert.ok(Number(entry['max-size'])>0);
+});
+await test('valid protobuf larger than the former cap retains unknown bytes',async()=>{
+  const unknown=binaryField(999,new Uint8Array(4201460).fill(0xa5));
+  const input=concat(encode('Player',playerFixture()),unknown);
+  assert.ok(input.byteLength>4194304&&input.byteLength<8388608);
+  const output=(await run('response',prefix+'player',{body:input})).result.body;
+  assert.ok(output instanceof Uint8Array);
+  assert.equal(decode('Player',output).adPlacements.length,0);
+  bytesEqual(api.wireFields(output).find(field=>field.no===999).raw,unknown);
+});
 const passed=results.filter(test=>test.status==='passed').length;
 const report={mode:'mock-only',liveNetworkCalls:0,mockedNetworkCalls,total:results.length,passed,failed:results.length-passed,tests:results};
 console.log('MOCK_SUMMARY ' + JSON.stringify(report));

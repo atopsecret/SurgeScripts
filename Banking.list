@@ -1,0 +1,20 @@
+# Banking and payment domains kept DIRECT by the user's routing policy.
+# Separate public rule set; no personal endpoints, credentials or account identifiers.
+DOMAIN-SUFFIX,abchina.com
+DOMAIN-SUFFIX,abchina.com.cn
+DOMAIN-SUFFIX,95599.cn
+DOMAIN-SUFFIX,bankabc.com
+DOMAIN-SUFFIX,unionpay.com
+DOMAIN-SUFFIX,chinaunionpay.com
+DOMAIN-SUFFIX,unionpayintl.com
+DOMAIN-SUFFIX,alipay.com
+DOMAIN-SUFFIX,alipayobjects.com
+DOMAIN-SUFFIX,alipaydns.com
+DOMAIN-SUFFIX,tenpay.com
+DOMAIN-SUFFIX,icbc.com.cn
+DOMAIN-SUFFIX,ccb.com
+DOMAIN-SUFFIX,bankofchina.com
+DOMAIN-SUFFIX,boc.cn
+DOMAIN-SUFFIX,cmbchina.com
+DOMAIN-SUFFIX,psbc.com
+DOMAIN-SUFFIX,bankcomm.com

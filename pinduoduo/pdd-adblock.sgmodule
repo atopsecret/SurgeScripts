@@ -1,44 +1,20 @@
 #!name=拼多多去广告
-#!desc=开屏广告 + 底栏多多视频 + 首页横幅/搜索热词 + 个人中心精简 + 会场入口/直播浮层 + 订单页推广 + 聊天页推荐 + 19 个推荐接口 + 埋点域名 + 多多视频素材直连拦截。融合 Thelongdarkorg（开屏/素材/QUIC）与 Loon Hub RuCu6 系（tab 过滤/页面精简）两源，Loon 原生改写翻译为自托管脚本。
+#!desc=eg-native-20261105-r1；原生页面净化、开屏空响应和 UA 双条件素材拦截；单域 QUIC 阻断，不封锁整个商品图片 CDN。
 #!author=skernelx · FFDNS · RuCu6 · ZenmoFeiShi
-#!homepage=https://github.com/atopsecret/SurgeScripts
+#!homepage=https://github.com/atopsecret/SurgeScripts/tree/main/pinduoduo
 #!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Advertising.png
 #!category=去广告
 #!tag=去广告,拼多多,pdd
 #!openUrl=https://apps.apple.com/cn/app/id1044283059
-# ------------------------------------------------------------
-# 双源融合：
-#   1. Thelongdarkorg/loon-plugins pinduoduo_splash_ad_block.plugin
-#      开屏（cappuccino/splash 空体 + 裸 IP 素材拦截 + QUIC 阻断）
-#   2. Loon Hub PinDuoDuo_remove_ads.lpx（RuCu6 / ZenmoFeiShi / 可莉）
-#      底栏多多视频（alexa/homepage/hub 的 bottom_tabs 过滤）、
-#      首页/个人中心/订单/聊天精简、19 个推荐接口、埋点域名
-#   Loon 的 response-body-json-jq / json-del → 自托管脚本
-#   pdd-ad-block.js；reject-dict → Map Local。
-#
-# ⚠️ 刻意不搬：pddpic.com 图片 CDN 的 REJECT（cdl-1/cdl-p2/cd-1）——
-#    社区实证会误杀商品评价图片，弊大于利。
-# ------------------------------------------------------------
+# Surge iOS 6.x；替换旧版同名模块，避免重复处理。不修改全局 DNS、CA 或代理。
 
 [Rule]
-# 开屏素材直连下发（IPv4 裸 IP + /d 路径，限拼多多 UA）
-AND,((URL-REGEX,"^http:\/\/((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\/d(\d)?"),(USER-AGENT,"*com.xunmeng.pinduoduo*")),REJECT
-# 开屏素材直连下发（IPv6 裸 IP + /d 路径，限拼多多 UA）
-AND,((URL-REGEX,"^http:\/\/\[[0-9a-fA-F:]+\]\/d(\d)?\?"),(USER-AGENT,"*com.xunmeng.pinduoduo*")),REJECT
-# 开屏接口 QUIC 阻断（配套 MITM：只解 TCP，拦 QUIC 逼回 TCP 路径）
+AND,((URL-REGEX,^http://(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)/d[0-9]?(?:\?|$)),(USER-AGENT,*com.xunmeng.pinduoduo*)),REJECT
+AND,((URL-REGEX,^http://\[[0-9a-fA-F:]+\]/d[0-9]?\?),(USER-AGENT,*com.xunmeng.pinduoduo*)),REJECT
 AND,((DOMAIN,api.pinduoduo.com),(PROTOCOL,QUIC)),REJECT
-
-# 多多视频/直播推广素材直连（promotion / promo 路径，抓包实证为视频卡片封面与切片）
-# 不拦整个 pddpic（评价图片同域），只拦明确的多多视频推广路径
+AND,((URL-REGEX,^http://[^/]+/v3/d\?(?:[^#]*&)?type=addrs(?:&|$)),(USER-AGENT,*pinduoduo*)),REJECT
 DOMAIN,promotion-2.pddpic.com,REJECT
 DOMAIN,video-snapshot01.pddpic.com,REJECT
-
-# 拼多多自建 HTTPDNS（114.110.97.97 等，/v3/d 路径）：App 借它解析出裸 IP 直连，
-# 绕开域名层让域名规则/MITM 失效。掐掉它 + 系统层 ipv6=false 双管齐下，
-# 逼 App 退回域名解析路径。
-AND,((URL-REGEX,"^http:\/\/[^\/]+\/v3\/d\?type=addrs"),(USER-AGENT,"*pinduoduo*")),REJECT
-
-# 埋点 / 上报域名（纯遥测，REJECT 安全）
 DOMAIN,titan.pinduoduo.com,REJECT
 DOMAIN,xg.pinduoduo.com,REJECT
 DOMAIN,apm.pinduoduo.com,REJECT
@@ -50,51 +26,32 @@ DOMAIN,ta.pinduoduo.com,REJECT
 DOMAIN,ta-a.pinduoduo.com,REJECT
 DOMAIN,meta.pinduoduo.com,REJECT
 
-[Script]
-# 响应体改写：底栏 tab 过滤（删多多视频）+ 各页面精简，六接口合一
-# pattern 说明：拼多多 App 现用自建 HTTPDNS 解析后直连裸 IP（抓包实证
-# https://36.152.46.3/api/alexa/homepage/hub，Host 头仍是 api.pinduoduo.com），
-# 故 pattern 不锚定域名，只匹配路径；脚本内再按路径分发。
-拼多多去广告 = type=http-response,pattern=^https?:\/\/[^\/]+\/(api\/(alexa\/homepage\/hub|philo\/personal\/hub|oak\/integration\/render|aristotle\/order_list_v4)\?|order\/|search\?),requires-body=1,max-size=131072,script-update-interval=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/pinduoduo/pdd-ad-block.js?v=v3,timeout=30
-
 [Map Local]
-# ========== 开屏 ==========
-# 开屏广告接口：空体 200，App 跳过开屏
-^https?:\/\/api\.(pinduoduo|yangkeduo)\.com\/api\/cappuccino\/splash data-type=text data="" status-code=200
+^https?://api\.(pinduoduo|yangkeduo)\.com(?::[0-9]+)?/api/cappuccino/splash(?:[/?]|$) data-type=base64 data="" status-code=200
+^https?://m\.pinduoduo\.net(?::[0-9]+)?/vlayer_tab_popup\.html(?:\?|$) data-type=base64 data="PCFET0NUWVBFIGh0bWw+PGh0bWw+PGJvZHk+PC9ib2R5PjwvaHRtbD4=" status-code=200 header="Content-Type:text/html; charset=utf-8"
+^https?://api\.pinduoduo\.com(?::[0-9]+)?/api/aristotle/unrated_order_for_unreceived_tab(?:\?|$) data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json"
+^https?://api\.pinduoduo\.com(?::[0-9]+)?/api/aristotle/query_order_list_tabs_element(?:\?|$) data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json"
+^https?://api\.pinduoduo\.com(?::[0-9]+)?/api/aquarius/hungary/global/homepage(?:\?|$) data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json"
+^https?://api\.pinduoduo\.com(?::[0-9]+)?/api/caterham/v3/query/order_express_group(?:\?|$) data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json"
+^https?://api\.pinduoduo\.com(?::[0-9]+)?/search_hotquery(?:\?|$) data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json"
+^https?://api\.pinduoduo\.com(?::[0-9]+)?/api/zaire_biz/chat/resource/get_list_data(?:\?|$) data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json"
+^https?://api\.pinduoduo\.com(?::[0-9]+)?/api/caterham/v3/query/new_chat_group(?:\?|$) data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json"
+^https?://api\.pinduoduo\.com(?::[0-9]+)?/api/alexa/goods/back_up(?:\?|$) data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json"
+^https?://api\.pinduoduo\.com(?::[0-9]+)?/api/caterham/v3/query/personal(?:\?|$) data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json"
+^https?://api\.pinduoduo\.com(?::[0-9]+)?/api/brand-olay/goods_detail/bybt_guide(?:\?|$) data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json"
+^https?://api\.pinduoduo\.com(?::[0-9]+)?/api/engels/reviews/require/append(?:\?|$) data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json"
+^https?://api\.pinduoduo\.com(?::[0-9]+)?/api/caterham/v3/query/my_order_group(?:\?|$) data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json"
+^https?://api\.pinduoduo\.com(?::[0-9]+)?/api/caterham/v3/query/likes(?:\?|$) data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json"
+^https?://api\.pinduoduo\.com(?::[0-9]+)?/api/phantom/gbdbpdv/extra(?:\?|$) data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json"
+^https?://api\.pinduoduo\.com(?::[0-9]+)?/api/manufacturer/cross/shortcut/list(?:\?|$) data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json"
+^https?://api\.pinduoduo\.com(?::[0-9]+)?/api/dunkirk/liveactivity/push/create/url/report(?:\?|$) data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json"
+^https?://api\.pinduoduo\.com(?::[0-9]+)?/api/growth/nagato/app/index/gather(?:\?|$) data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json"
+^https?://api\.pinduoduo\.com(?::[0-9]+)?/api/engels/wait/receive/review(?:\?|$) data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json"
+^https?://api\.pinduoduo\.com(?::[0-9]+)?/api/buffon/nasus/recommend(?:\?|$) data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json"
 
-# 多多视频悬浮弹层 H5（m.pinduoduo.net 的 vlayer_tab_popup.html）→ 空 HTML，
-# WebView 加载失败，视频弹层不渲染
-^https?:\/\/[^\/]+\/vlayer_tab_popup\.html data-type=text data="<!DOCTYPE html><html><body></body></html>" status-code=200 header="Content-Type:text/html"
-
-# ========== 推荐 / 推广接口（返回空 JSON） ==========
-^https?:\/\/api\.pinduoduo\.com\/api\/aristotle\/unrated_order_for_unreceived_tab\? data-type=text data="{}" status-code=200 header="Content-Type:application/json"
-^https?:\/\/api\.pinduoduo\.com\/api\/aristotle\/query_order_list_tabs_element\? data-type=text data="{}" status-code=200 header="Content-Type:application/json"
-^https?:\/\/api\.pinduoduo\.com\/api\/aquarius\/hungary\/global\/homepage\? data-type=text data="{}" status-code=200 header="Content-Type:application/json"
-^https?:\/\/api\.pinduoduo\.com\/api\/caterham\/v3\/query\/order_express_group\? data-type=text data="{}" status-code=200 header="Content-Type:application/json"
-^https?:\/\/api\.pinduoduo\.com\/search_hotquery\? data-type=text data="{}" status-code=200 header="Content-Type:application/json"
-^https?:\/\/api\.pinduoduo\.com\/api\/zaire_biz\/chat\/resource\/get_list_data\? data-type=text data="{}" status-code=200 header="Content-Type:application/json"
-^https?:\/\/api\.pinduoduo\.com\/api\/caterham\/v3\/query\/new_chat_group\? data-type=text data="{}" status-code=200 header="Content-Type:application/json"
-^https?:\/\/api\.pinduoduo\.com\/api\/alexa\/goods\/back_up\? data-type=text data="{}" status-code=200 header="Content-Type:application/json"
-^https?:\/\/api\.pinduoduo\.com\/api\/caterham\/v3\/query\/personal\? data-type=text data="{}" status-code=200 header="Content-Type:application/json"
-^https?:\/\/api\.pinduoduo\.com\/api\/brand-olay\/goods_detail\/bybt_guide\? data-type=text data="{}" status-code=200 header="Content-Type:application/json"
-^https?:\/\/api\.pinduoduo\.com\/api\/engels\/reviews\/require\/append\? data-type=text data="{}" status-code=200 header="Content-Type:application/json"
-^https?:\/\/api\.pinduoduo\.com\/api\/caterham\/v3\/query\/my_order_group\? data-type=text data="{}" status-code=200 header="Content-Type:application/json"
-^https?:\/\/api\.pinduoduo\.com\/api\/caterham\/v3\/query\/likes\? data-type=text data="{}" status-code=200 header="Content-Type:application/json"
-^https?:\/\/api\.pinduoduo\.com\/api\/phantom\/gbdbpdv\/extra\? data-type=text data="{}" status-code=200 header="Content-Type:application/json"
-^https?:\/\/api\.pinduoduo\.com\/api\/manufacturer\/cross\/shortcut\/list\? data-type=text data="{}" status-code=200 header="Content-Type:application/json"
-^https?:\/\/api\.pinduoduo\.com\/api\/dunkirk\/liveactivity\/push\/create\/url\/report\? data-type=text data="{}" status-code=200 header="Content-Type:application/json"
-^https?:\/\/api\.pinduoduo\.com\/api\/growth\/nagato\/app\/index\/gather\? data-type=text data="{}" status-code=200 header="Content-Type:application/json"
-^https?:\/\/api\.pinduoduo\.com\/api\/engels\/wait\/receive\/review\? data-type=text data="{}" status-code=200 header="Content-Type:application/json"
-^https?:\/\/api\.pinduoduo\.com\/api\/buffon\/nasus\/recommend\? data-type=text data="{}" status-code=200 header="Content-Type:application/json"
+[Script]
+拼多多去广告 = type=http-response,pattern=^https?://[^/]+/(api/(alexa/homepage/hub|philo/personal/hub|oak/integration/render|aristotle/order_list_v4)(?:\?|$)|order/|search(?:\?|$)),requires-body=true,max-size=131072,full-header-mode=true,engine=webview,script-update-interval=3600,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/pinduoduo/pdd-ad-block.js?v=eg-native-20261105-r1,timeout=30
+拼多多去广告诊断 = type=generic,engine=webview,script-update-interval=3600,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/pinduoduo/pdd-ad-block.js?v=eg-native-20261105-r1,timeout=10
 
 [MITM]
-hostname = %APPEND% api.pinduoduo.com, api.yangkeduo.com
-
-# ────────────────────────────────────────────────────────────
-# 备注：
-# 1. 多多视频删除原理：alexa/homepage/hub 响应的 bottom_tabs /
-#    buffer_bottom_tabs 只保留 index/chat_list/personal 三个 tab
-# 2. 刻意不拦 pddpic.com 图片 CDN（会误杀评价图片，社区实证）
-# 3. 拦的部分推荐接口若影响领券/签到，对应 Map Local 行删掉即可
-# 4. 拼多多若加证书固定（App 打不开），关模块即恢复
-# ────────────────────────────────────────────────────────────
+hostname = %APPEND% api.pinduoduo.com, api.yangkeduo.com, m.pinduoduo.net

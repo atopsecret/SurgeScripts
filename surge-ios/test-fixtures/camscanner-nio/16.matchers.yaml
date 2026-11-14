@@ -1,3 +1,0 @@
-# Public source matcher excerpts only; no account or configuration parameters.
-match: '^https://(?:gateway-front-external\.nio\.com|app\.nio\.com|api\.nio\.com)/(?:moat/10086/+(?:n/c/award/|c/award_cn/)|(?:n/c/)?(?:account/user/|user/|profile/)|app/api/|api/)'
-match: '^https://gateway-front-external\.nio\.com/moat/10086/c/award_cn/checkin(?:\?|$)'

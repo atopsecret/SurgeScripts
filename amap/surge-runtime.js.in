@@ -1,20 +1,69 @@
-// Engine | Surge iOS 5.9.1+ / Mac 5.5.1+ | JavaScript
-// Build: python3 amap/build.py；修改 amap-policy.js 与 surge-runtime.js.in 后重新生成
-// Run: 导入 amap-adblock.sgmodule；手动运行“高德净化诊断”查看计数
-// Deps: Surge 脚本 API；测试：node --experimental-vm-modules --test amap/tests/cleaner.test.cjs amap/tests/policy.test.cjs
-// Version: {{VERSION}}
+// Engine | Surge iOS 6.x | JavaScript (WebView)
+// Build: python3 amap/build.py; python3 amap/build.py --check
+// Run: 导入 amap/amap-adblock.sgmodule；手动运行“高德净化诊断”查看本地计数
+// Deps: Surge $request/$response/$persistentStore/$done; no network requests.
+// Decode only valid UTF-8 and retain unknown/error responses byte-for-byte.
+// Diagnostics save only route/status/count, never URLs, headers, account tokens or body.
 (function () {
-    "use strict";
+  'use strict';
 {{POLICY}}
+
+  const COMMON_VERSION = '{{VERSION}}';
+  function commonHeader(headers, name) {
+    const wanted = name.toLowerCase();
+    if (Array.isArray(headers)) {
+      const entry = headers.find(item => item && String(item.field || item.name).toLowerCase() === wanted);
+      return entry ? String(entry.value || '') : '';
+    }
+    for (const key of Object.keys(headers || {})) if (key.toLowerCase() === wanted) return String(headers[key] || '');
+    return '';
+  }
+  function commonBytes(body) {
+    if (body instanceof Uint8Array) return body;
+    if (body instanceof ArrayBuffer) return new Uint8Array(body);
+    if (ArrayBuffer.isView(body)) return new Uint8Array(body.buffer, body.byteOffset, body.byteLength);
+    return typeof body === 'string' ? new TextEncoder().encode(body) : null;
+  }
+  function commonDecode(bytes) {
+    const chunks = []; let chunk = '';
+    for (let i = 0; i < bytes.length;) {
+      const first = bytes[i++]; let point = first, count = 0, minimum = 0;
+      if (first >= 0xc2 && first <= 0xdf) { point &= 31; count = 1; minimum = 128; }
+      else if (first >= 0xe0 && first <= 0xef) { point &= 15; count = 2; minimum = 2048; }
+      else if (first >= 0xf0 && first <= 0xf4) { point &= 7; count = 3; minimum = 65536; }
+      else if (first > 127) throw new Error('invalid-utf8');
+      for (let j = 0; j < count; j++) {
+        const next = bytes[i++];
+        if (next === undefined || (next & 192) !== 128) throw new Error('invalid-utf8');
+        point = point * 64 + (next & 63);
+      }
+      if (point < minimum || point > 0x10ffff || (point >= 0xd800 && point <= 0xdfff)) throw new Error('invalid-utf8');
+      chunk += String.fromCodePoint(point);
+      if (chunk.length > 8192) { chunks.push(chunk); chunk = ''; }
+    }
+    chunks.push(chunk); return chunks.join('');
+  }
+  function commonAllowed(headers, jsonOnly) {
+    const type = commonHeader(headers, 'content-type');
+    const charset = /charset\s*=\s*["']?([^\s;"']+)/i.exec(type);
+    if (charset && !/^(?:utf-8|utf8|us-ascii)$/i.test(charset[1])) return false;
+    return !jsonOnly || !type || /^\s*(?:application\/(?:[\w.+-]+\+)?json|text\/json)\s*(?:;|$)/i.test(type);
+  }
+  function commonResponseHeaders(input, json, extra) {
+    const stale = new Set(['content-length','content-encoding','transfer-encoding','etag','content-md5','cache-control','digest','content-digest','repr-digest']);
+    if (json) stale.add('content-type');
+    const additions = [{ field: 'Cache-Control', value: 'no-store' }];
+    if (json) additions.push({ field: 'Content-Type', value: 'application/json; charset=utf-8' });
+    for (const [field, value] of Object.entries(extra || {})) { stale.add(field.toLowerCase()); additions.push({ field, value }); }
+    if (Array.isArray(input)) return input.filter(item => item && !stale.has(String(item.field || item.name).toLowerCase())).concat(additions);
+    const output = {};
+    for (const key of Object.keys(input || {})) if (!stale.has(key.toLowerCase())) output[key] = input[key];
+    for (const item of additions) output[item.field] = item.value;
+    return output;
+  }
     const STORE = "skernelx_amap_cleaner_v2";
     function responseHeaders(input) {
-        const output = {};
-        const stale = ["content-length", "content-encoding", "transfer-encoding", "etag", "content-md5", "content-type", "cache-control", "digest", "content-digest", "repr-digest"];
-        for (const key of Object.keys(input || {})) if (!stale.includes(key.toLowerCase())) output[key] = input[key];
-        output["Content-Type"] = "application/json; charset=utf-8";
-        output["Cache-Control"] = "no-store";
-        output["X-AMap-Cleaner-Version"] = VERSION;
-        return output;
+        return commonResponseHeaders(input, true, { 'X-AMap-Cleaner-Version': VERSION });
     }
     function load() {
         try {
@@ -55,20 +104,23 @@
         }
         console.log("[高德净化] 开屏由 Map Local 处理，不计入上述脚本命中。请查 splash_screen_rt 的 Map Local 记录与 X-AMap-Cleaner-Version 响应头。");
     }
-    if (typeof module !== "undefined" && module.exports) module.exports = { VERSION, PATHS, route, transform, responseHeaders };
-    if (typeof $done !== "function") return;
-    let ended = false;
-    function finish(value) { if (!ended) { ended = true; $done(value || {}); } }
-    try {
-        if (typeof $request === "undefined" || !$request) { diagnostic(); finish(); return; }
-        const id = route($request.url);
-        if (!id || typeof $response !== "object" || !$response) { finish(); return; }
-        const result = Number($response.status) === 200 ? transform(id, $response.body) : { status: "http-error" };
-        count(id, result.status);
-        console.log("[高德净化 " + VERSION + "] " + id + ": " + result.status);
-        finish(result.status === "changed" ? { body: result.body, headers: responseHeaders($response.headers) } : {});
-    } catch (_) {
-        console.log("[高德净化 " + VERSION + "] 本地处理异常，保留原响应");
-        finish();
-    }
+
+function run() {
+  if (typeof $request === 'undefined' || !$request) { diagnostic(); return {}; }
+  if (typeof $response !== 'object' || !$response) return {};
+  const id = route($request.url); if (!id) return {};
+  if (Number($response.status) !== 200) { count(id,'http-error'); return {}; }
+  if (!commonAllowed($response.headers,false)) { count(id,'format'); return {}; }
+  const bytes = commonBytes($response.body); if (!bytes) return {};
+  try {
+    const result = transform(id,commonDecode(bytes)); count(id,result.status);
+    return result.status === 'changed' ? {body:new TextEncoder().encode(result.body),headers:commonResponseHeaders($response.headers,true,{'X-AMap-Cleaner-Version':COMMON_VERSION})} : {};
+  } catch (_) { count(id,'format'); return {}; }
+}
+  if (typeof module !== 'undefined' && module.exports) module.exports = { VERSION, PATHS, route, transform, responseHeaders, run, commonDecode, commonResponseHeaders, commonAllowed };
+  if (typeof $done === 'function') {
+    let result;
+    try { result = run() || {}; } catch (_) { result = {}; }
+    $done(result);
+  }
 }());

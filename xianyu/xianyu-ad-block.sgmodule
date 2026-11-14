@@ -1,56 +1,20 @@
 #!name=闲鱼去广告
-#!desc=开屏广告、悬浮球/弹窗策略、广告上报与场景恢复拦截。v2.0：开屏处理结构自适配（递归清除广告容器），兼容闲鱼重装后新版响应结构；上报类接口统一返回无广告成功响应；脚本自托管不再依赖外部仓库。
+#!desc=eg-native-20261105-r1；六网关、新旧开屏及缓存广告原生处理；HTTP/ret 错误放行，默认静默，诊断只输出本地状态。
 #!author=skernelx
 #!homepage=https://github.com/atopsecret/SurgeScripts
 #!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Xianyu.png
 #!category=去广告
 #!tag=去广告,闲鱼,goofish
 #!openUrl=https://apps.apple.com/cn/app/id510909202
-# ------------------------------------------------------------
-# v2.0（2026-11-01）：
-# 1. script-path 使用本仓库自托管，保留历史脚本行为
-# 2. MITM 域名补全 acs.m.goofish.com 之外的常见入口：
-#    acs、gw 两个前缀 × goofish、taobao 两个域，共 4 个
-# 3. 脚本内部按 URL 关键词分发，新增 idleadv.* 端点无需改模块
-#
-# 需要 MITM + 已信任 Surge CA 证书（主配置已配好）。
-# ------------------------------------------------------------
+# Surge iOS 6.x；替换旧版同名模块，避免重复处理。不修改全局 DNS、CA 或代理。
+
+[Rule]
+URL-REGEX,^https?://ossgw\.alicdn\.com/creatives-assets/,REJECT
+URL-REGEX,^https?://(bdlog|df)\.tanx\.com(?:/|$),REJECT
 
 [Script]
-# 开屏广告拦截（主接口）
-# 开屏广告拦截（2026-11 抓包：接口已从 splash.async.ads/1.0 改为 splash.ads/2.0，
-# 广告走 cacheAd 本地缓存引用下发，正则同时兼容新旧两版）
-闲鱼去广告-开屏 = type=http-response,pattern=^https?://(acs|g-acs|gw)\.m\.(goofish|taobao)\.com/(gw|h5)/mtop\.taobao\.idlecommerce\.splash\.(async\.)?ads,requires-body=1,max-size=2097152,script-update-interval=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.js?v=v3,timeout=30
-
-# 广告上报拦截
-闲鱼去广告-上报 = type=http-response,pattern=^https?://(acs|g-acs|gw)\.m\.(goofish|taobao)\.com/(gw|h5)/mtop\.idle\.idleadv\.app\.launch\.report,requires-body=1,max-size=2097152,script-update-interval=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.js?v=v3,timeout=30
-
-# 广告场景恢复拦截
-闲鱼去广告-场景 = type=http-response,pattern=^https?://(acs|g-acs|gw)\.m\.(goofish|taobao)\.com/(gw|h5)/mtop\.idle\.idleadv\.scene\.restore,requires-body=1,max-size=2097152,script-update-interval=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.js?v=v3,timeout=30
-
-# 广告曝光上报拦截（新网关 g-acs，2026-11 抓包发现）
-闲鱼去广告-曝光 = type=http-response,pattern=^https?://(acs|g-acs|gw)\.m\.(goofish|taobao)\.com/(gw|h5)/mtop\.idle\.ad\.expose,requires-body=1,max-size=2097152,script-update-interval=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.js?v=v3,timeout=30
-
-# 悬浮球/弹窗广告拦截
-闲鱼去广告-悬浮 = type=http-response,pattern=^https?://(acs|g-acs|gw)\.m\.(goofish|taobao)\.com/(gw|h5)/mtop\.taobao\.idle\.user\.strategy\.list,requires-body=1,max-size=2097152,script-update-interval=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.js?v=v3,timeout=30
-
-# 首页Tab广告追踪清理
-闲鱼去广告-追踪 = type=http-response,pattern=^https?://(acs|g-acs|gw)\.m\.(goofish|taobao)\.com/(gw|h5)/mtop\.taobao\.idlehome\.home\.circle\.list,requires-body=1,max-size=2097152,script-update-interval=0,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.js?v=v3,timeout=30
-
-[URL Rewrite]
-# 广告创意素材 CDN（creatives-assets 为广告专用目录，抓包实证）
-^https?://ossgw\.alicdn\.com/creatives-assets/ - reject
-# TANX 广告交易平台曝光/计费打点（纯广告域）
-^https?://(bdlog|df)\.tanx\.com - reject
+闲鱼去广告-开屏 = type=http-response,pattern=^https?://(acs|g-acs|gw)\.m\.(goofish|taobao)\.com(?::[0-9]+)?/(gw|h5)/(mtop\.taobao\.idlecommerce\.splash\.(async\.)?ads|mtop\.idle\.idleadv\.(app\.launch\.report|scene\.restore)|mtop\.idle\.ad\.expose|mtop\.taobao\.idle\.user\.strategy\.list|mtop\.taobao\.idlehome\.home\.circle\.list)(?:/|$),requires-body=true,max-size=2097152,full-header-mode=true,engine=webview,script-update-interval=3600,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.js?v=eg-native-20261105-r1,timeout=30
+闲鱼去广告诊断 = type=generic,engine=webview,script-update-interval=3600,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/xianyu/xianyu-ad-block.js?v=eg-native-20261105-r1,timeout=30
 
 [MITM]
-hostname = %APPEND% acs.m.goofish.com, acs.m.taobao.com, gw.m.goofish.com, gw.m.taobao.com, g-acs.m.goofish.com, g-acs.m.taobao.com
-
-# ────────────────────────────────────────────────────────────
-# 备注：
-# 1. 若开屏广告仍出现，需要抓包确认新接口名（acs.m.* 域名下、
-#    URL 含 splash / idleadv 字样），用仓库里的 xianyu-capture 模块
-#    抓一轮，把 Surge 日志发给维护者补充 pattern。
-# 2. 闲鱼若加证书固定（表现为 App 打不开），关掉本模块即恢复。
-# 3. 消息、交易、搜索等核心功能接口不在拦截列表，不受影响。
-# ────────────────────────────────────────────────────────────
+hostname = %APPEND% acs.m.goofish.com, acs.m.taobao.com, g-acs.m.goofish.com, g-acs.m.taobao.com, gw.m.goofish.com, gw.m.taobao.com, ossgw.alicdn.com, bdlog.tanx.com, df.tanx.com

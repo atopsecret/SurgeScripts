@@ -1,0 +1,26 @@
+{
+  "source": {
+    "scriptURL": "https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/apple-weather/apple-weather-enhancer.egern.js?v=1.0.0",
+    "repositoryCommit": "5015215c1d0627ac019bd3c657842a83077daffc",
+    "weatherKitVersion": "v3.1.0",
+    "weatherKitCommit": "77d06d5525297ba5f85543934db505aab6ef7547",
+    "flatBuffersVersion": "24.12.23",
+    "scriptSHA256": "d37a5d41045bfc58449a1028c86388aa06771a8ec3cd6b8bb32df3a013e54e1e",
+    "scriptBytes": 237996,
+    "embeddedCoreBytes": 237954,
+    "embeddedCoreSHA256": "81f4702aee700cb374b7669f1c0d321ba5fe81d655772e894ca6b49161116eb0",
+    "exportStatement": "export{ui as createEngine,zi as default};\n"
+  },
+  "migration": {
+    "date": "2026-11-14",
+    "previousScripts": [
+      { "name": "weather-availability.js", "bytes": 247216, "sha256": "7c7d7d5bbac22fe4b9d8fff181f7f81ceb7a68cc491a6f5bf16e437a20848664" },
+      { "name": "weather-data.js", "bytes": 247203, "sha256": "d601d8b0f45f0582e26ec116291a1e2641e72711d881f317b0439e9e817586f9" },
+      { "name": "weather-diagnostic.js", "bytes": 247212, "sha256": "3332fc60e250d60c3c2cc057e82867f235961c64dfd4006081c8df3862ce1fc5" }
+    ],
+    "baselineTests": { "surge": 48, "egern": 52 },
+    "deduplicatedReference": "apple-weather-enhancer.egern.js",
+    "canonicalModule": "https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/apple-weather/apple-weather-enhancer.sgmodule",
+    "canonicalScript": "https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/apple-weather/apple-weather-enhancer.surge.js"
+  }
+}

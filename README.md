@@ -6,18 +6,20 @@ Surge 与 Egern 去广告模块、蔚来自动签到脚本、Apple 天气增强�
 
 源码使用手动推送发布，GitHub Actions 保持禁用。`master` 仅保留旧版本历史，不作为当前安装入口。
 
-## Surge iOS 完整适配
+## 目录维护
 
-新增独立的 [Surge iOS 适配目录](surge-ios/README.md)：11 项功能模块、14 份脚本全部使用本仓库远程引用，保留现用参数、二进制处理与错误回退。天气、YouTube、蔚来的完整适配与仓库旧版入口分开维护，不覆盖 Egern 原生版本。
+Surge 与 Egern 的对应版本都放在各自原功能目录：高德 `amap`、菜鸟 `cainiao`、京东 `jd`、闲鱼 `xianyu`、拼多多 `pinduoduo`、红果 `hongguo`、戒烟军团 `jyjt`、扫描全能王 `camscanner`、天气 `apple-weather`、蔚来 `weilai`。YouTube 按相同风格放在 `youtube`，不另设平台总目录。
 
-实际手机配置和账号存储不在公开目录中。同功能只启用一套入口，避免与原模块重复；安装清单和版本说明见对应目录。
+天气 Surge 的三个入口共用一个脚本；蔚来 Surge 保留累计统计复查、每日去重和只读诊断。模块与脚本都从对应原目录 URL 更新，个人配置、登录数据和证书不进入仓库。同功能只加载一套，避免旧模块和主配置重复运行。
 
 ## 模块索引
 
-- **扫描全能王 1.0.1（Egern 原生）**：会员到期时间改为北京时间 2099 年末；使用内置 jq 定点改写，保留其他响应数据，无外部脚本依赖。
-  [一键导入与使用说明](camscanner/README.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/camscanner/camscanner.egern.yaml)
-- **Apple 天气增强 1.0.0（Egern）**：基于 WeatherKit v3.1.0 的可用数据集、天气替换、降水补充和 AQI 算法；原生入口与二进制响应处理。
-  [使用说明](apple-weather/README.md) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/apple-weather/apple-weather-enhancer.egern.yaml)
+- **扫描全能王 1.0.1（Egern / Surge）**：Egern 使用内置 jq，Surge 使用同目录原生定点脚本；保留其它响应数据与未知 JSON 字节。
+  [一键导入与使用说明](camscanner/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/camscanner/camscanner.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/camscanner/camscanner.egern.yaml)
+- **Apple 天气增强 1.0.0（Egern / Surge）**：基于 WeatherKit v3.1.0；Surge 可用性、天气和诊断三个入口共用一份原目录脚本。
+  [使用说明](apple-weather/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/apple-weather/apple-weather-enhancer.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/apple-weather/apple-weather-enhancer.egern.yaml)
+- **YouTube 增强**：两份自包含脚本覆盖9入口，保留去广告、后台/PiP、画质、下载和双语字幕。
+  [使用说明](youtube/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/youtube/youtube-enhancer.sgmodule)
 - **高德地图 2.1.0**：保留 RT 开屏，修复个人页 v3；十五类页面与内嵌配置定点净化。
   [使用说明](amap/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-adblock.egern.yaml)
 - **京东 2.0.0**：十二类接口，补全个人页、订单、新品和物流变体；同步双端匹配与正文保护。
@@ -34,7 +36,7 @@ Surge 与 Egern 去广告模块、蔚来自动签到脚本、Apple 天气增强�
   [使用说明](hongguo/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/hongguo/hongguo-adblock.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/hongguo/hongguo-adblock.egern.yaml)
 - **戒烟军团**：改写已知响应中的客户端会员标志位，不改变服务端会员资格。
   [使用说明](jyjt/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jyjt/jyjt-member.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jyjt/jyjt-member.egern.yaml)
-- **蔚来自动签到（Surge 2.1.6 / Egern 3.2.0）**：保存已知接口的登录凭据，每日 09:00 使用它签到；成功通知简短并带表情。Egern 在累计缺失时先做一次有上限的同接口 POST 统计复查，再统一通知；保留当日观察和精简凭据提醒。
+- **蔚来自动签到（Surge 3.2.1 / Egern 3.2.0）**：保存已知接口的登录凭据，每日 09:00 使用它签到；成功通知简短并带表情。Egern 在累计缺失时先做一次有上限的同接口 POST 统计复查，再统一通知；保留当日观察和精简凭据提醒。
   [使用说明](weilai/README.md) · [Surge 安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/weilai/weilai-auto-checkin.sgmodule) · [Egern 原生安装](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/weilai/weilai-auto-checkin.egern.yaml?v=3.2.0)
 
 Egern 使用 `.egern.yaml` 和对应原生脚本；扫描全能王直接使用内置 jq，不加载 JavaScript。原生版不运行 Surge 全局变量脚本。完整安装索引、转换差异与验证边界见 [Egern 说明](egern/README.md)。

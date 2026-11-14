@@ -1,6 +1,10 @@
 # 闲鱼去广告
 
-## v2.1（2026-11-01，基于三份 HAR 抓包分析）
+## 当前 Surge / Egern：eg-native-20261105-r1
+
+Surge 已将校正后的响应包装归并到原 [xianyu-ad-block.js](<xianyu-ad-block.js>) 与 [模块](<xianyu-ad-block.sgmodule>)。一个响应入口覆盖七个已知 API；保留六个网关、缓存广告清理、字符串 `data` 包装及原服务端 `ret`，HTTP/格式错误原样放行。generic “闲鱼去广告诊断”仅打印本地状态，不请求网络、不创建 Widget。Egern 脚本与 YAML 本次不变。
+
+## v2.1 历史范围（2026-11-01，基于三份 HAR 抓包分析）
 
 新版闲鱼开屏链路重构，本模块随之升级：
 
@@ -9,9 +13,9 @@
 | 开屏接口从 `splash.async.ads/1.0` 改为 `splash.ads/2.0` | 正则改为 `splash\.(async\.)?ads` 双兼容 |
 | 广告走 `cacheAd` 本地缓存引用下发（`adMap` 为空也有广告） | 脚本清空 `cacheAd` / 删除 `cacheAdInfo` / 清 `dspList` |
 | 新网关 `g-acs.m.goofish.com` | MITM 已覆盖 |
-| 广告创意素材走 `ossgw.alicdn.com/creatives-assets/` | URL Rewrite 直接拒绝 |
-| TANX 广告交易打点 `bdlog/df.tanx.com` | URL Rewrite 直接拒绝 |
-| 曝光上报 `mtop.idle.ad.expose`（g-acs） | 已纳入目标接口；Egern 只清已知广告容器，不伪造服务端结果 |
+| 广告创意素材走 `ossgw.alicdn.com/creatives-assets/` | URL-REGEX 直接拒绝 |
+| TANX 广告交易打点 `bdlog/df.tanx.com` | URL-REGEX 直接拒绝 |
+| 曝光上报 `mtop.idle.ad.expose`（g-acs） | 两端只清已知广告容器，原 `ret` / `api` / `v` 保留，不伪造服务端结果 |
 
 ## 安装
 
@@ -33,7 +37,7 @@ generic 入口“闲鱼去广告诊断”打印本地命中、移除数量和处
 
 HTTP 错误、失败 `ret`、非数组或空 `ret`、显式 `success=false` 都保留。`data` 为 JSON 字符串时保留字符串包装；JSONP、XML 或未知结构不尝试重构。已经读取的正文在解析/处理失败后显式返回，避免一次性流被丢弃。
 
-两套实现的错误响应和上报分支行为不完全相同，不将模块导入成功视为跨客户端兼容验证。安装后需要启用 MITM，并安装、信任当前客户端自己的 CA 证书。
+现用 Surge 与 Egern 的目标响应语义已经逐项纯 mock 对照；两端运行 API 与诊断展示分别实现。安装后需要启用 MITM，并安装、信任当前客户端自己的 CA 证书；模块不附带 CA 或主配置。
 
 ## 注意
 
@@ -53,9 +57,11 @@ HTTP 错误、失败 `ret`、非数组或空 `ret`、显式 `success=false` 都�
 
 ```sh
 node --input-type=module --check < xianyu/xianyu-ad-block.egern.js
-node --test xianyu/tests/egern.test.cjs
+node --test xianyu/tests/egern.test.cjs xianyu/tests/canonical.test.cjs
 ```
 
 测试使用虚构响应、内存存储及一次性正文。覆盖六网关、新旧开屏、字符串包装、错误 `ret`、严格 API 边界、未知字段、消费失败、幂等与静默诊断。不执行闲鱼真实请求，也不把离线通过当成真机广告消失。
+
+2026-11-14 原目录归并：原回归 **49/49 → 49/49**；迁回 [canonical 回归](<tests/canonical.test.cjs>) **10/10 → 10/10**，当前本目录 **59/59**。
 
 [返回仓库首页](../README.md)

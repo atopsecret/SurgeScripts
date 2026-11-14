@@ -157,7 +157,9 @@ test('Surge IP 直连仅在客户端已识别出目标 SNI 时匹配，不把缺
 test('Surge 模块启用二进制正文与多值头，九个精确 MITM 主机齐全', () => {
     const native = readModule();
     const scripts = section('Script');
-    assert.equal(scripts.length, 1);
+    assert.equal(scripts.length, 2);
+    assert.match(scripts[1], /^菜鸟去广告诊断 = type=generic,engine=webview,/);
+    assert.equal(scripts.some(line => line.includes('type=http-request')), false);
     for (const option of ['requires-body=true', 'binary-body-mode=true', 'full-header-mode=true', 'engine=webview', 'max-size=2097152', 'script-update-interval=3600']) {
         assert.ok(scripts[0].includes(option), option);
     }

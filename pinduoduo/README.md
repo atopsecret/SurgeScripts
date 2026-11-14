@@ -2,7 +2,7 @@
 
 重构自 [Thelongdarkorg/loon-plugins · pinduoduo_splash_ad_block.plugin](https://github.com/Thelongdarkorg/loon-plugins)（2026-10-07 更新版）。
 
-页面改写保留 Loon Hub 的 RuCu6、ZenmoFeiShi、可莉来源署名。Egern 原生版本 `eg-native-20261105-r1` 使用独立 YAML 与原生上下文脚本，旧 Surge 实现不变。
+页面改写保留 Loon Hub 的 RuCu6、ZenmoFeiShi、可莉来源署名。当前版本 `eg-native-20261105-r1`：Surge 已归并到原 [pdd-ad-block.js](<pdd-ad-block.js>) 与 [模块](<pdd-adblock.sgmodule>)，采用校正后的精确 Host、未知导航与错误放行包装；目标为 iOS 6.x / WebView。Egern 使用独立 YAML 与原生上下文脚本，本次资源不变。
 
 ## 安装
 
@@ -18,7 +18,7 @@ https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/pinduoduo/pdd-adb
 https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/pinduoduo/pdd-adblock.egern.yaml
 ```
 
-在 Egern 模块管理中添加 YAML；启用 MITM，安装并信任 Egern 自己的 CA。不要重复启用旧 `.sgmodule` 或处理同一接口的其它模块。generic 入口“拼多多去广告诊断”打印本地状态并返回诊断 Widget，不发送通知或网络请求。
+Surge 导入上面的模块并刷新远程脚本缓存；Egern 在模块管理中添加 YAML。两端分别启用 MITM，安装并信任自己的 CA，停用处理同一接口的重复模块。generic “拼多多去广告诊断”在 Surge 仅打印本地状态；Egern 保留原诊断 Widget。均不发送通知或网络请求。
 
 ## 原理与当前范围
 
@@ -38,10 +38,10 @@ https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/pinduoduo/pdd-adb
 - 响应脚本最多处理 131072 字节，超过大小或字段结构变化时可能不执行页面改写
 - 本模块不自动修改主配置的 IPv6 或 DNS 设置；HTTPS 接口改写依赖客户端实际接管、MITM 与证书信任
 - Egern 使用原生 `and.match`：裸 IP 素材必须同时匹配拼多多 UA，QUIC 拒绝只限 `api.pinduoduo.com`；不设置全局 `block_quic`
-- Egern 响应脚本先确认精确 API 主机；裸 IP 必须带精确 `Host: api.pinduoduo.com` 或 `api.yangkeduo.com`。只含域名子串或 UA 的请求不视为归属
+- 两端响应脚本先确认精确 API 主机；裸 IP 必须带精确 `Host: api.pinduoduo.com` 或 `api.yangkeduo.com`。只含域名子串或 UA 的请求不视为归属
 - 旧来源的底栏白名单仅在首页、聊天、个人三个入口齐全且字段类型已识别时使用；缺少核心入口、陌生协议时保留整份导航
 - HTTP 错误、显式业务失败、无效 JSON 与非目标接口不改写；已读取正文的处理失败显式返回原文
-- Egern 视频浮层 Map Local 收窄到已知 `m.pinduoduo.net/vlayer_tab_popup.html`，不拦其它网站的同名页面；十九个原有推荐接口分别保留空 JSON
+- 两端视频浮层 Map Local 仅限已知 `m.pinduoduo.net/vlayer_tab_popup.html`，不拦其它网站的同名页面；十九个原有推荐接口分别保留空 JSON
 
 相关文件：[Surge 模块](pdd-adblock.sgmodule)、[Surge 脚本](pdd-ad-block.js)、[Egern 模块](pdd-adblock.egern.yaml)、[Egern 脚本](pdd-ad-block.egern.js)。
 
@@ -51,9 +51,11 @@ https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/pinduoduo/pdd-adb
 
 ```sh
 node --input-type=module --check < pinduoduo/pdd-ad-block.egern.js
-node --test pinduoduo/tests/egern.test.cjs
+node --test pinduoduo/tests/egern.test.cjs pinduoduo/tests/canonical.test.cjs
 ```
 
 测试只用内存存储和虚构请求。覆盖六类页面、IPv4/IPv6 裸 IP 与精确 Host、未知导航、错误响应、正文单次消费、十九个推荐接口、素材路径边界和图片 CDN 负例。不访问真实接口；MITM、脚本下载和页面效果需在 Egern 内验收。
+
+2026-11-14 原目录归并：原回归 **53/53 → 53/53**；迁回 [canonical 回归](<tests/canonical.test.cjs>) **12/12 → 12/12**，当前本目录 **65/65**。`m.pinduoduo.net/vlayer_tab_popup.html` 的精确范围及其 MITM 主机均验证；公共图片 CDN、全局 DNS 与 IPv6 未改。
 
 [返回仓库首页](../README.md)

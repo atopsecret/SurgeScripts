@@ -14,11 +14,12 @@ const requestSource = fs.readFileSync(path.join(root, 'jd-post-capture.js'), 'ut
 const moduleText = fs.readFileSync(path.join(root, 'jd-adblock.sgmodule'), 'utf8');
 
 function storeHarness(initial = [], options = {}) {
-    let raw = JSON.stringify(initial);
+    const pendingKey = 'skernelx_jd_pending_v2';
+    const values = new Map([[pendingKey, JSON.stringify(initial)]]);
     return {
-        read() { if (options.readThrows) throw Error('storage-read'); return raw; },
-        write(value) { if (options.writeThrows) throw Error('storage-write'); raw = value; return true; },
-        list() { return JSON.parse(raw); },
+        read(key = pendingKey) { if (options.readThrows) throw Error('storage-read'); return values.get(key) || null; },
+        write(value, key = pendingKey) { if (options.writeThrows) throw Error('storage-write'); values.set(key, value); return true; },
+        list() { return JSON.parse(values.get(pendingKey)); },
     };
 }
 function execute(source, globals, store = storeHarness()) {

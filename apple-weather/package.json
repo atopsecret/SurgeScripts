@@ -6,7 +6,11 @@
   "engines": { "node": ">=20" },
   "scripts": {
     "build": "node build.mjs",
-    "test": "node --experimental-vm-modules --test tests/egern.test.cjs"
+    "build:surge": "node build-surge.mjs",
+    "check:surge": "node build-surge.mjs --check",
+    "test": "node --require ./tests/offline-guard.cjs --experimental-vm-modules --test tests/egern.test.cjs tests/weather.test.cjs",
+    "test:egern": "node --require ./tests/offline-guard.cjs --experimental-vm-modules --test tests/egern.test.cjs",
+    "test:surge": "node --require ./tests/offline-guard.cjs --test tests/weather.test.cjs"
   },
   "dependencies": { "flatbuffers": "24.12.23" },
   "devDependencies": { "esbuild": "0.25.12" }

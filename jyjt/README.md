@@ -1,6 +1,6 @@
 # 戒烟军团客户端会员标志位改写
 
-本目录包含 Surge 响应脚本，以及独立的 Egern 原生 YAML 与脚本，改写戒烟军团已知接口中的会员标志位。处理的是客户端接收到的响应，不会修改服务端账号、付款记录或会员权限。旧 Surge 文件保留不变。
+本目录包含 Surge 响应脚本，以及独立的 Egern 原生 YAML 与脚本，改写戒烟军团已知接口中的会员标志位。处理的是客户端接收到的响应，不会修改服务端账号、付款记录或会员权限。Surge 1.0.0 已归并到原 [jyjt-member.js](<jyjt-member.js>) 与 [模块](<jyjt-member.sgmodule>)，采用 HTTP 200、完整零值/null、SOAP Fault 和 UTF-8 保护；Egern 资源本次不变。
 
 ## 安装
 
@@ -12,7 +12,7 @@ https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jyjt/jyjt-member.
 
 模块启用后，重新打开 App 并检查目标请求是否命中。
 
-已知接口是明文 `http://smoke.nxnresearch.com/webservice510.asmx`，因此当前处理不需要 MITM。模块正则也允许 HTTPS，但并未配置对应 MITM；服务若改用 HTTPS，不能认为现有配置会自动完成解密。
+已知接口是明文 `http://smoke.nxnresearch.com/webservice510.asmx`，因此当前处理不需要 MITM。归并后的两端 matcher 都仅接受这个 HTTP 主机与完整路径边界；HTTPS 及同前缀未知接口放行，不追加全局解密或证书。
 
 Egern 使用下节的独立 YAML，不导入 Surge 模块或旧脚本。
 
@@ -32,13 +32,13 @@ https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jyjt/jyjt-member.
 - 改写时保持原 XML `Content-Type`，在原 `Headers` 上清除过时长度、压缩及校验头；不枚举重建未知头，也不合并或丢失 Cookie。方法异常时回传原正文，并尝试恢复触及的头。
 - 不保存状态、不发通知、不访问业务 API。网络流自身读取失败时无法重建未读完的原文；不二次读取或伪造空正文。持续失效的响应头 API 与流错误需要客户端运行验收。
 
-这些收窄只适用于 Egern 新版，不意味着旧 Surge 正则已有相同保护。仍只改变客户端字段，不授予服务器会员资格。
+这些已测试的匹配与字段保护现已迁回 Surge 原文件；两端仍只改变客户端接收到的字段，不改变服务器记录。
 
 16 项离线测试全部使用虚构 SOAP 与响应上下文：
 
 ```sh
 node --input-type=module --check < jyjt/jyjt-member.egern.js
-node --experimental-vm-modules --test jyjt/tests/egern.test.cjs
+node --experimental-vm-modules --test jyjt/tests/egern.test.cjs jyjt/tests/canonical.test.cjs
 ```
 
 测试依赖 Node.js 20+、Python 3 与 PyYAML（只解析公开 YAML）。参考 [Egern 原生脚本 API](https://egernapp.com/zh-CN/docs/javascript-api/) 与[脚本配置](https://egernapp.com/docs/configuration/scriptings/)。YAML 解析和模拟上下文通过，不等于手机已经安装或页面显示已验收。
@@ -64,7 +64,7 @@ node --experimental-vm-modules --test jyjt/tests/egern.test.cjs
 - 不改写其他字段，不等于没有行为影响：客户端如何使用这些标志位，仍由 App 决定。
 - 若响应编码、字段格式、接口路径或连接协议变化，需要重新核对，不能保证正则继续适用。
 
-如果日期显示异常，先停用模块做对照。若要保留标志位处理而停用日期替换，需要同时移除 `DATE_RULE` 定义及 `transform()` 中使用它的替换语句；只删除定义会留下未定义变量引用。
+如果日期显示异常，先停用模块做对照。当前脚本在 `transform()` 中链式替换；若只停用日期处理，移除最后一条针对 `member_end_date` 的 `.replace(...)`，保留前两条零值替换。当前实现没有独立的 `DATE_RULE` 全局。
 
 ## 验证与还原
 
@@ -74,6 +74,8 @@ node --experimental-vm-modules --test jyjt/tests/egern.test.cjs
 
 脚本没有持久写入会员状态，但 App 自己可能缓存页面或响应；停用后未立即刷新，不代表服务端数据发生了修改。
 
-相关文件：[模块](jyjt-member.sgmodule)、[脚本](jyjt-member.js)。抓包和接口分析信息见脚本开头注释，不能据此推断所有业务接口都采用相同格式。
+相关文件：[模块](<jyjt-member.sgmodule>)、[脚本](<jyjt-member.js>)。本页只描述已知 SOAP 接口，不推断其它业务接口都采用相同格式。
+
+2026-11-14 原目录归并：原回归 **16/16 → 16/16**；迁回 [canonical 回归](<tests/canonical.test.cjs>) **4/4 → 4/4**，当前本目录 **20/20**。
 
 [返回仓库首页](../README.md)

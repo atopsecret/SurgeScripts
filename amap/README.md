@@ -1,8 +1,8 @@
 # 高德地图去广告
 
-**2.1.0 页面补全版，适用于 Surge iOS 5.9.1+ / Mac 5.5.1+。** 保留 RT 开屏本地空响应，修复个人页 `nodefaasv3` 匹配，新增地点详情、搜索联想、打车子页等处理，没有第三方 JavaScript 或 JQ 运行依赖。
+**2.1.0 页面补全版；当前 Surge 包装以 iOS 6.x / WebView 为目标。** 保留 RT 开屏本地空响应，修复个人页 `nodefaasv3` 匹配，新增地点详情、搜索联想、打车子页等处理，没有第三方 JavaScript 或 JQ 运行依赖。
 
-另提供独立的 [Egern 原生 YAML](amap-adblock.egern.yaml) 与 [ES module 脚本](amap-cleaner.egern.js)。旧 Surge 文件保留；两种客户端的配置与证书不能混用。
+Surge 使用原地址的 [模块](<amap-adblock.sgmodule>) 与 [amap-cleaner.js](<amap-cleaner.js>)，已归并经过离线校正的二进制 UTF-8、完整响应头与错误放行包装；不新增第二份旧脚本。另提供独立的 [Egern 原生 YAML](<amap-adblock.egern.yaml>) 与 [ES module 脚本](<amap-cleaner.egern.js>)，本次未改变 Egern 资源或共用策略。两种客户端的配置与证书分别安装。
 
 ## 2.1.0 更新范围
 
@@ -114,7 +114,7 @@ node --experimental-vm-modules --test amap/tests/policy.test.cjs
 
 ## 响应保护与兼容边界
 
-- 服务端明确失败、非 200、JSONP、二进制或未知结构原样放行。
+- 服务端明确失败、非 200、JSONP、非 UTF-8 声明、无效 UTF-8 字节或未知结构原样放行；有效 UTF-8 文本和二进制 JSON 都支持处理。
 - 无变化时不重新序列化；改写时保留无关字段，移除过时的长度、编码、缓存与校验头。
 - 不对未知卡片使用“只保留两种卡片”的删除策略，不把整个地图、导航或 AI 配置清空。
 - 页面脚本最多处理 2 MiB 响应，超出限制可能由客户端跳过。
@@ -129,7 +129,9 @@ node --test amap/tests/cleaner.test.cjs
 python3 amap/tests/check_har.py /path/to/capture.har
 ```
 
-高德合计 87 项离线测试：Surge 29、Egern 34、共用策略 24；覆盖规则、multipart 契约、页面分支、错误保护、响应头、诊断、版本与构建一致性。2.0.0 时对用户 HAR 的离线对照为原响应一条广告、两张内嵌图片，替代响应零广告、零图片；本次保留该替代正文，没有重放请求或重新取得原始 HAR。不把离线通过等同于真机缓存已清除。
+原高德 87 项离线测试保持通过：Surge 29、Egern 34、共用策略 24；覆盖规则、multipart 契约、页面分支、错误保护、响应头、诊断、版本与构建一致性。2.0.0 时对用户 HAR 的离线对照为原响应一条广告、两张内嵌图片，替代响应零广告、零图片；本次保留该替代正文，没有重放请求或重新取得原始 HAR。不把离线通过等同于真机缓存已清除。
+
+2026-11-14 原目录归并：原回归 **87/87 → 87/87**；迁回 [canonical 回归](<tests/canonical.test.cjs>) **17/17 → 17/17**，当前本目录 **104/104**。另有跨模块的 [静态与诊断检查](<../egern/tests/common-canonical.test.cjs>)；所有用例使用纯 mock。
 
 维护时修改 [amap-policy.js](amap-policy.js) 与对应 runtime 模板，再生成独立客户端脚本：
 

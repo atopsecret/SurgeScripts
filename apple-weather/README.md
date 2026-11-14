@@ -1,12 +1,38 @@
-# Apple 天气增强 · Egern 原生版
+# Apple 天气增强 · Surge / Egern
 
-版本 **1.0.0**。把 Loon `AppleWeatherEnhancer.lpx` 的两条响应处理转换为 Egern 原生模块，保留 WeatherKit **v3.1.0** 的天气、降水、空气质量算法和 FlatBuffers 编解码。
+本目录按原功能维护两种客户端入口。**Egern 1.0.0** 原生实现保持不变；**Surge 1.0.0-surge.2** 将可用性、天气数据和手动诊断合并为一个自包含脚本。两者保留 WeatherKit **v3.1.0** 的完整天气、降水、空气质量算法与 **FlatBuffers 24.12.23** 编解码，不升级核心版本。
 
-脚本使用 `export default async function(ctx)`、`ctx.http`、`ctx.storage` 和 `ctx.env`。不依赖 Loon/Surge 全局变量，不执行下载脚本的 `eval`，也不套旧脚本兼容壳。运行时只下载一份自包含 JS。
+Egern 使用 `export default async function(ctx)`、`ctx.http`、`ctx.storage` 和 `ctx.env`，不依赖 Loon/Surge 全局变量。Surge 在同一核心外注入原生 `$httpClient`、`$persistentStore` 与二进制正文适配；运行时不加载外部 JS、不执行下载脚本的 `eval`。每个客户端都只引用一份自包含 JS。
 
-## 安装
+## Surge 安装（canonical）
 
-[模块原始链接](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/apple-weather/apple-weather-enhancer.egern.yaml)
+- [Surge 模块安装 URL](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/apple-weather/apple-weather-enhancer.sgmodule)
+- [统一自包含 Surge JS](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/apple-weather/apple-weather-enhancer.surge.js)
+- 本地文件：[模块](<apple-weather-enhancer.sgmodule>)、[统一入口](<apple-weather-enhancer.surge.js>)。
+
+1. 在 Surge 模块管理中添加以上模块 URL，启用“Apple 天气增强”。模块为 Surge iOS 6.x 的 WebView 引擎格式；本轮只做离线运行验证。
+2. 在自己的 Surge 配置中启用 MITM，安装并信任 **Surge 当前使用的 CA**。模块只追加 `weatherkit.apple.com`，不附带 CA、证书密码或用户 API 令牌。
+3. 停用其它处理相同 WeatherKit 响应接口的模块，重新打开 Apple 天气。
+4. 需要调整数据源或填入自己的 API 凭据时，保持三个 Script 入口的 `argument` 参数一致。字段与默认值见下文；支持 URL 查询参数格式，也支持含这些扁平键的 JSON 对象。不要添加 `MODE` 参数。
+5. 在 Surge 脚本列表手动运行 `weather-diagnostic`。它只显示版本、命中计数与最近处理摘要，不访问天气服务，不输出 API 凭据或坐标。
+
+三个 Script 条目均使用上面的同一 root URL：
+
+| 条目 | 触发与正文 | 运行配置 |
+| --- | --- | --- |
+| `weather-availability` | `/api/v1/availability/` 的 JSON | `requires-body=true`、`binary-body-mode=false`、4 MiB、30 秒 |
+| `weather-data` | `/api/v2/weather/` 的 FlatBuffers binary | `requires-body=true`、`binary-body-mode=true`、4 MiB、30 秒 |
+| `weather-diagnostic` | `type=generic` 的手动诊断 | 10 秒，不读取响应正文 |
+
+统一入口先按 `$script.type` 识别 generic 诊断，再按 `$request.url` 识别 JSON 或天气二进制；不依赖脚本名称。没有脚本类型但存在请求时仍按 URL 路由；完全没有请求与类型的手动运行显示诊断。其它类型、非目标 URL、错误状态与未知媒体类型保留原响应。
+
+HTTP 适配将 Egern 的毫秒超时换算为 Surge 的秒：`7000 ms → 7 s`，保留单次最多 16 个不同请求、18 秒启动窗口、禁用 Cookie 与自动重定向的行为。失败或无需改写时向 Surge 返回 `{}`，沿用原响应的正文与头；二进制改写直接返回 `Uint8Array`，保留输入的 `byteOffset` / `byteLength`。
+
+四条 Rule 原文保留，包括 Apple ASN **714 / 6185 + QUIC** 的第四条条件。该条件影响这些 ASN 的 QUIC，不仅限于天气；本轮没有将它扩大为全部 Apple 流量或全局 UDP/443。MITM 使用 `%APPEND%`。本模块不改 DNS、代理组、证书或其它全局设置。Surge 的缓存和诊断仍使用既有 `surge_ios_weather_` 存储前缀，与 Egern 存储分开。
+
+## Egern 安装
+
+[Egern 模块原始链接](https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/apple-weather/apple-weather-enhancer.egern.yaml)
 
 1. 在 Egern 的模块管理中添加以上 URL，启用模块并检查脚本下载结果。
 2. 使用支持原生 JavaScript API 与 `env_schema` 的当前 Egern 版本。模块按 2026-11-08 的官方文档编写；不为更旧版本推定兼容性。
@@ -31,9 +57,9 @@
 - `API.QWeather.Host`：和风天气实际分配的主机，只填域名。默认值沿用上游 `devapi.qweather.com`，不代表它现在仍适用于你的账号。
 - `API.QWeather.Token`：本版本按上游使用 `X-QW-Api-Key`。不把 JWT 填入后假定成 Bearer 鉴权；所需接口套餐也由和风平台决定。
 - `API.WAQI.Token`：保留原参数。v3.1.0 的默认 AQI 路径是本地计算，仅填写 WAQI 令牌不会自动把该路径切换到 WAQI。
-- `LogLevel`：控制原生处理摘要。日志不包含定位、完整 URL、请求头或 API 令牌，不转发上游原始日志。
+- `LogLevel`：控制处理摘要。日志不包含定位、完整 URL、请求头或 API 令牌；两种客户端均不转发上游原始日志。
 
-在 UI 中填写即可。也可以在主配置的模块引用中传入 `env`：
+Surge 使用三个 Script 条目的 `argument`；Egern 在 UI 中填写即可，也可以在主配置的模块引用中传入 `env`：
 
 ```yaml
 modules:
@@ -49,7 +75,7 @@ modules:
 
 `TOKEN` 换成自己的令牌；不要公开包含真实凭据的主配置。`env_schema.default_value` 在 Egern 中只是界面提示，所以脚本内部也实现了同样的默认值。
 
-## 从 Loon 转换的差异
+## Egern 从 Loon 转换的差异
 
 1. Loon `[Argument]` 改为 Egern `env_schema`；二进制天气响应设置 `binary_body: true` 和 `body_required: true`。
 2. 设置只读取当前模块的 `ctx.env`。旧 `Storage`/BoxJs 配置不自动迁移，也不假装能读取另一个客户端的存储。和风公共城市网格缓存保存在独立 Egern 键中。
@@ -74,24 +100,44 @@ FlatBuffers 模型沿用 v3.1.0。根表检查和异常回退不是完整协议�
 
 ## 构建与离线验证
 
-源码构建需要 Node.js 20+ 与固定 npm 依赖；已提交的原生 JS 可以直接运行。仅运行测试不需要安装 npm 依赖。
+已提交的两个自包含 JS 可以直接运行。所有测试仅需 Node.js 内置模块，不安装 npm 依赖。Egern 的原 [源码](<src/main.mjs>)、[运行时](<src/runtime.mjs>)、[bundle](<apple-weather-enhancer.egern.js>)与 [build.mjs](<build.mjs>) 保持不变。
+
+### Surge：独立最小构建，不重建 Egern
+
+[build-surge.mjs](<build-surge.mjs>) 复用现有完整 Egern bundle，先核对固定来源哈希，仅去掉末尾 ES export 指令，再拼入 [src/surge-adapter.js](<src/surge-adapter.js>)。只写 [Surge JS](<apple-weather-enhancer.surge.js>)，不运行原 build、不安装依赖、不访问网络；`--check` 只做逐字节校验。
 
 ```sh
-# 仓库根目录
+# 仓库根目录，Node.js 20+
+node --require ./apple-weather/tests/offline-guard.cjs apple-weather/build-surge.mjs
+node --require ./apple-weather/tests/offline-guard.cjs apple-weather/build-surge.mjs --check
+
+# 对应 npm alias；这些命令也无需 npm install
+npm --prefix apple-weather run build:surge
+npm --prefix apple-weather run check:surge
+npm --prefix apple-weather run test:surge
+npm --prefix apple-weather run test:egern
+npm --prefix apple-weather test
+```
+
+### Egern：原源码构建
+
+只有明确要重建 Egern 时才用下面的原构建，它需要固定 esbuild / FlatBuffers npm 依赖，与 Surge 最小构建相互独立。
+
+```sh
 cd apple-weather
 npm ci --ignore-scripts --no-audit --no-fund
 npm run build
-npm test
+npm run test:egern
 
-# 返回仓库根目录后做模块字段检查
+# 返回仓库根目录后做 Egern 模块字段检查
 cd ..
 python3 egern/validate.py
 python3 -m unittest discover -s egern -p test_validate.py -v
 ```
 
-测试使用虚构凭据、合成 FlatBuffers 和模拟 HTTP，不请求真实天气服务。覆盖可用性、已知字段保留、天气替换、降水补充、六种 AQI 算法、原始字节回退、一次性正文读取、跨调用隔离、参数与诊断边界。可用性及九组二进制用例与原 v3.1.0 发布脚本对照，二进制用例逐字节比较。
+测试使用虚构凭据、合成 FlatBuffers 和模拟 HTTP，不请求真实天气服务。[offline-guard.cjs](<tests/offline-guard.cjs>) 同时拦截真实网络 API。覆盖可用性、已知字段保留、天气替换、降水补充、六种 AQI 算法、原始字节回退、一次性正文读取、跨调用隔离、参数与诊断边界。可用性及九组二进制用例与原 v3.1.0 发布脚本对照，二进制用例逐字节比较。
 
-本次执行结果见 [验证报告.md](验证报告.md)。GitHub 发布是独立步骤，不由构建脚本或 GitHub Actions 自动执行。
+Surge 迁移前 **48/48**，统一入口保留全部原回归并增加 20 项，迁移后 **68/68**；Egern 原测试文件未改，前后 **52/52**；合跑 **120/120**，失败与跳过均为 0。[本轮离线证据](<tests/README.md>) 记录命令、来源、字节和原范围 Rule；[原 Egern 验证报告](<验证报告.md>) 保留历史结果。GitHub 发布是独立步骤，不由构建脚本或 GitHub Actions 自动执行。
 
 ## 官方格式参考
 

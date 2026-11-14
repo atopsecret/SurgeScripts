@@ -1,8 +1,13 @@
-// Engine | Surge iOS 5.9.0+ / Mac 5.5.0+ | JavaScript
-// Build: node jd/build.mjs
-// Run: 导入 jd-adblock.sgmodule
-// Deps: Surge HTTP 脚本 API；策略由 jd-policy.js 构建时内联
+// Engine | Surge iOS 6.x | JavaScript (WebView)
+// Build: node jd/build.mjs; node jd/build.mjs --check
+// Run: 导入 jd/jd-adblock.sgmodule；可选 POST 正文关联默认保持关闭
+// Deps: Surge $request/$response/$persistentStore/$done; no network requests.
+// Decode only valid UTF-8 and retain unknown/error responses byte-for-byte.
+// Diagnostics save only route/status/count, never URLs, headers, account tokens or body.
+(function () {
+  'use strict';
 {{POLICY}}
+
 const P = JD_POLICY;
 const PENDING_STORE = "skernelx_jd_pending_v2";
 const PENDING_TTL = 60000;
@@ -25,47 +30,108 @@ function consumeRequestId() {
     if (!writePending(list.filter(item => item !== found))) return { id: "", invalid: true };
     return { id: found.api, invalid: false, source: "pending" };
 }
-function decodeUTF8(bytes) {
-    const parts = []; let chunk = "";
-    for (let i = 0; i < bytes.length;) { const first = bytes[i++]; let point = first, count = 0, minimum = 0;
-        if (first >= 0xc2 && first <= 0xdf) { point &= 31; count = 1; minimum = 128; } else if (first >= 0xe0 && first <= 0xef) { point &= 15; count = 2; minimum = 2048; } else if (first >= 0xf0 && first <= 0xf4) { point &= 7; count = 3; minimum = 65536; } else if (first > 127) throw Error("invalid-utf8");
-        for (let j = 0; j < count; j++) { const next = bytes[i++]; if (next === undefined || (next & 192) !== 128) throw Error("invalid-utf8"); point = point * 64 + (next & 63); }
-        if (point < minimum || point > 0x10ffff || (point >= 0xd800 && point <= 0xdfff)) throw Error("invalid-utf8"); chunk += String.fromCodePoint(point); if (chunk.length > 8192) { parts.push(chunk); chunk = ""; }
-    } parts.push(chunk); return parts.join("");
-}
-function encodeUTF8(text) { return new TextEncoder().encode(text); }
-function headerValue(headers, name) {
+
+  const COMMON_STORE = 'ios_common_jd_adblock';
+  const COMMON_VERSION = '2.0.0';
+  function commonHeader(headers, name) {
+    const wanted = name.toLowerCase();
     if (Array.isArray(headers)) {
-        const found = headers.find(item => item && String(item.field).toLowerCase() === name.toLowerCase());
-        return found ? found.value : "";
+      const entry = headers.find(item => item && String(item.field || item.name).toLowerCase() === wanted);
+      return entry ? String(entry.value || '') : '';
     }
-    for (const key of Object.keys(headers || {})) if (key.toLowerCase() === name.toLowerCase()) return headers[key];
-    return "";
-}
-function contentAllowed(headers) {
-    const type = String(headerValue(headers, "content-type") || "");
-    if (type && !/^\s*(?:application\/(?:[\w.+-]+\+)?json|text\/json)\s*(?:;|$)/i.test(type)) return false;
+    for (const key of Object.keys(headers || {})) if (key.toLowerCase() === wanted) return String(headers[key] || '');
+    return '';
+  }
+  function commonBytes(body) {
+    if (body instanceof Uint8Array) return body;
+    if (body instanceof ArrayBuffer) return new Uint8Array(body);
+    if (ArrayBuffer.isView(body)) return new Uint8Array(body.buffer, body.byteOffset, body.byteLength);
+    return typeof body === 'string' ? new TextEncoder().encode(body) : null;
+  }
+  function commonDecode(bytes) {
+    const chunks = []; let chunk = '';
+    for (let i = 0; i < bytes.length;) {
+      const first = bytes[i++]; let point = first, count = 0, minimum = 0;
+      if (first >= 0xc2 && first <= 0xdf) { point &= 31; count = 1; minimum = 128; }
+      else if (first >= 0xe0 && first <= 0xef) { point &= 15; count = 2; minimum = 2048; }
+      else if (first >= 0xf0 && first <= 0xf4) { point &= 7; count = 3; minimum = 65536; }
+      else if (first > 127) throw new Error('invalid-utf8');
+      for (let j = 0; j < count; j++) {
+        const next = bytes[i++];
+        if (next === undefined || (next & 192) !== 128) throw new Error('invalid-utf8');
+        point = point * 64 + (next & 63);
+      }
+      if (point < minimum || point > 0x10ffff || (point >= 0xd800 && point <= 0xdfff)) throw new Error('invalid-utf8');
+      chunk += String.fromCodePoint(point);
+      if (chunk.length > 8192) { chunks.push(chunk); chunk = ''; }
+    }
+    chunks.push(chunk); return chunks.join('');
+  }
+  function commonAllowed(headers, jsonOnly) {
+    const type = commonHeader(headers, 'content-type');
     const charset = /charset\s*=\s*["']?([^\s;"']+)/i.exec(type);
-    return !charset || /^(?:utf-8|utf8|us-ascii)$/i.test(charset[1]);
+    if (charset && !/^(?:utf-8|utf8|us-ascii)$/i.test(charset[1])) return false;
+    return !jsonOnly || !type || /^\s*(?:application\/(?:[\w.+-]+\+)?json|text\/json)\s*(?:;|$)/i.test(type);
+  }
+  function commonResponseHeaders(input, json, extra) {
+    const stale = new Set(['content-length','content-encoding','transfer-encoding','etag','content-md5','cache-control','digest','content-digest','repr-digest']);
+    if (json) stale.add('content-type');
+    const additions = [{ field: 'Cache-Control', value: 'no-store' }];
+    if (json) additions.push({ field: 'Content-Type', value: 'application/json; charset=utf-8' });
+    for (const [field, value] of Object.entries(extra || {})) { stale.add(field.toLowerCase()); additions.push({ field, value }); }
+    if (Array.isArray(input)) return input.filter(item => item && !stale.has(String(item.field || item.name).toLowerCase())).concat(additions);
+    const output = {};
+    for (const key of Object.keys(input || {})) if (!stale.has(key.toLowerCase())) output[key] = input[key];
+    for (const item of additions) output[item.field] = item.value;
+    return output;
+  }
+  function commonRemember(route, status, removed) {
+    try {
+      const saved = JSON.parse($persistentStore.read(COMMON_STORE) || '{}');
+      const state = saved && saved.version === COMMON_VERSION ? saved : { version: COMMON_VERSION, hits: 0, routes: {} };
+      state.hits = Math.min((Number(state.hits) || 0) + 1, 999999);
+      state.route = String(route); state.status = status; state.at = new Date().toISOString();
+      state.removed = Math.max(0, Number(removed) || 0);
+      state.routes = state.routes && typeof state.routes === 'object' ? state.routes : {};
+      const row = state.routes[route] || {};
+      row[status] = Math.min((Number(row[status]) || 0) + 1, 999999);
+      state.routes[route] = row;
+      $persistentStore.write(JSON.stringify(state), COMMON_STORE);
+    } catch (_) { /* Diagnostic storage is not required for response handling. */ }
+  }
+  function commonDiagnostic() {
+    let saved = {};
+    try { saved = JSON.parse($persistentStore.read(COMMON_STORE) || '{}'); } catch (_) {}
+    console.log(JSON.stringify({ version: COMMON_VERSION, hits: Number(saved.hits) || 0, route: saved.route || null, status: saved.status || 'no-record', at: saved.at || null, removed: Number(saved.removed) || 0 }));
+    return {};
+  }
+
+function run() {
+  if (typeof $request === 'undefined' || !$request) return commonDiagnostic();
+  if (typeof $response !== 'object' || !$response) return {};
+  let url; try { url=new URL($request.url); } catch (_) { return {}; }
+  if (!['http:','https:'].includes(url.protocol) || url.hostname!=='api.m.jd.com' || url.pathname!=='/client.action' || url.username || url.password) return {};
+  // Surge does not expose request bodies to a response script by default.
+  // The optional request/body association script remains disabled in this module.
+  const identity=consumeRequestId();
+  if (!identity.id || identity.invalid || !P.target(identity.id)) return {};
+  const id=identity.id;
+  if (Number($response.status)!==200) {commonRemember(id,'http-error');return {};}
+  if (!commonAllowed($response.headers,true)) {commonRemember(id,'format');return {};}
+  const bytes=commonBytes($response.body);if(!bytes)return {};
+  try {
+    const data=JSON.parse(commonDecode(bytes));if(!P.record(data))throw new Error('unknown-structure');
+    if(P.failed(data)){commonRemember(id,'server-error');return {};}
+    const before=JSON.stringify(data);P.clean(data,id);const after=JSON.stringify(data);
+    if(before===after){commonRemember(id,'unchanged');return {};}
+    commonRemember(id,'changed');
+    return {body:new TextEncoder().encode(after),headers:commonResponseHeaders($response.headers,true,{'X-JD-Cleaner-Version':COMMON_VERSION})};
+  }catch(_){commonRemember(id,'format');return {};}
 }
-function responseHeaders(input) {
-    const stale = new Set(["content-length", "content-encoding", "transfer-encoding", "etag", "content-md5", "content-digest", "repr-digest", "digest", "content-type", "cache-control", "x-jd-cleaner-version"]);
-    const values = [{ field: "Content-Type", value: "application/json; charset=utf-8" }, { field: "Cache-Control", value: "no-store" }, { field: "X-JD-Cleaner-Version", value: P.VERSION }];
-    if (Array.isArray(input)) return input.filter(item => item && !stale.has(String(item.field).toLowerCase())).concat(values);
-    const output = {}; for (const key of Object.keys(input || {})) if (!stale.has(key.toLowerCase())) output[key] = input[key];
-    output["Content-Type"] = values[0].value; output["Cache-Control"] = values[1].value; output["X-JD-Cleaner-Version"] = values[2].value; return output;
-}
-function main() {
-    if (typeof $request === "undefined" || !$request || typeof $response !== "object" || !$response) { $done({}); return; }
-    let url; try { url = new URL($request.url); if (!["http:", "https:"].includes(url.protocol) || url.hostname !== "api.m.jd.com" || url.pathname !== "/client.action" || url.username || url.password) { $done({}); return; } } catch (_) { $done({}); return; }
-    const identity = consumeRequestId(); if (!identity.id || !P.target(identity.id)) { $done({}); return; }
-    if (Number($response.status) !== 200) { $done({}); return; }
-    if (!contentAllowed($response.headers)) { $done({}); return; }
-    const bytes = $response.body instanceof Uint8Array ? $response.body : new TextEncoder().encode(String($response.body || "")); let text;
-    try { text = decodeUTF8(bytes); } catch (_) { $done({}); return; }
-    let data; try { data = JSON.parse(text); if (!P.record(data)) throw Error("unknown"); } catch (_) { $done({}); return; }
-    if (P.failed(data)) { $done({}); return; }
-    const before = JSON.stringify(data); P.clean(data, identity.id); const changed = JSON.stringify(data); if (changed === before) { $done({}); return; }
-    $done({ body: encodeUTF8(changed), headers: responseHeaders($response.headers) });
-}
-try { main(); } catch (_) { $done({}); }
+  if (typeof module !== 'undefined' && module.exports) module.exports = { run, commonDecode, commonResponseHeaders, commonAllowed };
+  if (typeof $done === 'function') {
+    let result;
+    try { result = run() || {}; } catch (_) { result = {}; }
+    $done(result);
+  }
+}());

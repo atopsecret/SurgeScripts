@@ -8,7 +8,7 @@ Surge 与 Egern 各自使用原生模块和脚本。页面处理共用 `cainiao-
 
 ## 安装
 
-Surge：将下面的地址添加到模块，需 Surge iOS `5.9.0+` / Mac `5.5.0+`：
+Surge：将下面的原地址添加到模块，当前独立包装以 Surge iOS `6.x` / WebView 为目标：
 
 ```text
 https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.sgmodule?v=1.2.1
@@ -40,7 +40,7 @@ ossgw.alicdn.com
 
 广告 SDK 的域名拒绝不需要 HTTPS 解密；UC 曝光路径、素材 UA 条件和 Map Local 需要解密。九个精确主机的 UDP/QUIC `443` 条件用于促使重试 TCP；没有修改全局 QUIC、DNS 或其它菜鸟业务主机。Surge 的 `extended-matching` 只使用客户端已经识别到的 SNI，不会凭空还原 IP 直连的域名；Egern 文档没有这个字段，未照搬。未识别出域名的连接仍可能绕过，TCP 回退和最终开屏效果均未真机确认。
 
-Surge 响应脚本启用二进制正文、完整响应头与 `webview` 引擎；本地诊断小组件为 Egern 专有入口，Surge 使用请求日志检查命中。
+Surge 仍使用原目录的 [cainiao-adblock.js](<cainiao-adblock.js>)，响应脚本启用二进制正文、完整响应头与 `webview` 引擎；新增归并后的 generic 入口“菜鸟去广告诊断”只打印本地状态，不发通知、不请求网络、不创建 Widget。Egern 的原生脚本和诊断小组件保持不变。域名与 Map Local 命中仍查请求日志。
 
 ## 覆盖范围
 
@@ -121,7 +121,7 @@ Map Local 同时补齐 `.ads.index.cn`、`.ads.show.cn`、`.ads.mshow.cn`，并�
 - 仅处理完整 HTTP `200`；非 JSON 媒体类型、非 UTF-8 声明、失败 `ret`、陌生 `code` 和显式业务失败不改写。
 - 列表字段仅接受数组，运营卡片仅接受对象或数组。未知标量类型保留，不创建缺少的路径。接口路径支持数值版本（如 `/1.0/`），不匹配相似 API 后缀。
 - 只有正文发生变化时才清理旧的长度、压缩、缓存和校验头，并设置 JSON UTF-8、`no-store` 与版本头；未触及的多值 Cookie 和业务头保留。
-- Surge 在不修改正文时调用 `$done({})` 保留原响应；改写时以 UTF-8 字节返回，并保留完整响应头中的重复 Cookie 顺序。五类 Map Local 的空体与 `404` 和 Egern 一致；Egern 专用 Map Local 版本头不参与业务匹配，Surge 页面响应版本头为 `1.2.1`。
+- Surge 在不修改正文时调用 `$done({})` 保留原响应；改写时以 UTF-8 字节返回，并保留完整响应头中的重复 Cookie 顺序。五类 Map Local 的空体、`404` 与来源版本头和 Egern 一致；版本头不参与业务匹配，Surge 页面响应版本头仍为 `1.2.1`。
 - Egern Generic 入口“菜鸟去广告诊断”显示版本、固定路由计数与最近状态，不发通知、不请求网络、不保存 URL、Cookie、账号或正文。每项计数封顶 `999999`。计数仅包含三组页面响应处理，域名、URL 和 Map Local 拦截请查看请求日志。
 
 ## 来源
@@ -142,6 +142,12 @@ Map Local 同时补齐 `.ads.index.cn`、`.ads.show.cn`、`.ads.mshow.cn`，并�
 `1.2.0` 增加第三份 147 条请求的 HAR、11,844 个包的 PCAP，以及其中可解压的应用日志。仅解析 QUIC Initial 的 ClientHello，没有解密 QUIC 应用正文。公开记录只保留[聚合结论](capture-audit-20261108-201845.json)，不包含原始捕获、完整日志、IP、账号或定位信息。
 
 `1.2.1` 复核第四份 135 条请求的 HAR、11,260 个包的 PCAP 与应用日志，确认缓存视频继续展示及 HTTP/3 双向传输。公开记录只保留[聚合证据](capture-audit-20261108-204459.json)，不上传原始日志和抓包。官方协议与 SNI 匹配文档链接见 [1.2.1 验证记录](验证记录-1.2.1.md)。
+
+## 当前原目录归并
+
+模块地址与响应脚本名称不变，Rule、Map Local、Script 与 MITM 只归属本模块；主配置不再重复维护同一组广告规则。二十条规则、五条 Map Local 的状态/正文/头和九个精确解密主机保持校正来源语义，不新增全局 DNS 或证书。
+
+2026-11-14：原回归 **50/50 → 50/50**；迁回 [canonical 回归](<tests/canonical.test.cjs>) **9/9 → 9/9**，当前本目录 **59/59**。原 Egern、共用策略和历史聚合记录字节不变。
 
 ## 离线验证
 

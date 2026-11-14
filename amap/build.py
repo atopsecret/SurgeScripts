@@ -34,7 +34,7 @@ def render():
     for name in ["amap-adblock.sgmodule", "amap-adblock.egern.yaml"]:
         text = (ROOT / name).read_text(encoding="utf-8")
         if name.endswith("sgmodule"):
-            text = replace_once(r"(?<=pattern=).*?(?=,requires-body=)", match.replace("/", r"\/"), text)
+            text = replace_once(r"(?<=pattern=).*?(?=,requires-body=)", match, text)
             text = re.sub(r"(?<=#!desc=)[\d.]+", version, text)
             text = re.sub(r"(?<=X-AMap-Cleaner-Version:)[\d.]+", version, text)
         else:

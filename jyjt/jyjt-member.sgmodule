@@ -1,9 +1,10 @@
 #!name=戒烟军团会员解锁
-#!desc=改写戒烟军团APP响应中的会员标志位（member_flg / user_type / member_end_date），客户端侧解锁军团会员。明文HTTP，无需MITM。
+#!desc=1.0.0 原生版；只改已知 SOAP 响应内原有的完整零值与空日期，HTTP 错误及 SOAP Fault 放行。
 #!author=Pier
-#!homepage=https://github.com/atopsecret/SurgeScripts
+#!homepage=https://github.com/atopsecret/SurgeScripts/tree/main/jyjt
 #!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/Heart.png
 #!category=解锁
+# Surge iOS 6.x；替换旧版同名模块，避免重复处理。不修改全局 DNS、CA 或代理。
 
 [Script]
-戒烟军团会员解锁 = type=http-response,pattern=^https?://smoke\.nxnresearch\.com/webservice510\.asmx,requires-body=1,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jyjt/jyjt-member.js,timeout=10
+戒烟军团会员解锁 = type=http-response,pattern=^http://smoke\.nxnresearch\.com/webservice510\.asmx(?:[/?]|$),requires-body=true,max-size=1048576,binary-body-mode=true,full-header-mode=true,engine=webview,script-update-interval=3600,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/jyjt/jyjt-member.js?v=1.0.0,timeout=10

@@ -1,37 +1,27 @@
 #!name=高德地图去广告
-#!desc=2.1.0 页面补全：保留 RT 开屏空响应，修复个人页 v3；十五类页面与嵌套配置定点净化，保留未知业务，无第三方脚本依赖。
-#!author=skernelx
+#!desc=2.1.0版；保留 RT 开屏，修复个人页 v3，十五类页面与嵌套配置定点净化，无第三方脚本依赖。
+#!author=atopsecret（Surge 原版 skernelx）
 #!homepage=https://github.com/atopsecret/SurgeScripts/tree/main/amap
 #!category=去广告
-# Surge iOS 5.9.1+ / Mac 5.5.1+。HTTPS 需要开启 MITM、Rewrite 并信任当前 Surge CA。
-# 更新本模块替换旧版，不要重复安装。核心开屏由 Map Local 处理，不依赖脚本下载。
-# 页面接口的历史参考见 README；本模块没有第三方脚本或 HTTPDNS 改写。
+# Surge iOS 6.x；替换旧版同名模块，避免重复处理。不修改全局 DNS、CA 或代理。
 
 [Rule]
-# 广告专用素材主机；不封锁整个 amap.com 或图片 CDN。
 DOMAIN,optimus-ads.amap.com,REJECT
+URL-REGEX,^https?://(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?/ws/asa/ads_attribution(?:[/?]|$),REJECT
 
 [Map Local]
-# 本次 HAR 的 RT 接口携带 multipart/jsonData + PNG + JPEG。
-# 返回同类 multipart 成功空列表，无图片部分；此响应格式只用于已确认的 aos RT 通道。
-^https?:\/\/(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?\/ws\/aos\/alimama\/splash_screen_rt(?:[/?]|$) data-type=base64 data="LS1hbWFwLWNsZWFuZXItMi0wLTANCkNvbnRlbnQtRGlzcG9zaXRpb246IGZvcm0tZGF0YTsgbmFtZT0ianNvbkRhdGEiDQpDb250ZW50LVR5cGU6IGFwcGxpY2F0aW9uL2pzb247IGNoYXJzZXQ9dXRmLTgNCg0KeyJyZXN1bHQiOiJ0cnVlIiwiY29kZSI6IjEiLCJtZXNzYWdlIjoiU3VjY2Vzc2Z1bC4iLCJ2ZXJzaW9uIjoiMS4wX2FtYXAtYW9zLWluZm8tbm9ndyIsImRhdGEiOnsic3RhdHVzIjoib2siLCJlcnJjb2RlIjoiMSIsImN1c3RvbV9saXN0IjpbXSwiYWQiOltdfX0NCi0tYW1hcC1jbGVhbmVyLTItMC0wLS0NCg==" status-code=200 header="Content-Type:multipart/form-data; boundary=amap-cleaner-2-0-0|Cache-Control:no-store|X-AMap-Cleaner-Version:2.1.0"
-# 旧版普通 JSON 开屏入口。先列 RT 再列普通入口，后缀边界明确。
-^https?:\/\/(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?\/ws\/(?:aos|valueadded)\/alimama\/splash_screen(?:[/?]|$) data-type=base64 data="eyJyZXN1bHQiOiJ0cnVlIiwiY29kZSI6IjEiLCJkYXRhIjp7InN0YXR1cyI6Im9rIiwiZXJyY29kZSI6IjEiLCJhZCI6W10sImN1c3RvbV9saXN0IjpbXX19" status-code=200 header="Content-Type:application/json|Cache-Control:no-store|X-AMap-Cleaner-Version:2.1.0"
-# 广告/推荐专用路径，不按整个业务域名拒绝。
-^https?:\/\/ai\.amap\.com(?::[0-9]+)?\/v1\/ai_rec\/home_qs(?:[/?]|$) data-type=text data="{}" status-code=200 header="Content-Type:application/json|Cache-Control:no-store"
-^https?:\/\/(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?\/ws\/faas\/amap-navigation\/card-service-route-plan(?:[/?]|$) data-type=text data="{}" status-code=200 header="Content-Type:application/json|Cache-Control:no-store"
-^https?:\/\/(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?\/ws\/boss\/order_web\/[A-Za-z0-9_]{8}_information(?:[/?]|$) data-type=text data="{}" status-code=200 header="Content-Type:application/json|Cache-Control:no-store"
-^https?:\/\/(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?\/ws\/valueadded\/weather(?:[/?]|$) data-type=text data="{}" status-code=200 header="Content-Type:application/json|Cache-Control:no-store"
-# 只匹配 Kelee 快照已单独拦截的主机与专用路径，不封锁整个搜索接口。
-^https?:\/\/m5\.amap\.com(?::[0-9]+)?\/ws\/info_bff\/rankingCard(?:[/?]|$) data-type=text data="{}" status-code=200 header="Content-Type:application/json|Cache-Control:no-store"
-^https?:\/\/m5\.amap\.com(?::[0-9]+)?\/ws\/shield\/search_business\/process\/marketingOperationStructured(?:[/?]|$) data-type=text data="{}" status-code=200 header="Content-Type:application/json|Cache-Control:no-store"
-
-[URL Rewrite]
-^https?:\/\/(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?\/ws\/asa\/ads_attribution(?:[/?]|$) - reject
+^https?://(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?/ws/aos/alimama/splash_screen_rt(?:[/?]|$) data-type=base64 data="LS1hbWFwLWNsZWFuZXItMi0wLTANCkNvbnRlbnQtRGlzcG9zaXRpb246IGZvcm0tZGF0YTsgbmFtZT0ianNvbkRhdGEiDQpDb250ZW50LVR5cGU6IGFwcGxpY2F0aW9uL2pzb247IGNoYXJzZXQ9dXRmLTgNCg0KeyJyZXN1bHQiOiJ0cnVlIiwiY29kZSI6IjEiLCJtZXNzYWdlIjoiU3VjY2Vzc2Z1bC4iLCJ2ZXJzaW9uIjoiMS4wX2FtYXAtYW9zLWluZm8tbm9ndyIsImRhdGEiOnsic3RhdHVzIjoib2siLCJlcnJjb2RlIjoiMSIsImN1c3RvbV9saXN0IjpbXSwiYWQiOltdfX0NCi0tYW1hcC1jbGVhbmVyLTItMC0wLS0NCg==" status-code=200 header="Content-Type:multipart/form-data; boundary=amap-cleaner-2-0-0|Cache-Control:no-store|X-AMap-Cleaner-Version:2.1.0"
+^https?://(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?/ws/(?:aos|valueadded)/alimama/splash_screen(?:[/?]|$) data-type=base64 data="eyJyZXN1bHQiOiJ0cnVlIiwiY29kZSI6IjEiLCJkYXRhIjp7InN0YXR1cyI6Im9rIiwiZXJyY29kZSI6IjEiLCJhZCI6W10sImN1c3RvbV9saXN0IjpbXX19" status-code=200 header="Content-Type:application/json|Cache-Control:no-store|X-AMap-Cleaner-Version:2.1.0"
+^https?://ai\.amap\.com(?::[0-9]+)?/v1/ai_rec/home_qs(?:[/?]|$) data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json|Cache-Control:no-store"
+^https?://(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?/ws/faas/amap-navigation/card-service-route-plan(?:[/?]|$) data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json|Cache-Control:no-store"
+^https?://(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?/ws/boss/order_web/[A-Za-z0-9_]{8}_information(?:[/?]|$) data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json|Cache-Control:no-store"
+^https?://(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?/ws/valueadded/weather(?:[/?]|$) data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json|Cache-Control:no-store"
+^https?://m5\.amap\.com(?::[0-9]+)?/ws/info_bff/rankingCard(?:[/?]|$) data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json|Cache-Control:no-store"
+^https?://m5\.amap\.com(?::[0-9]+)?/ws/shield/search_business/process/marketingOperationStructured(?:[/?]|$) data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json|Cache-Control:no-store"
 
 [Script]
-高德页面净化 = type=http-response,pattern=^https?:\/\/(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?\/ws\/(?:message\/notice\/list|faas\/amap-navigation\/main-page(?:-assets|-aiqs)?|msgbox\/pull|shield\/dsp\/profile\/index\/nodefaas(?:v3)?|shield\/search\/new_hotword|shield\/frogserver\/aocs\/updatable|(?:shield\/search\/nearbyrec_smart|smartui\/near_recommend)|promotion-web\/resource|shield\/search\/poi\/detail|shield\/search_business\/process\/middleLayer\/sug|c3frontend\/af-search\/search|boss\/car\/order\/content_info|amap\/hitch\/passenger\/content_info|opc\/tools\/list|shield\/scene\/recommend)(?:[\/?]|$),requires-body=true,max-size=2097152,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-cleaner.js?v=2.1.0,script-update-interval=3600,timeout=10
-高德净化诊断 = type=generic,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-cleaner.js?v=2.1.0,script-update-interval=3600,timeout=10
+高德页面净化 = type=http-response,pattern=^https?://(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?/ws/(?:message/notice/list|faas/amap-navigation/main-page(?:-assets|-aiqs)?|msgbox/pull|shield/dsp/profile/index/nodefaas(?:v3)?|shield/search/new_hotword|shield/frogserver/aocs/updatable|(?:shield/search/nearbyrec_smart|smartui/near_recommend)|promotion-web/resource|shield/search/poi/detail|shield/search_business/process/middleLayer/sug|c3frontend/af-search/search|boss/car/order/content_info|amap/hitch/passenger/content_info|opc/tools/list|shield/scene/recommend)(?:[/?]|$),requires-body=true,max-size=2097152,binary-body-mode=true,full-header-mode=true,engine=webview,script-update-interval=3600,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-cleaner.js?v=2.1.0,timeout=10
+高德净化诊断 = type=generic,engine=webview,script-update-interval=3600,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/amap/amap-cleaner.js?v=2.1.0,timeout=10
 
 [MITM]
 hostname = %APPEND% *.amap.com

@@ -1,6 +1,6 @@
-# 扫描全能王 · Egern 原生 1.0.1
+# 扫描全能王 · Surge / Egern 1.0.1
 
-完整重写为 Egern 原生 YAML，使用内置 jq 定点处理 JSON。只有一个模块文件，不加载 NobyDa 的远程脚本，也不依赖 Surge 兼容 API。
+Egern 使用原生 YAML 与内置 jq 定点处理 JSON；Surge 使用同目录的 [camscanner.sgmodule](<camscanner.sgmodule>) 和独立 [camscanner.surge.js](<camscanner.surge.js>)。两端仅写入到期秒字符串 `4102415999`，不加载 NobyDa 的远程脚本；Surge 脚本无 imports、HTTP 或存储访问。Egern 资源与原 jq 表达式本次保持不变。
 
 ## 直接安装
 
@@ -18,6 +18,16 @@
 4. 在 Egern 请求记录中确认下面的接口命中，再核对实际页面和常用扫描功能。
 
 模块仅追加解密主机，不携带证书、节点、账户信息或登录凭据，不替换整份主配置。
+
+### Surge iOS 6.x
+
+在 Surge 模块管理中添加：
+
+```text
+https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/camscanner/camscanner.sgmodule
+```
+
+模块使用同目录独立 [Surge 脚本](<camscanner.surge.js>)，`engine=jsc`、文本正文、1 MiB 上限。停用重复处理该接口的旧模块，刷新脚本缓存；启用 MITM 并安装、信任当前 Surge CA。只追加下面两个 API 主机，不携带 CA 或账户信息，不修改主配置。
 
 ## 会员到期时间
 
@@ -49,7 +59,7 @@ api-cs.intsig.net
 - 缺失 `data` 的错误包不变；不新增或覆盖服务端结果码。原生 jq 规则只处理 JSON，不读取 HTTP 状态，所以不声称按状态码跳过重写。
 - MITM 从 `ap*.intsig.net` 收窄为两个实际匹配的主机，不添加全局 QUIC 拒绝。
 
-原生 jq 会解析和重新序列化 JSON；这里保证的是已测试结构与字段语义，不是原始空白或响应字节相同。无效 JSON 在 Egern 内部的异常处理、手机端导入及 App 实际效果仍须客户端验证。
+Egern 原生 jq 会解析和重新序列化 JSON；这里保证的是已测试结构与字段语义，不是原始空白或响应字节相同。Surge 则词法定位有效的最后同名键，仅替换目标值或补入缺失对象，保留其它数字字面量、空白、转义字符串与 UTF-8 BOM。两端沿用原规则的字段语义，不新增按 HTTP 状态跳过处理的条件。无效 JSON、手机端导入及 App 实际效果仍须客户端验证。
 
 ## 离线检查
 
@@ -66,6 +76,13 @@ python3 -m unittest discover -s camscanner/tests -p test_camscanner.py -v
 2026-11-12 按仓库规范迁入独立目录后，本模块回归 **19/19 → 20/20**（新增目录布局检查），公共静态 **47/47**，原有脚本 **1096/1096**；十一份原生 YAML、九个原生 JS 检查通过。迁移前后的改写规则和 MITM 结构完全一致。初次独立复核另通过 43 个 JSON 和 39 个 URL 边界样例。以上是离线结果，不是手机端验收。
 
 1.0.1 到期调整回归：本模块 **21/21**，公共静态 **47/47**，原有脚本 **1096/1096**。新增检查从真实 jq 输出解读 `4102415999`，确认是北京时间 **2099-12-31 23:59:59**，且字段仍为秒级字符串。
+
+2026-11-14 原目录归并：原 Egern/jq **21/21 → 21/21**；迁回 [Surge 字节与边界回归](<tests/surge.test.cjs>) **42/42 → 42/42**，加 [canonical 结构检查](<tests/module-structure.test.cjs>) **6/6**，当前 Surge Node 合计 **48/48**。纯 mock 不读取账户、不执行业务请求。
+
+```sh
+node --check camscanner/camscanner.surge.js
+node --require ./egern/tests/offline-guard.cjs --test camscanner/tests/surge.test.cjs camscanner/tests/module-structure.test.cjs
+```
 
 ## 来源与格式依据
 

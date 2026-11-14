@@ -41,7 +41,8 @@ const locals = native.map_locals.map(row => {
     const headers = row.headers || {};
     if (row.body !== "" || row.status_code !== 404 || Object.keys(headers).some(key => !["Content-Type", "X-Cainiao-Cleaner-Version"].includes(key))) throw Error("Map Local 不是预期的空体 404");
     if (headers["X-Cainiao-Cleaner-Version"] !== "eg-native-20261108-" + version) throw Error("Map Local 版本不一致");
-    return row.match + ' data-type=text data="" status-code=404 header="Content-Type:' + headers["Content-Type"] + '"';
+    const renderedHeaders = Object.entries(headers).map(([name, value]) => name + ':' + value).join('|');
+    return row.match + ' data-type=base64 data="" status-code=404 header="' + renderedHeaders + '"';
 });
 const response = native.scriptings.find(item => item.http_response)?.http_response;
 if (!response?.binary_body || !response.body_required) throw Error("缺少二进制响应配置");
@@ -50,7 +51,7 @@ const module = `#!name=菜鸟去广告
 #!author=skernelx · Kelee / 小白脸 来源
 #!homepage=https://github.com/atopsecret/SurgeScripts/tree/main/cainiao
 #!category=去广告
-# Engine | Surge iOS 5.9.0+ / Mac 5.5.0+
+# Engine | Surge iOS 6.x | standalone JavaScript (WebView)
 # Build: node cainiao/build.mjs
 # Run: 导入本模块；URL、UA 和页面处理需要启用 MITM 并信任本人 Surge CA。
 # 由 Egern 原生规则生成；广告专用域名作用于所有 App，共享 CDN 素材同时要求菜鸟 UA。
@@ -59,11 +60,12 @@ const module = `#!name=菜鸟去广告
 ${rules.join("\n")}
 
 [Map Local]
-# 五类空体 404；客户端专用版本头不作为业务匹配条件。
+# 五类空体 404；保留状态、Content-Type 与来源版本头。
 ${locals.join("\n")}
 
 [Script]
 菜鸟去广告 = type=http-response,pattern=${response.match},requires-body=true,max-size=${response.max_size},binary-body-mode=true,full-header-mode=true,engine=webview,script-update-interval=${response.update_interval},script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.js?v=${version},timeout=${response.timeout}
+菜鸟去广告诊断 = type=generic,engine=webview,script-update-interval=${response.update_interval},script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/cainiao/cainiao-adblock.js?v=${version},timeout=30
 
 [MITM]
 hostname = %APPEND% ${native.mitm.hostnames.includes.join(", ")}

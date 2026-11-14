@@ -1,15 +1,23 @@
 #!name=蔚来自动签到
-#!desc=2.1.6：每天 09:00 自动签到；成功通知更简短并带表情，保留凭据提醒与累计字段兼容。
-#!author=skernelx
-#!homepage=https://github.com/atopsecret/SurgeScripts
+#!desc=3.2.1：请求凭据捕获、原字节统计观察、每天 09:00 签到与只读诊断；先保存签到确认，累计缺失时最多复查一次，最后统一通知。当前 Surge 命名空间不迁旧凭据。
+#!author=atopsecret（Surge 原版 skernelx）
+#!homepage=https://github.com/atopsecret/SurgeScripts/tree/main/weilai
 #!icon=https://raw.githubusercontent.com/Koolson/Qure/master/IconSet/Color/NIO.png
 #!category=签到
+# Engine | Surge iOS 6.0+ | SGModule
+# Build: node --check weilai/weilai-auto-checkin.js
+# Run: 在 Surge 导入本模块；开启并信任 MITM；打开蔚来 App 捕获后运行定时任务。
+# Deps: weilai/weilai-auto-checkin.js；四入口同一版本；测试 node --test weilai/tests/checkin.test.cjs weilai/tests/nio.test.cjs
 
 [Script]
-# 只抓取已知业务路径；凭据在客户端本地保存，不记录 URL 或响应原文。
-蔚来Token抓取 = type=http-request,pattern=^https:\/\/(gateway-front-external\.nio\.com|app\.nio\.com|api\.nio\.com)\/(moat\/10086\/+(n\/c\/award\/|c\/award_cn\/)|(n\/c\/)?(account\/user\/|user\/|profile\/)|app\/api\/|api\/),script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/weilai/weilai-auto-checkin.js?v=2.1.6,script-update-interval=3600,timeout=10
-# 每天 09:00；需要手动执行时运行这条定时任务，不使用伪造域名。
-蔚来自动签到 = type=cron,cronexp="0 9 * * *",script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/weilai/weilai-auto-checkin.js?v=2.1.6,script-update-interval=3600,timeout=30,wake-system=1
+# 只抓取已知业务路径中的请求头；不读取请求正文，不额外签到。
+蔚来Token抓取 = type=http-request,pattern=^https://(?:gateway-front-external\.nio\.com|app\.nio\.com|api\.nio\.com)/(?:moat/10086/+(?:n/c/award/|c/award_cn/)|(?:n/c/)?(?:account/user/|user/|profile/)|app/api/|api/),requires-body=false,engine=jsc,timeout=10,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/weilai/weilai-auto-checkin.js?v=3.2.1,script-update-interval=3600
+# 观察既有签到响应，回传原字节；不额外请求，不修改原响应头或任务锁。
+蔚来统计观察 = type=http-response,pattern=^https://gateway-front-external\.nio\.com/moat/10086/c/award_cn/checkin(?:\?|$),requires-body=true,binary-body-mode=true,max-size=262144,engine=jsc,timeout=5,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/weilai/weilai-auto-checkin.js?v=3.2.1,script-update-interval=3600
+# 每天 09:00；需要立即验证时运行这一条定时任务，不重复添加 cron。
+蔚来自动签到 = type=cron,cronexp="0 9 * * *",wake-system=1,engine=webview,timeout=30,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/weilai/weilai-auto-checkin.js?v=3.2.1,script-update-interval=3600
+# generic 只读本地诊断，不保存凭据、不发通知、不执行签到。
+蔚来本地诊断 = type=generic,engine=jsc,timeout=10,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/weilai/weilai-auto-checkin.js?v=3.2.1,script-update-interval=3600
 
 [MITM]
 hostname = %APPEND% gateway-front-external.nio.com, app.nio.com, api.nio.com

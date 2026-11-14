@@ -1,4 +1,0 @@
-# Preserve fixed-version runtime/fixture bytes and their published SHA-256 values.
-# These are copied verbatim from the verified source, including upstream trailing blanks.
-scripts/*.js whitespace=-blank-at-eol,-blank-at-eof
-test-fixtures/youtube/youtube-response.js whitespace=-blank-at-eol,-blank-at-eof

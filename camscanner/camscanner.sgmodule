@@ -1,0 +1,10 @@
+#!name=扫描全能王
+#!desc=1.0.1；保持现用规则语义：仅修改 query_property 响应的 data.psnl_vip_property.expiry 字符串，其他响应字段保持；两个 API 主机。
+#!author=NobyDa · atopsecret（Surge 原生重写）
+#!homepage=https://github.com/atopsecret/SurgeScripts/tree/main/camscanner
+
+[Script]
+扫描全能王到期改写 = type=http-response,pattern=^https://api(?:-cs)?\.intsig\.net(?::443)?/purchase/cs/query_property(?:\?[^#\s]*)?(?![\s\S]),requires-body=true,binary-body-mode=false,max-size=1048576,engine=jsc,timeout=5,script-update-interval=3600,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/camscanner/camscanner.surge.js?v=1.0.1
+
+[MITM]
+hostname = %APPEND% api.intsig.net, api-cs.intsig.net

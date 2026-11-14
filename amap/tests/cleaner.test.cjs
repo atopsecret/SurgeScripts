@@ -35,6 +35,7 @@ function changed(id, data, extra = {}) {
 function run(options = {}) {
     const logs = [], output = [], store = options.store || new Map();
     const context = {
+        URL, TextEncoder, TextDecoder, Uint8Array, ArrayBuffer,
         console: { log: text => logs.push(text) }, $done: value => output.push(value),
         $persistentStore: {
             read: key => { if (options.storageThrows) throw Error('SECRET_STORAGE'); return store.get(key) || null; },
@@ -45,7 +46,9 @@ function run(options = {}) {
     if (options.response) context.$response = options.response;
     vm.runInNewContext(source, context, { timeout: 1000 });
     assert.equal(output.length, 1);
-    return { output: JSON.parse(JSON.stringify(output[0])), logs, store };
+    const payload = { ...output[0] };
+    if (payload.body instanceof Uint8Array) payload.body = new TextDecoder('utf-8', { fatal: true }).decode(payload.body);
+    return { output: JSON.parse(JSON.stringify(payload)), rawOutput: output[0], logs, store };
 }
 const urls = {
     notice: '/ws/message/notice/list', home: '/ws/faas/amap-navigation/main-page',
@@ -243,7 +246,12 @@ test('没有响应、未知主机或非目标请求只放行', () => {
         { url: 'https://evil.test/ws/msgbox/pull', response: { status: 200, body: '{}' } }]) assert.deepEqual(run(options).output, {});
 });
 test('所有正则可编译，版本与脚本路径一致且无第三方运行依赖', () => {
-    for (const row of sections['[URL Rewrite]']) new RegExp(row.split(' - ')[0]);
+    const rejection = sections['[Rule]'].filter(row => row.startsWith('URL-REGEX,'));
+    assert.equal(rejection.length, 1);
+    const attribution = new RegExp(rejection[0].slice('URL-REGEX,'.length, -',REJECT'.length));
+    assert.equal(attribution.test('https://m5.amap.com/ws/asa/ads_attribution?fixture=1'), true);
+    assert.equal(attribution.test('https://m5.amap.com/ws/asa/ads_attributionExtra'), false);
+    assert.equal(attribution.test('https://m5.amap.com.evil.test/ws/asa/ads_attribution'), false);
     assert.equal(sections['[Script]'].length, 2);
     for (const line of sections['[Script]']) {
         const url = new URL(line.match(/script-path=([^,]+)/)[1]);
@@ -254,5 +262,6 @@ test('所有正则可编译，版本与脚本路径一致且无第三方运行�
     assert.doesNotMatch(moduleText, /script-path=.*(?:ddgksf|jsdelivr)|amap-splash\.js|amdc\.m\.taobao/);
     assert.ok(moduleText.includes('#!desc=' + VERSION));
     assert.deepEqual(sections['[MITM]'], ['hostname = %APPEND% *.amap.com']);
-    assert.deepEqual(sections['[Rule]'], ['DOMAIN,optimus-ads.amap.com,REJECT']);
+    assert.deepEqual(sections['[Rule]'], ['DOMAIN,optimus-ads.amap.com,REJECT',
+        'URL-REGEX,^https?://(?:[A-Za-z0-9-]+\\.)+amap\\.com(?::[0-9]+)?/ws/asa/ads_attribution(?:[/?]|$),REJECT']);
 });

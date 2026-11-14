@@ -1,0 +1,27 @@
+#!name=京东去广告
+#!desc=Surge iOS 6.x 迁移：2.0.0；十二类接口，补全个人页、订单、新品与物流变体；严格匹配、原字节回退，保留未知工具和商品图片。
+#!author=skernelx · FFDNS
+#!homepage=https://github.com/atopsecret/SurgeScripts
+# 当前 Egern 功能范围；不启用纯展示 widget，不改全局DNS、证书或代理。
+
+[Rule]
+URL-REGEX,^http://\w{32}\.jddebug\.com/diagnose\?,REJECT
+URL-REGEX,^https?://apk\.360buyimg\.com/mpaas2-public/[^/]*/(short_video|XJI-short-video),REJECT
+URL-REGEX,^https?://(bdsp-x|dsp-x)\.jd\.com/adx/,REJECT
+URL-REGEX,^https?://api\.m\.jd\.com(?::[0-9]+)?/client\.action\?(?:(?!functionId(?:=|&|$))[A-Za-z0-9_.~-]+(?:=[^&#]*)?&)*functionId=getWidgetV1052(?:&(?!functionId(?:=|&|$))[A-Za-z0-9_.~-]+(?:=[^&#]*)?)*$,REJECT
+
+[Map Local]
+^https?://api\.m\.jd\.com(?::[0-9]+)?/client\.action\?(?:(?!functionId(?:=|&|$))[A-Za-z0-9_.~-]+(?:=[^&#]*)?&)*functionId=queryMaterialAdverts(?:&(?!functionId(?:=|&|$))[A-Za-z0-9_.~-]+(?:=[^&#]*)?)*$ data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json"
+^https?://m\.360buyimg\.com/mobilecms/s1125x2436_jfs data-type=base64 data="" status-code=200
+^https?://api\.m\.jd\.com(?::[0-9]+)?/client\.action\?(?:(?!functionId(?:=|&|$))[A-Za-z0-9_.~-]+(?:=[^&#]*)?&)*functionId=queryPagePopWindow(?:&(?!functionId(?:=|&|$))[A-Za-z0-9_.~-]+(?:=[^&#]*)?)*$ data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json"
+^https?://api\.m\.jd\.com(?::[0-9]+)?/\?(?:(?!loginType(?:=|&|$))[A-Za-z0-9_.~-]+(?:=[^&#]*)?&)*loginType=11(?:&(?!loginType(?:=|&|$))[A-Za-z0-9_.~-]+(?:=[^&#]*)?)*$ data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json"
+^https?://api\.m\.jd\.com(?::[0-9]+)?/client\.action\?(?:(?!functionId(?:=|&|$))[A-Za-z0-9_.~-]+(?:=[^&#]*)?&)*functionId=(cartCouponRecommendGoods|intelligentRecommendSku|obtainGrowingInfo|recommendShop|searchBoxWord|stationPullService|uniformRecommend|uniformRecommend0|uniformRecommend6)(?:&(?!functionId(?:=|&|$))[A-Za-z0-9_.~-]+(?:=[^&#]*)?)*$ data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json"
+
+[Script]
+ios-jd-adblock-response = type=http-response,pattern=^https?://api\.m\.jd\.com(?::[0-9]+)?/client\.action(?:\?|$),requires-body=true,max-size=2097152,binary-body-mode=true,full-header-mode=true,engine=webview,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/surge-ios/scripts/common-jd-adblock.js,timeout=30
+ios-jd-adblock-diagnostic = type=generic,engine=webview,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/surge-ios/scripts/common-jd-adblock.js,timeout=30
+# 可选 POST 请求正文关联保持关闭；Surge 请求body超限会断开连接，响应默认不读请求body。
+# ios-jd-adblock-post-association = type=http-request,pattern=^https?://api\.m\.jd\.com(?::[0-9]+)?/client\.action$,requires-body=true,max-size=33554432,engine=webview,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/surge-ios/scripts/common-jd-post-capture.js,timeout=10
+
+[MITM]
+hostname = %APPEND% api.m.jd.com, m.360buyimg.com, apk.360buyimg.com, bdsp-x.jd.com, dsp-x.jd.com

@@ -1,0 +1,1373 @@
+[
+  {
+    "id": 6,
+    "source": {
+      "rules": [
+        {
+          "domain": {
+            "match": "ssp.iytcdn.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "pangolin-sdk-toutiao.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "pangolin-sdk-toutiao-b.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "pangolin-sdk-toutiao1.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "pglstatp-toutiao.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain": {
+            "match": "mi.gdt.qq.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain": {
+            "match": "sdk.e.qq.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain": {
+            "match": "ef-dongfeng.tanx.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain": {
+            "match": "df.tanx.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain": {
+            "match": "bdlog.tanx.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain": {
+            "match": "ipm.atm.youku.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain": {
+            "match": "entry-su1.ubixioe.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain": {
+            "match": "adx-cfg-u1.ubixioe.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain": {
+            "match": "sdk.1rtb.net",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain": {
+            "match": "admonitor-feedback.cn-hangzhou.log.aliyuncs.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "and": {
+            "match": [
+              {
+                "or": {
+                  "match": [
+                    {
+                      "protocol": {
+                        "match": "quic"
+                      }
+                    },
+                    {
+                      "protocol": {
+                        "match": "udp"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "dest_port": {
+                  "match": "443"
+                }
+              },
+              {
+                "or": {
+                  "match": [
+                    {
+                      "domain": {
+                        "match": "netflow-mtop.cainiao.com"
+                      }
+                    },
+                    {
+                      "domain": {
+                        "match": "nbcps-mtop.cainiao.com"
+                      }
+                    },
+                    {
+                      "domain": {
+                        "match": "cn-acs.m.cainiao.com"
+                      }
+                    },
+                    {
+                      "domain": {
+                        "match": "e2e-mtop.cainiao.com"
+                      }
+                    },
+                    {
+                      "domain": {
+                        "match": "longquan-mtop.cainiao.com"
+                      }
+                    },
+                    {
+                      "domain": {
+                        "match": "unet.ucweb.com"
+                      }
+                    },
+                    {
+                      "domain": {
+                        "match": "p3-sign.douyinpic.com"
+                      }
+                    },
+                    {
+                      "domain": {
+                        "match": "a1.alibabausercontent.com"
+                      }
+                    },
+                    {
+                      "domain": {
+                        "match": "ossgw.alicdn.com"
+                      }
+                    }
+                  ]
+                }
+              }
+            ],
+            "policy": "REJECT"
+          }
+        },
+        {
+          "url_regex": {
+            "match": "^https?://unet\\.ucweb\\.com(?::[0-9]+)?/v3/ad/show/toutiao/?(?:\\?|$)",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "and": {
+            "match": [
+              {
+                "url_regex": {
+                  "match": "^https://p3-sign\\.douyinpic\\.com(?::[0-9]+)?/tos-cn-p-0051(?:-ce)?/[A-Za-z0-9_-]+~tplv-noop\\.image(?:\\?|$)"
+                }
+              },
+              {
+                "or": {
+                  "match": [
+                    {
+                      "user_agent": {
+                        "match": "Cainiao4iPhone/*"
+                      }
+                    },
+                    {
+                      "user_agent": {
+                        "match": "*com.cainiao.cnwireless*"
+                      }
+                    }
+                  ]
+                }
+              }
+            ],
+            "policy": "REJECT"
+          }
+        },
+        {
+          "and": {
+            "match": [
+              {
+                "url_regex": {
+                  "match": "^https://a1\\.alibabausercontent\\.com(?::[0-9]+)?/prod/feupload/user/7clgu/[A-Za-z0-9_-]+\\.mp4_\\.mp4(?:\\?|$)"
+                }
+              },
+              {
+                "or": {
+                  "match": [
+                    {
+                      "user_agent": {
+                        "match": "Cainiao4iPhone/*"
+                      }
+                    },
+                    {
+                      "user_agent": {
+                        "match": "*com.cainiao.cnwireless*"
+                      }
+                    }
+                  ]
+                }
+              }
+            ],
+            "policy": "REJECT"
+          }
+        },
+        {
+          "and": {
+            "match": [
+              {
+                "url_regex": {
+                  "match": "^https://ossgw\\.alicdn\\.com(?::[0-9]+)?/creatives-assets/prod/feupload/user/7clgu/[A-Za-z0-9_-]+\\.jpg(?:\\?|$)"
+                }
+              },
+              {
+                "or": {
+                  "match": [
+                    {
+                      "user_agent": {
+                        "match": "Cainiao4iPhone/*"
+                      }
+                    },
+                    {
+                      "user_agent": {
+                        "match": "*com.cainiao.cnwireless*"
+                      }
+                    }
+                  ]
+                }
+              }
+            ],
+            "policy": "REJECT"
+          }
+        }
+      ],
+      "map_locals": [
+        {
+          "match": "^https://nbcps-mtop\\.cainiao\\.com(?::[0-9]+)?/gw/mtop\\.cainiao\\.nbcps\\.presentation\\.fetch\\.cn(?:/[0-9]+(?:\\.[0-9]+)*)?/?(?:\\?|$)",
+          "status_code": 404,
+          "headers": {
+            "Content-Type": "text/plain; charset=utf-8",
+            "X-Cainiao-Cleaner-Version": "eg-native-20261108-1.2.1"
+          },
+          "body": ""
+        },
+        {
+          "match": "^https://netflow-mtop\\.cainiao\\.com(?::[0-9]+)?/gw/mtop\\.cainiao\\.guoguo\\.nbnetflow\\.ads\\.index(?:\\.cn)?(?:/[0-9]+(?:\\.[0-9]+)*)?/?(?:\\?|$)",
+          "status_code": 404,
+          "headers": {
+            "Content-Type": "text/plain; charset=utf-8",
+            "X-Cainiao-Cleaner-Version": "eg-native-20261108-1.2.1"
+          },
+          "body": ""
+        },
+        {
+          "match": "^https://cn-acs\\.m\\.cainiao\\.com(?::[0-9]+)?/gw/mtop\\.cainiao\\.adkeyword\\.get\\.cn(?:/[0-9]+(?:\\.[0-9]+)*)?/?(?:\\?|$)",
+          "status_code": 404,
+          "headers": {
+            "Content-Type": "text/plain; charset=utf-8",
+            "X-Cainiao-Cleaner-Version": "eg-native-20261108-1.2.1"
+          },
+          "body": ""
+        },
+        {
+          "match": "^https://(?:cn-acs\\.m|netflow-mtop)\\.cainiao\\.com(?::[0-9]+)?/gw/mtop\\.cainiao\\.guoguo\\.nbnetflow\\.ads\\.m?show(?:\\.cn)?(?:/[0-9]+(?:\\.[0-9]+)*)?/?(?:\\?|$)",
+          "status_code": 404,
+          "headers": {
+            "Content-Type": "text/plain; charset=utf-8",
+            "X-Cainiao-Cleaner-Version": "eg-native-20261108-1.2.1"
+          },
+          "body": ""
+        },
+        {
+          "match": "^https://cn-acs\\.m\\.cainiao\\.com(?::[0-9]+)?/gw/mtop\\.cainiao\\.adx\\.flyad\\.getad\\.cn(?:/[0-9]+(?:\\.[0-9]+)*)?/?(?:\\?|$)",
+          "status_code": 404,
+          "headers": {
+            "Content-Type": "text/plain; charset=utf-8",
+            "X-Cainiao-Cleaner-Version": "eg-native-20261108-1.2.1"
+          },
+          "body": ""
+        }
+      ],
+      "mitm": {
+        "hostnames": {
+          "includes": [
+            "netflow-mtop.cainiao.com",
+            "nbcps-mtop.cainiao.com",
+            "cn-acs.m.cainiao.com",
+            "e2e-mtop.cainiao.com",
+            "longquan-mtop.cainiao.com",
+            "unet.ucweb.com",
+            "p3-sign.douyinpic.com",
+            "a1.alibabausercontent.com",
+            "ossgw.alicdn.com"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": 10,
+    "source": {
+      "rules": [
+        {
+          "domain": {
+            "match": "optimus-ads.amap.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "url_regex": {
+            "match": "^https?://(?:[A-Za-z0-9-]+\\.)+amap\\.com(?::[0-9]+)?/ws/asa/ads_attribution(?:[/?]|$)",
+            "policy": "REJECT"
+          }
+        }
+      ],
+      "map_locals": [
+        {
+          "match": "^https?://(?:[A-Za-z0-9-]+\\.)+amap\\.com(?::[0-9]+)?/ws/aos/alimama/splash_screen_rt(?:[/?]|$)",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "multipart/form-data; boundary=amap-cleaner-2-0-0",
+            "Cache-Control": "no-store",
+            "X-AMap-Cleaner-Version": "2.1.0"
+          },
+          "body": "--amap-cleaner-2-0-0\r\nContent-Disposition: form-data; name=\"jsonData\"\r\nContent-Type: application/json; charset=utf-8\r\n\r\n{\"result\":\"true\",\"code\":\"1\",\"message\":\"Successful.\",\"version\":\"1.0_amap-aos-info-nogw\",\"data\":{\"status\":\"ok\",\"errcode\":\"1\",\"custom_list\":[],\"ad\":[]}}\r\n--amap-cleaner-2-0-0--\r\n"
+        },
+        {
+          "match": "^https?://(?:[A-Za-z0-9-]+\\.)+amap\\.com(?::[0-9]+)?/ws/(?:aos|valueadded)/alimama/splash_screen(?:[/?]|$)",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-store",
+            "X-AMap-Cleaner-Version": "2.1.0"
+          },
+          "body": "{\"result\":\"true\",\"code\":\"1\",\"data\":{\"status\":\"ok\",\"errcode\":\"1\",\"ad\":[],\"custom_list\":[]}}"
+        },
+        {
+          "match": "^https?://ai\\.amap\\.com(?::[0-9]+)?/v1/ai_rec/home_qs(?:[/?]|$)",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-store"
+          },
+          "body": "{}"
+        },
+        {
+          "match": "^https?://(?:[A-Za-z0-9-]+\\.)+amap\\.com(?::[0-9]+)?/ws/faas/amap-navigation/card-service-route-plan(?:[/?]|$)",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-store"
+          },
+          "body": "{}"
+        },
+        {
+          "match": "^https?://(?:[A-Za-z0-9-]+\\.)+amap\\.com(?::[0-9]+)?/ws/boss/order_web/[A-Za-z0-9_]{8}_information(?:[/?]|$)",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-store"
+          },
+          "body": "{}"
+        },
+        {
+          "match": "^https?://(?:[A-Za-z0-9-]+\\.)+amap\\.com(?::[0-9]+)?/ws/valueadded/weather(?:[/?]|$)",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-store"
+          },
+          "body": "{}"
+        },
+        {
+          "match": "^https?://m5\\.amap\\.com(?::[0-9]+)?/ws/info_bff/rankingCard(?:[/?]|$)",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-store"
+          },
+          "body": "{}"
+        },
+        {
+          "match": "^https?://m5\\.amap\\.com(?::[0-9]+)?/ws/shield/search_business/process/marketingOperationStructured(?:[/?]|$)",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-store"
+          },
+          "body": "{}"
+        }
+      ],
+      "mitm": {
+        "hostnames": {
+          "includes": [
+            "*.amap.com"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": 11,
+    "source": {
+      "rules": [
+        {
+          "url_regex": {
+            "match": "^http://\\w{32}\\.jddebug\\.com/diagnose\\?",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "url_regex": {
+            "match": "^https?://apk\\.360buyimg\\.com/mpaas2-public/[^/]*/(short_video|XJI-short-video)",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "url_regex": {
+            "match": "^https?://(bdsp-x|dsp-x)\\.jd\\.com/adx/",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "url_regex": {
+            "match": "^https?://api\\.m\\.jd\\.com(?::[0-9]+)?/client\\.action\\?(?:(?!functionId(?:=|&|$))[A-Za-z0-9_.~-]+(?:=[^&#]*)?&)*functionId=getWidgetV1052(?:&(?!functionId(?:=|&|$))[A-Za-z0-9_.~-]+(?:=[^&#]*)?)*$",
+            "policy": "REJECT"
+          }
+        }
+      ],
+      "map_locals": [
+        {
+          "match": "^https?://api\\.m\\.jd\\.com(?::[0-9]+)?/client\\.action\\?(?:(?!functionId(?:=|&|$))[A-Za-z0-9_.~-]+(?:=[^&#]*)?&)*functionId=queryMaterialAdverts(?:&(?!functionId(?:=|&|$))[A-Za-z0-9_.~-]+(?:=[^&#]*)?)*$",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "{}"
+        },
+        {
+          "match": "^https?://m\\.360buyimg\\.com/mobilecms/s1125x2436_jfs",
+          "status_code": 200,
+          "body": ""
+        },
+        {
+          "match": "^https?://api\\.m\\.jd\\.com(?::[0-9]+)?/client\\.action\\?(?:(?!functionId(?:=|&|$))[A-Za-z0-9_.~-]+(?:=[^&#]*)?&)*functionId=queryPagePopWindow(?:&(?!functionId(?:=|&|$))[A-Za-z0-9_.~-]+(?:=[^&#]*)?)*$",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "{}"
+        },
+        {
+          "match": "^https?://api\\.m\\.jd\\.com(?::[0-9]+)?/\\?(?:(?!loginType(?:=|&|$))[A-Za-z0-9_.~-]+(?:=[^&#]*)?&)*loginType=11(?:&(?!loginType(?:=|&|$))[A-Za-z0-9_.~-]+(?:=[^&#]*)?)*$",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "{}"
+        },
+        {
+          "match": "^https?://api\\.m\\.jd\\.com(?::[0-9]+)?/client\\.action\\?(?:(?!functionId(?:=|&|$))[A-Za-z0-9_.~-]+(?:=[^&#]*)?&)*functionId=(cartCouponRecommendGoods|intelligentRecommendSku|obtainGrowingInfo|recommendShop|searchBoxWord|stationPullService|uniformRecommend|uniformRecommend0|uniformRecommend6)(?:&(?!functionId(?:=|&|$))[A-Za-z0-9_.~-]+(?:=[^&#]*)?)*$",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "{}"
+        }
+      ],
+      "mitm": {
+        "hostnames": {
+          "includes": [
+            "api.m.jd.com",
+            "m.360buyimg.com",
+            "apk.360buyimg.com",
+            "bdsp-x.jd.com",
+            "dsp-x.jd.com"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": 12,
+    "source": {
+      "rules": [
+        {
+          "url_regex": {
+            "match": "^https?://ossgw\\.alicdn\\.com/creatives-assets/",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "url_regex": {
+            "match": "^https?://(bdlog|df)\\.tanx\\.com(?:/|$)",
+            "policy": "REJECT"
+          }
+        }
+      ],
+      "map_locals": [],
+      "mitm": {
+        "hostnames": {
+          "includes": [
+            "acs.m.goofish.com",
+            "acs.m.taobao.com",
+            "g-acs.m.goofish.com",
+            "g-acs.m.taobao.com",
+            "gw.m.goofish.com",
+            "gw.m.taobao.com",
+            "ossgw.alicdn.com",
+            "bdlog.tanx.com",
+            "df.tanx.com"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": 13,
+    "source": {
+      "rules": [
+        {
+          "and": {
+            "match": [
+              {
+                "url_regex": {
+                  "match": "^http://(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)/d[0-9]?(?:\\?|$)"
+                }
+              },
+              {
+                "user_agent": {
+                  "match": "*com.xunmeng.pinduoduo*"
+                }
+              }
+            ],
+            "policy": "REJECT"
+          }
+        },
+        {
+          "and": {
+            "match": [
+              {
+                "url_regex": {
+                  "match": "^http://\\[[0-9a-fA-F:]+\\]/d[0-9]?\\?"
+                }
+              },
+              {
+                "user_agent": {
+                  "match": "*com.xunmeng.pinduoduo*"
+                }
+              }
+            ],
+            "policy": "REJECT"
+          }
+        },
+        {
+          "and": {
+            "match": [
+              {
+                "domain": {
+                  "match": "api.pinduoduo.com"
+                }
+              },
+              {
+                "protocol": {
+                  "match": "quic"
+                }
+              }
+            ],
+            "policy": "REJECT"
+          }
+        },
+        {
+          "and": {
+            "match": [
+              {
+                "url_regex": {
+                  "match": "^http://[^/]+/v3/d\\?(?:[^#]*&)?type=addrs(?:&|$)"
+                }
+              },
+              {
+                "user_agent": {
+                  "match": "*pinduoduo*"
+                }
+              }
+            ],
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain": {
+            "match": "promotion-2.pddpic.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain": {
+            "match": "video-snapshot01.pddpic.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain": {
+            "match": "titan.pinduoduo.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain": {
+            "match": "xg.pinduoduo.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain": {
+            "match": "apm.pinduoduo.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain": {
+            "match": "apm-a.pinduoduo.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain": {
+            "match": "th.pinduoduo.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain": {
+            "match": "th-a.pinduoduo.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain": {
+            "match": "th-b.pinduoduo.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain": {
+            "match": "ta.pinduoduo.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain": {
+            "match": "ta-a.pinduoduo.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain": {
+            "match": "meta.pinduoduo.com",
+            "policy": "REJECT"
+          }
+        }
+      ],
+      "map_locals": [
+        {
+          "match": "^https?://api\\.(pinduoduo|yangkeduo)\\.com(?::[0-9]+)?/api/cappuccino/splash(?:[/?]|$)",
+          "status_code": 200,
+          "body": ""
+        },
+        {
+          "match": "^https?://m\\.pinduoduo\\.net(?::[0-9]+)?/vlayer_tab_popup\\.html(?:\\?|$)",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "text/html; charset=utf-8"
+          },
+          "body": "<!DOCTYPE html><html><body></body></html>"
+        },
+        {
+          "match": "^https?://api\\.pinduoduo\\.com(?::[0-9]+)?/api/aristotle/unrated_order_for_unreceived_tab(?:\\?|$)",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "{}"
+        },
+        {
+          "match": "^https?://api\\.pinduoduo\\.com(?::[0-9]+)?/api/aristotle/query_order_list_tabs_element(?:\\?|$)",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "{}"
+        },
+        {
+          "match": "^https?://api\\.pinduoduo\\.com(?::[0-9]+)?/api/aquarius/hungary/global/homepage(?:\\?|$)",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "{}"
+        },
+        {
+          "match": "^https?://api\\.pinduoduo\\.com(?::[0-9]+)?/api/caterham/v3/query/order_express_group(?:\\?|$)",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "{}"
+        },
+        {
+          "match": "^https?://api\\.pinduoduo\\.com(?::[0-9]+)?/search_hotquery(?:\\?|$)",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "{}"
+        },
+        {
+          "match": "^https?://api\\.pinduoduo\\.com(?::[0-9]+)?/api/zaire_biz/chat/resource/get_list_data(?:\\?|$)",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "{}"
+        },
+        {
+          "match": "^https?://api\\.pinduoduo\\.com(?::[0-9]+)?/api/caterham/v3/query/new_chat_group(?:\\?|$)",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "{}"
+        },
+        {
+          "match": "^https?://api\\.pinduoduo\\.com(?::[0-9]+)?/api/alexa/goods/back_up(?:\\?|$)",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "{}"
+        },
+        {
+          "match": "^https?://api\\.pinduoduo\\.com(?::[0-9]+)?/api/caterham/v3/query/personal(?:\\?|$)",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "{}"
+        },
+        {
+          "match": "^https?://api\\.pinduoduo\\.com(?::[0-9]+)?/api/brand-olay/goods_detail/bybt_guide(?:\\?|$)",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "{}"
+        },
+        {
+          "match": "^https?://api\\.pinduoduo\\.com(?::[0-9]+)?/api/engels/reviews/require/append(?:\\?|$)",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "{}"
+        },
+        {
+          "match": "^https?://api\\.pinduoduo\\.com(?::[0-9]+)?/api/caterham/v3/query/my_order_group(?:\\?|$)",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "{}"
+        },
+        {
+          "match": "^https?://api\\.pinduoduo\\.com(?::[0-9]+)?/api/caterham/v3/query/likes(?:\\?|$)",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "{}"
+        },
+        {
+          "match": "^https?://api\\.pinduoduo\\.com(?::[0-9]+)?/api/phantom/gbdbpdv/extra(?:\\?|$)",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "{}"
+        },
+        {
+          "match": "^https?://api\\.pinduoduo\\.com(?::[0-9]+)?/api/manufacturer/cross/shortcut/list(?:\\?|$)",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "{}"
+        },
+        {
+          "match": "^https?://api\\.pinduoduo\\.com(?::[0-9]+)?/api/dunkirk/liveactivity/push/create/url/report(?:\\?|$)",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "{}"
+        },
+        {
+          "match": "^https?://api\\.pinduoduo\\.com(?::[0-9]+)?/api/growth/nagato/app/index/gather(?:\\?|$)",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "{}"
+        },
+        {
+          "match": "^https?://api\\.pinduoduo\\.com(?::[0-9]+)?/api/engels/wait/receive/review(?:\\?|$)",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "{}"
+        },
+        {
+          "match": "^https?://api\\.pinduoduo\\.com(?::[0-9]+)?/api/buffon/nasus/recommend(?:\\?|$)",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "{}"
+        }
+      ],
+      "mitm": {
+        "hostnames": {
+          "includes": [
+            "api.pinduoduo.com",
+            "api.yangkeduo.com",
+            "m.pinduoduo.net"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": 14,
+    "source": {
+      "rules": [
+        {
+          "domain_keyword": {
+            "match": "pangolin",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "pangle.io",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "pglstatp-toutiao.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "pglstatp-toutiao-b.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "v5-reading-ad.qznovelvod.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "v6-reading-ad.qznovelvod.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "v9-reading-ad.qznovelvod.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "v11-reading-ad.qznovelvod.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "v13-reading-ad.qznovelvod.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "v26-reading-ad.qznovelvod.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "v96-reading-ad.qznovelvod.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "v5-bd-daily-reading-ad.qznovelvod.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "v5-se-sjy-daily-reading-ad.qznovelvod.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_keyword": {
+            "match": "-ad-sign.byteimg.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain": {
+            "match": "zlink.ugsdk.cn",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "praisewindow.ugsdk.cn",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "ads3-normal-hl.zijieapi.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "ads3-normal-lf.zijieapi.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "ads3-normal-lq.zijieapi.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "ads5-normal-hl.zijieapi.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "ads5-normal-lf.zijieapi.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "ads5-normal-lq.zijieapi.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain": {
+            "match": "mon.toutiaocloud.net",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain": {
+            "match": "mon.toutiaocloud.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain": {
+            "match": "i.snssdk.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain": {
+            "match": "i-lq.snssdk.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain": {
+            "match": "is.snssdk.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain": {
+            "match": "is-lq.snssdk.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "ad.toutiao.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "activity-ag.awemeughun.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "l2-toutiao-quic-ipv6-ml.gslb.ksyuncdn.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "sf3-ttcdn-tos.pstatp.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "webcast5-open-hl.douyin.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "webcast5-open-hl.douyin.com.c.dsa.cdnbuild.net",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_keyword": {
+            "match": "applog.fqnovel.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_keyword": {
+            "match": "-misc.fqnovel.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "log3-applog-lf.fqnovel.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "log5-applog-hl.fqnovel.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "log5-applog-lf.fqnovel.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "rtlog3-applog-hl.fqnovel.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "rtlog3-applog-lf.fqnovel.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "rtlog5-applog-hl.fqnovel.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "rtlog5-applog-lf.fqnovel.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "mon3-misc-lf.fqnovel.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "mon11-misc-hl.fqnovel.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "mon11-misc-lf.fqnovel.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "minigame3-normal-hl.zijieapi.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "minigame3-normal-lf.zijieapi.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "minigame3-normal-lq.zijieapi.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "minigame5-normal-hl.zijieapi.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "minigame5-normal-lf.zijieapi.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "minigame5-normal-lq.zijieapi.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "tnc0-aliec2.zijieapi.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "tnc0-alisc1.zijieapi.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "tnc3-aliec2.zijieapi.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "tnc3-alisc1.zijieapi.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "cnlogs.umeng.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "errnewlog.umeng.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "ossnt-errlog.umeng.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "ulogs.umeng.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "apm-native.xiaohongshu.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "lng.xiaohongshu.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "spider-tracker.xiaohongshu.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "ads-vp5.xhscdn.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "aeventlog.beacon.qq.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "api.iegadp.qq.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "apd-pcdnwxlogin.teg.tencent-cloud.net",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "tracker.xiaomixiaoai.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "msync-im1-vip6-std.easemob.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "dig.bdurl.net",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "comfylink.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "jomoxc.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "ndcpp.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "qrstuvwxyzab.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "wmzfylgdsz.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "wuchuyun.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "xinqiucc.com",
+            "policy": "REJECT"
+          }
+        },
+        {
+          "domain_suffix": {
+            "match": "ydycdn.com",
+            "policy": "REJECT"
+          }
+        }
+      ],
+      "map_locals": [
+        {
+          "match": "^https://(?:[A-Za-z0-9-]+\\.)*pangolin-sdk-toutiao(?:-b|1)?\\.com(?::443)?/api/ad/union/sdk/",
+          "status_code": 200,
+          "headers": {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-store"
+          },
+          "body": "{}"
+        }
+      ],
+      "mitm": {
+        "hostnames": {
+          "includes": [
+            "*.pangolin-sdk-toutiao.com",
+            "*.pangolin-sdk-toutiao-b.com",
+            "*.pangolin-sdk-toutiao1.com"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": 15,
+    "source": {
+      "rules": [],
+      "map_locals": []
+    }
+  }
+]

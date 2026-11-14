@@ -1,0 +1,41 @@
+#!name=菜鸟去广告
+#!desc=Surge iOS 6.x 迁移：eg-native-20261108-1.2.1；九个精确主机改为 QUIC 或 UDP 443 条件，补仅识别为 UDP 的连接；缓存广告需在 App 内清理，保留原有页面与素材规则。
+#!author=skernelx 来源
+#!homepage=https://github.com/atopsecret/SurgeScripts
+# 当前 Egern 功能范围；不启用纯展示 widget，不改全局DNS、证书或代理。
+
+[Rule]
+DOMAIN,ssp.iytcdn.com,REJECT
+DOMAIN-SUFFIX,pangolin-sdk-toutiao.com,REJECT
+DOMAIN-SUFFIX,pangolin-sdk-toutiao-b.com,REJECT
+DOMAIN-SUFFIX,pangolin-sdk-toutiao1.com,REJECT
+DOMAIN-SUFFIX,pglstatp-toutiao.com,REJECT
+DOMAIN,mi.gdt.qq.com,REJECT
+DOMAIN,sdk.e.qq.com,REJECT
+DOMAIN,ef-dongfeng.tanx.com,REJECT
+DOMAIN,df.tanx.com,REJECT
+DOMAIN,bdlog.tanx.com,REJECT
+DOMAIN,ipm.atm.youku.com,REJECT
+DOMAIN,entry-su1.ubixioe.com,REJECT
+DOMAIN,adx-cfg-u1.ubixioe.com,REJECT
+DOMAIN,sdk.1rtb.net,REJECT
+DOMAIN,admonitor-feedback.cn-hangzhou.log.aliyuncs.com,REJECT
+AND,((OR,((PROTOCOL,QUIC),(PROTOCOL,UDP))),(DEST-PORT,443),(OR,((DOMAIN,netflow-mtop.cainiao.com,extended-matching),(DOMAIN,nbcps-mtop.cainiao.com,extended-matching),(DOMAIN,cn-acs.m.cainiao.com,extended-matching),(DOMAIN,e2e-mtop.cainiao.com,extended-matching),(DOMAIN,longquan-mtop.cainiao.com,extended-matching),(DOMAIN,unet.ucweb.com,extended-matching),(DOMAIN,p3-sign.douyinpic.com,extended-matching),(DOMAIN,a1.alibabausercontent.com,extended-matching),(DOMAIN,ossgw.alicdn.com,extended-matching)))),REJECT
+URL-REGEX,^https?://unet\.ucweb\.com(?::[0-9]+)?/v3/ad/show/toutiao/?(?:\?|$),REJECT
+AND,((URL-REGEX,^https://p3-sign\.douyinpic\.com(?::[0-9]+)?/tos-cn-p-0051(?:-ce)?/[A-Za-z0-9_-]+~tplv-noop\.image(?:\?|$)),(OR,((USER-AGENT,Cainiao4iPhone/*),(USER-AGENT,*com.cainiao.cnwireless*)))),REJECT
+AND,((URL-REGEX,^https://a1\.alibabausercontent\.com(?::[0-9]+)?/prod/feupload/user/7clgu/[A-Za-z0-9_-]+\.mp4_\.mp4(?:\?|$)),(OR,((USER-AGENT,Cainiao4iPhone/*),(USER-AGENT,*com.cainiao.cnwireless*)))),REJECT
+AND,((URL-REGEX,^https://ossgw\.alicdn\.com(?::[0-9]+)?/creatives-assets/prod/feupload/user/7clgu/[A-Za-z0-9_-]+\.jpg(?:\?|$)),(OR,((USER-AGENT,Cainiao4iPhone/*),(USER-AGENT,*com.cainiao.cnwireless*)))),REJECT
+
+[Map Local]
+^https://nbcps-mtop\.cainiao\.com(?::[0-9]+)?/gw/mtop\.cainiao\.nbcps\.presentation\.fetch\.cn(?:/[0-9]+(?:\.[0-9]+)*)?/?(?:\?|$) data-type=base64 data="" status-code=404 header="Content-Type:text/plain; charset=utf-8|X-Cainiao-Cleaner-Version:eg-native-20261108-1.2.1"
+^https://netflow-mtop\.cainiao\.com(?::[0-9]+)?/gw/mtop\.cainiao\.guoguo\.nbnetflow\.ads\.index(?:\.cn)?(?:/[0-9]+(?:\.[0-9]+)*)?/?(?:\?|$) data-type=base64 data="" status-code=404 header="Content-Type:text/plain; charset=utf-8|X-Cainiao-Cleaner-Version:eg-native-20261108-1.2.1"
+^https://cn-acs\.m\.cainiao\.com(?::[0-9]+)?/gw/mtop\.cainiao\.adkeyword\.get\.cn(?:/[0-9]+(?:\.[0-9]+)*)?/?(?:\?|$) data-type=base64 data="" status-code=404 header="Content-Type:text/plain; charset=utf-8|X-Cainiao-Cleaner-Version:eg-native-20261108-1.2.1"
+^https://(?:cn-acs\.m|netflow-mtop)\.cainiao\.com(?::[0-9]+)?/gw/mtop\.cainiao\.guoguo\.nbnetflow\.ads\.m?show(?:\.cn)?(?:/[0-9]+(?:\.[0-9]+)*)?/?(?:\?|$) data-type=base64 data="" status-code=404 header="Content-Type:text/plain; charset=utf-8|X-Cainiao-Cleaner-Version:eg-native-20261108-1.2.1"
+^https://cn-acs\.m\.cainiao\.com(?::[0-9]+)?/gw/mtop\.cainiao\.adx\.flyad\.getad\.cn(?:/[0-9]+(?:\.[0-9]+)*)?/?(?:\?|$) data-type=base64 data="" status-code=404 header="Content-Type:text/plain; charset=utf-8|X-Cainiao-Cleaner-Version:eg-native-20261108-1.2.1"
+
+[Script]
+ios-cainiao-adblock-response = type=http-response,pattern=^https://(?:(?:cn-acs\.m|e2e-mtop)\.cainiao\.com(?::[0-9]+)?/gw/mtop\.cainiao\.app\.e2e\.engine\.page\.fetch(?:\.cn)?(?:/[0-9]+(?:\.[0-9]+)*)?/?(?:\?|$)|longquan-mtop\.cainiao\.com(?::[0-9]+)?/gw/mtop\.com\.cainiao\.longquan\.place\.getpageresourcecontent\.cn(?:/[0-9]+(?:\.[0-9]+)*)?/?(?:\?|$)),requires-body=true,max-size=2097152,binary-body-mode=true,full-header-mode=true,engine=webview,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/surge-ios/scripts/common-cainiao-adblock.js,timeout=30
+ios-cainiao-adblock-diagnostic = type=generic,engine=webview,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/surge-ios/scripts/common-cainiao-adblock.js,timeout=30
+
+[MITM]
+hostname = %APPEND% netflow-mtop.cainiao.com, nbcps-mtop.cainiao.com, cn-acs.m.cainiao.com, e2e-mtop.cainiao.com, longquan-mtop.cainiao.com, unet.ucweb.com, p3-sign.douyinpic.com, a1.alibabausercontent.com, ossgw.alicdn.com

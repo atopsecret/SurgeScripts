@@ -1,0 +1,26 @@
+#!name=高德地图去广告
+#!desc=Surge iOS 6.x 迁移：2.1.0版；保留 RT 开屏，修复个人页 v3，十五类页面与嵌套配置定点净化，无第三方脚本依赖。
+#!author=atopsecret（Surge 原版 skernelx）
+#!homepage=https://github.com/atopsecret/SurgeScripts/tree/main/amap
+# 当前 Egern 功能范围；不启用纯展示 widget，不改全局DNS、证书或代理。
+
+[Rule]
+DOMAIN,optimus-ads.amap.com,REJECT
+URL-REGEX,^https?://(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?/ws/asa/ads_attribution(?:[/?]|$),REJECT
+
+[Map Local]
+^https?://(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?/ws/aos/alimama/splash_screen_rt(?:[/?]|$) data-type=base64 data="LS1hbWFwLWNsZWFuZXItMi0wLTANCkNvbnRlbnQtRGlzcG9zaXRpb246IGZvcm0tZGF0YTsgbmFtZT0ianNvbkRhdGEiDQpDb250ZW50LVR5cGU6IGFwcGxpY2F0aW9uL2pzb247IGNoYXJzZXQ9dXRmLTgNCg0KeyJyZXN1bHQiOiJ0cnVlIiwiY29kZSI6IjEiLCJtZXNzYWdlIjoiU3VjY2Vzc2Z1bC4iLCJ2ZXJzaW9uIjoiMS4wX2FtYXAtYW9zLWluZm8tbm9ndyIsImRhdGEiOnsic3RhdHVzIjoib2siLCJlcnJjb2RlIjoiMSIsImN1c3RvbV9saXN0IjpbXSwiYWQiOltdfX0NCi0tYW1hcC1jbGVhbmVyLTItMC0wLS0NCg==" status-code=200 header="Content-Type:multipart/form-data; boundary=amap-cleaner-2-0-0|Cache-Control:no-store|X-AMap-Cleaner-Version:2.1.0"
+^https?://(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?/ws/(?:aos|valueadded)/alimama/splash_screen(?:[/?]|$) data-type=base64 data="eyJyZXN1bHQiOiJ0cnVlIiwiY29kZSI6IjEiLCJkYXRhIjp7InN0YXR1cyI6Im9rIiwiZXJyY29kZSI6IjEiLCJhZCI6W10sImN1c3RvbV9saXN0IjpbXX19" status-code=200 header="Content-Type:application/json|Cache-Control:no-store|X-AMap-Cleaner-Version:2.1.0"
+^https?://ai\.amap\.com(?::[0-9]+)?/v1/ai_rec/home_qs(?:[/?]|$) data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json|Cache-Control:no-store"
+^https?://(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?/ws/faas/amap-navigation/card-service-route-plan(?:[/?]|$) data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json|Cache-Control:no-store"
+^https?://(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?/ws/boss/order_web/[A-Za-z0-9_]{8}_information(?:[/?]|$) data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json|Cache-Control:no-store"
+^https?://(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?/ws/valueadded/weather(?:[/?]|$) data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json|Cache-Control:no-store"
+^https?://m5\.amap\.com(?::[0-9]+)?/ws/info_bff/rankingCard(?:[/?]|$) data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json|Cache-Control:no-store"
+^https?://m5\.amap\.com(?::[0-9]+)?/ws/shield/search_business/process/marketingOperationStructured(?:[/?]|$) data-type=base64 data="e30=" status-code=200 header="Content-Type:application/json|Cache-Control:no-store"
+
+[Script]
+ios-amap-cleaner-response = type=http-response,pattern=^https?://(?:[A-Za-z0-9-]+\.)+amap\.com(?::[0-9]+)?/ws/(?:message/notice/list|faas/amap-navigation/main-page(?:-assets|-aiqs)?|msgbox/pull|shield/dsp/profile/index/nodefaas(?:v3)?|shield/search/new_hotword|shield/frogserver/aocs/updatable|(?:shield/search/nearbyrec_smart|smartui/near_recommend)|promotion-web/resource|shield/search/poi/detail|shield/search_business/process/middleLayer/sug|c3frontend/af-search/search|boss/car/order/content_info|amap/hitch/passenger/content_info|opc/tools/list|shield/scene/recommend)(?:[/?]|$),requires-body=true,max-size=2097152,binary-body-mode=true,full-header-mode=true,engine=webview,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/surge-ios/scripts/common-amap-cleaner.js,timeout=10
+ios-amap-cleaner-diagnostic = type=generic,engine=webview,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/surge-ios/scripts/common-amap-cleaner.js,timeout=10
+
+[MITM]
+hostname = %APPEND% *.amap.com

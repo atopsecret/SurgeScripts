@@ -1,0 +1,8887 @@
+// Surge iOS 6 | JavaScript | ID8 response dispatcher
+// Build: node output/youtube/build.mjs
+// Run: invoked by ios-youtube-* http-response lines in binary-body-mode.
+// Deps: self-contained gholts/Maasea + IBL3ND; bundled noble components retain MIT notice.
+(function () {
+  // Surge iOS 6 | JavaScript | Runtime compatibility and argument calibration.
+  // Build: node output/youtube/build.mjs
+  // Run: included in the two generated dispatcher scripts.
+  (function installYouTubeCompat(global) {
+    const alphabet =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    function fromBase64(value, options) {
+      let text = String(value)
+        .replace(/\s/g, "")
+        .replace(/-/g, "+")
+        .replace(/_/g, "/");
+      if (/[^A-Za-z0-9+/=]/.test(text)) throw new Error("Invalid base64 input");
+      text = text.replace(/=+$/, "");
+      let bits = 0,
+        word = 0;
+      const output = [];
+      for (const character of text) {
+        word = (word << 6) | alphabet.indexOf(character);
+        bits += 6;
+        if (bits >= 8) {
+          bits -= 8;
+          output.push((word >>> bits) & 255);
+          word &= (1 << bits) - 1;
+        }
+      }
+      return new Uint8Array(output);
+    }
+    function toBase64(bytes, options) {
+      let result = "";
+      for (let i = 0; i < bytes.length; i += 3) {
+        const value =
+          bytes[i] * 65536 + (bytes[i + 1] || 0) * 256 + (bytes[i + 2] || 0);
+        result +=
+          alphabet[value >>> 18] +
+          alphabet[(value >>> 12) & 63] +
+          (i + 1 < bytes.length ? alphabet[(value >>> 6) & 63] : "=") +
+          (i + 2 < bytes.length ? alphabet[value & 63] : "=");
+      }
+      if (options && options.alphabet === "base64url")
+        result = result.replace(/\+/g, "-").replace(/\//g, "_");
+      return options && options.omitPadding
+        ? result.replace(/=+$/, "")
+        : result;
+    }
+    if (typeof Uint8Array.fromBase64 !== "function")
+      Object.defineProperty(Uint8Array, "fromBase64", {
+        value: fromBase64,
+        configurable: true,
+      });
+    if (typeof Uint8Array.prototype.toBase64 !== "function")
+      Object.defineProperty(Uint8Array.prototype, "toBase64", {
+        value(options) {
+          return toBase64(this, options);
+        },
+        configurable: true,
+      });
+    if (typeof Object.hasOwn !== "function")
+      Object.hasOwn = (object, property) =>
+        Object.prototype.hasOwnProperty.call(object, property);
+    if (typeof global.TextEncoder !== "function")
+      global.TextEncoder = class TextEncoder {
+        encode(input = "") {
+          const output = [];
+          for (const character of String(input)) {
+            let code = character.codePointAt(0);
+            if (code >= 0xd800 && code <= 0xdfff) code = 0xfffd;
+            if (code < 128) output.push(code);
+            else if (code < 2048)
+              output.push(192 | (code >>> 6), 128 | (code & 63));
+            else if (code < 65536)
+              output.push(
+                224 | (code >>> 12),
+                128 | ((code >>> 6) & 63),
+                128 | (code & 63),
+              );
+            else
+              output.push(
+                240 | (code >>> 18),
+                128 | ((code >>> 12) & 63),
+                128 | ((code >>> 6) & 63),
+                128 | (code & 63),
+              );
+          }
+          return new Uint8Array(output);
+        }
+      };
+    if (typeof global.TextDecoder !== "function")
+      global.TextDecoder = class TextDecoder {
+        constructor(label = "utf-8", options = {}) {
+          if (!/^utf-?8$/i.test(label))
+            throw new Error("Only UTF-8 decoding is supported");
+          this.fatal = !!options.fatal;
+        }
+        decode(input = new Uint8Array()) {
+          const bytes =
+            input instanceof ArrayBuffer
+              ? new Uint8Array(input)
+              : new Uint8Array(
+                  input.buffer,
+                  input.byteOffset || 0,
+                  input.byteLength,
+                );
+          let result = "";
+          const invalid = () => {
+            if (this.fatal) throw new Error("Invalid UTF-8");
+            result += "\ufffd";
+          };
+          for (let i = 0; i < bytes.length; ) {
+            const first = bytes[i++];
+            if (first < 128) {
+              result += String.fromCharCode(first);
+              continue;
+            }
+            const count =
+              first >= 0xc2 && first <= 0xdf
+                ? 1
+                : first >= 0xe0 && first <= 0xef
+                  ? 2
+                  : first >= 0xf0 && first <= 0xf4
+                    ? 3
+                    : -1;
+            if (count < 0 || i + count > bytes.length) {
+              invalid();
+              continue;
+            }
+            let code = first & (127 >>> (count + 1)),
+              valid = true;
+            for (let j = 0; j < count; j++) {
+              const next = bytes[i + j];
+              if ((next & 0xc0) !== 0x80) {
+                valid = false;
+                break;
+              }
+              code = code * 64 + (next & 63);
+            }
+            if (
+              !valid ||
+              code < [0, 128, 2048, 65536][count] ||
+              code > 0x10ffff ||
+              (code >= 0xd800 && code <= 0xdfff)
+            ) {
+              invalid();
+              continue;
+            }
+            i += count;
+            result += String.fromCodePoint(code);
+          }
+          return result;
+        }
+      };
+  })(typeof globalThis === "object" ? globalThis : this);
+
+  function youtubeArguments(input) {
+    const defaults = {
+      blockUpload: true,
+      blockShorts: true,
+      autoHd: true,
+      blockGames: true,
+      blockVerticalLive: true,
+      jumpAhead: true,
+      blockStore: true,
+      nativeDownload: true,
+      dualSubtitles: true,
+      blockAi: false,
+      onTheGo: false,
+      subtitleLanguage: "zh-CN",
+      showOnlyAutoTranslation: false,
+    };
+    let supplied = {};
+    if (typeof input === "string" && input.trim() && !input.includes("{{{")) {
+      try {
+        if (input.trim().startsWith("{")) supplied = JSON.parse(input);
+        else
+          for (const item of input.split("&")) {
+            const index = item.indexOf("=");
+            if (index >= 0)
+              supplied[decodeURIComponent(item.slice(0, index))] =
+                decodeURIComponent(item.slice(index + 1));
+          }
+      } catch (error) {
+        console.log("YouTube argument parse: " + error.message);
+      }
+    }
+    const aliases = {
+      屏蔽上传按钮: "blockUpload",
+      block_upload: "blockUpload",
+      block_shorts: "blockShorts",
+      auto_hd: "autoHd",
+      block_games: "blockGames",
+      block_vertical_live: "blockVerticalLive",
+      jump_ahead: "jumpAhead",
+      block_store: "blockStore",
+      native_download: "nativeDownload",
+      dual_subtitles: "dualSubtitles",
+      subtitle_language: "subtitleLanguage",
+      show_only_auto_translation: "showOnlyAutoTranslation",
+    };
+    for (const [key, value] of Object.entries(supplied)) {
+      const name = aliases[key] || key;
+      if (!Object.hasOwn(defaults, name)) continue;
+      if (typeof defaults[name] === "boolean") {
+        if (value === true || /^(true|1|on|yes)$/i.test(String(value)))
+          defaults[name] = true;
+        else if (value === false || /^(false|0|off|no)$/i.test(String(value)))
+          defaults[name] = false;
+      } else if (/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(String(value)))
+        defaults[name] = String(value);
+    }
+    return defaults;
+  }
+  function youtubeBytes(value) {
+    if (value instanceof Uint8Array) return value;
+    if (value instanceof ArrayBuffer) return new Uint8Array(value);
+    if (ArrayBuffer.isView(value))
+      return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+    return value;
+  }
+  function youtubeFinish(originalDone) {
+    let completed = false;
+    return function finish(result) {
+      if (completed) return;
+      const output = result || {};
+      if (Object.hasOwn(output, "body")) {
+        const bytes = youtubeBytes(output.body);
+        output.body =
+          typeof bytes === "string" ? new TextEncoder().encode(bytes) : bytes;
+        if (!(output.body instanceof Uint8Array))
+          throw new Error("Invalid output body type");
+      }
+      if (output.response && Object.hasOwn(output.response, "body")) {
+        const bytes = youtubeBytes(output.response.body);
+        output.response.body =
+          typeof bytes === "string" ? new TextEncoder().encode(bytes) : bytes;
+        if (!(output.response.body instanceof Uint8Array))
+          throw new Error("Invalid response body type");
+      }
+      completed = true;
+      originalDone(output);
+    };
+  }
+
+  function compatibleResponse($request, $response, $argument, $done) {
+    (() => {
+      const g = new TextEncoder(),
+        I = new TextDecoder("utf-8", { fatal: !0 }),
+        A = {
+          Browse: [
+            [9, "content", "BrowseContent"],
+            [10, "onResponseReceivedAction", "BrowseContent"],
+          ],
+          BrowseContent: [
+            [
+              58173949,
+              "singleColumnResultsRenderer",
+              "SingleColumnResultsRenderer",
+            ],
+            [153515154, "elementRenderer", "ElementRenderer"],
+            [49399797, "sectionListRenderer", "SectionListRenderer"],
+          ],
+          SingleColumnResultsRenderer: [
+            [1, "tabs", "BrowseTabSupportedRenderer", !0],
+          ],
+          BrowseTabSupportedRenderer: [
+            [58174010, "tabRenderer", "TabRenderer"],
+          ],
+          TabRenderer: [
+            [1, "endpoint", "TabEndpoint"],
+            [4, "content", "BrowseContent"],
+          ],
+          TabEndpoint: [[48687626, "browse", "TabBrowseEndpoint"]],
+          TabBrowseEndpoint: [[3, "params", "string"]],
+          ElementRenderer: [
+            [172660663, "videoRendererContent", "VideoRendererContent"],
+          ],
+          VideoRendererContent: [
+            [1, "richItemContents", "VideoInfo", !0],
+            [2, "renderInfo", "RenderInfo"],
+          ],
+          VideoInfo: [[168777401, "videoContext", "VideoContext"]],
+          VideoContext: [
+            [3, "layout", "ElementLayout"],
+            [5, "videoContent", "VideoContent"],
+          ],
+          ElementLayout: [[172035250, "layoutRender", "LayoutRender"]],
+          VideoContent: [
+            [413471385, "element", "ElementModel"],
+            [512694658, "smartSkipButton", "SmartSkipButton"],
+            [232954548, "videoLockup", "VideoLockup"],
+            [454362329, "sponsoredVideo", "bytes"],
+            [491441836, "sponsoredDisplay", "bytes"],
+          ],
+          ElementModel: [[1, "data", "ElementData"]],
+          ElementData: [[1829, "shoppingShelf", "bytes"]],
+          SmartSkipButton: [
+            [1, "actions", "SmartSkipActions"],
+            [13, "controller", "SmartSkipController"],
+            [17, "displayLimit", "uint"],
+          ],
+          SmartSkipActions: [[3, "items", "SmartSkipAction", !0]],
+          SmartSkipAction: [[9, "displayLimit", "uint"]],
+          SmartSkipController: [[7, "promotionMode", "bool"]],
+          VideoLockup: [
+            [33, "attachments", "Attachment", !0],
+            [34, "attachmentStateKey", "bytes"],
+          ],
+          Attachment: [[9, "products", "bytes", !0]],
+          RenderInfo: [[183314536, "layoutRender", "LayoutRender"]],
+          LayoutRender: [[1, "eml", "string"]],
+          SectionListRenderer: [
+            [
+              1,
+              "sectionListSupportedRenderers",
+              "SectionListSupportedRenderer",
+              !0,
+            ],
+            [32, "promotedContents", "bytes", !0],
+          ],
+          SectionListSupportedRenderer: [
+            [50195462, "itemSectionRenderer", "ItemSectionRenderer"],
+            [51845067, "shelfRenderer", "ShelfRenderer"],
+          ],
+          ItemSectionRenderer: [[1, "richItemContents", "RichItemContent", !0]],
+          RichItemContent: [
+            [153515154, "videoWithContextRenderer", "ElementRenderer"],
+          ],
+          ShelfRenderer: [[5, "richSectionContent", "RichSectionContent"]],
+          RichSectionContent: [
+            [51431404, "reelShelfRenderer", "ReelShelfRenderer"],
+          ],
+          ReelShelfRenderer: [[1, "richItemContents", "RichItemContent", !0]],
+          Next: [
+            [7, "content", "NextContent"],
+            [8, "onResponseReceivedAction", "BrowseContent"],
+            [14, "playerOverlays", "PlayerOverlays"],
+            [25, "engagementPanels", "EngagementPanel", !0],
+            [777, "frameworkUpdates", "bytes"],
+          ],
+          EngagementPanel: [[138681066, "renderer", "EngagementPanelRenderer"]],
+          EngagementPanelRenderer: [[3, "content", "BrowseContent"]],
+          NextContent: [[51779735, "nextResult", "NextResult"]],
+          NextResult: [[1, "content", "BrowseContent"]],
+          PlayerOverlays: [[78882851, "renderer", "PlayerOverlayRenderer"]],
+          PlayerOverlayRenderer: [
+            [2, "overflowMenu", "bytes"],
+            [3, "related", "RelatedOverlay"],
+            [42, "overlayCollections", "OverlayCollection", !0],
+          ],
+          OverlayCollection: [
+            [401855120, "renderer", "OverlayCollectionRenderer"],
+          ],
+          OverlayCollectionRenderer: [[2, "overlays", "OverlayItem", !0]],
+          OverlayItem: [[401855122, "content", "OverlayContent"]],
+          OverlayContent: [[1, "item", "RichItemContent"]],
+          RelatedOverlay: [[29209665, "contents", "RelatedOverlayContents"]],
+          RelatedOverlayContents: [[2, "contents", "RichItemContent", !0]],
+          Player: [
+            [15, "playerConfig", "PlayerConfig"],
+            [60, "overlayCollections", "OverlayCollection", !0],
+            [61, "paidPromotion", "bytes"],
+            [7, "adPlacements", "bytes", !0],
+            [2, "playabilityStatus", "PlayabilityStatus"],
+            [9, "playbackTracking", "PlaybackTracking"],
+            [68, "adSlots", "bytes", !0],
+          ],
+          PlayerConfig: [
+            [1, "granularVariableSpeedConfig", "PlaybackSpeedConfig"],
+          ],
+          PlaybackSpeedConfig: [
+            [1, "minimumPlaybackRate", "uint"],
+            [2, "maximumPlaybackRate", "uint"],
+          ],
+          PlayabilityStatus: [
+            [21, "pictureInPictureRender", "PictureInPictureSupportedRenderer"],
+            [11, "backgroundPlayerRender", "BackgroundSupportedRenderer"],
+          ],
+          PictureInPictureSupportedRenderer: [
+            [151635310, "pictureInPictureAbility", "PictureInPictureAbility"],
+          ],
+          PictureInPictureAbility: [
+            [1, "active", "bool"],
+            [4, "f4", "uint"],
+            [6, "f6", "uint"],
+            [8, "f8", "uint"],
+          ],
+          BackgroundSupportedRenderer: [
+            [64657230, "backgroundAbility", "BackgroundAbility"],
+          ],
+          BackgroundAbility: [[1, "active", "bool"]],
+          PlaybackTracking: [[18, "pageadViewthroughconversion", "bytes"]],
+          Search: [
+            [4, "content", "BrowseContent"],
+            [7, "onResponseReceivedCommand", "OnResponseReceivedCommand"],
+          ],
+          OnResponseReceivedCommand: [
+            [50195462, "itemSectionRenderer", "ItemSectionRenderer"],
+            [49399797, "appendContinuationItemsAction", "SectionListRenderer"],
+          ],
+          Shorts: [[2, "entries", "Entry", !0]],
+          Entry: [[1, "command", "Command"]],
+          Command: [[139608561, "reelWatchEndpoint", "ReelWatchEndpoint"]],
+          ReelWatchEndpoint: [[16, "adClientParams", "AdClientParams"]],
+          AdClientParams: [[1, "isAd", "bool"]],
+          Guide: [
+            [4, "labelItems", "GuideItem", !0],
+            [6, "iconItems", "GuideItem", !0],
+          ],
+          GuideItem: [
+            [117866661, "guideSectionRenderer", "GuideSectionRenderer"],
+          ],
+          GuideSectionRenderer: [[1, "rendererItems", "RendererItem", !0]],
+          RendererItem: [
+            [318370163, "iconRender", "guideEntryRenderer"],
+            [117501096, "labelRender", "guideEntryRenderer"],
+          ],
+          guideEntryRenderer: [[1, "browseId", "string"]],
+          Setting: [
+            [6, "settingItems", "SettingItem", !0],
+            [7, "collectionItems", "SettingItem", !0],
+          ],
+          SettingItem: [
+            [
+              88478200,
+              "backgroundPlayBackSettingRenderer",
+              "BackgroundPlayBackSettingRenderer",
+            ],
+            [
+              66930374,
+              "settingCategoryCollectionRenderer",
+              "SettingCategoryCollectionRenderer",
+            ],
+          ],
+          BackgroundPlayBackSettingRenderer: [
+            [2, "backgroundPlayback", "bool"],
+            [14, "icon", "Icon"],
+          ],
+          Icon: [[1, "iconType", "uint"]],
+          SettingCategoryCollectionRenderer: [
+            [3, "subSettings", "SubSetting", !0],
+            [4, "categoryId", "uint"],
+          ],
+          SubSetting: [
+            [61331416, "settingBooleanRenderer", "SettingBooleanRenderer"],
+          ],
+          SettingBooleanRenderer: [
+            [5, "enableServiceEndpoint", "ServiceEndpoint"],
+            [6, "disableServiceEndpoint", "ServiceEndpoint"],
+            [15, "itemId", "uint"],
+          ],
+          ServiceEndpoint: [
+            [81212182, "setClientSettingEndpoint", "SetClientSettingEndpoint"],
+          ],
+          SetClientSettingEndpoint: [[1, "settingData", "SettingData"]],
+          SettingData: [
+            [1, "clientSettingEnum", "ClientSettingEnum"],
+            [3, "boolValue", "bool"],
+          ],
+          ClientSettingEnum: [[1, "item", "uint"]],
+          Watch: [[1, "contents", "WatchContent", !0]],
+          ResolveUrl: [[2, "endpoint", "NavigationEndpoint"]],
+          NavigationEndpoint: [[48687757, "watch", "NavigationWatch"]],
+          NavigationWatch: [[68146959, "embedded", "EmbeddedPlayer"]],
+          EmbeddedPlayer: [[68202535, "response", "EmbeddedPlayerBody"]],
+          EmbeddedPlayerBody: [[1, "player", "Player"]],
+          WatchContent: [
+            [2, "player", "Player"],
+            [3, "next", "Next"],
+          ],
+        },
+        C = new Set([
+          "Browse",
+          "BrowseContent",
+          "BrowseTabSupportedRenderer",
+          "ElementRenderer",
+          "EmbeddedPlayer",
+          "EmbeddedPlayerBody",
+          "EngagementPanel",
+          "EngagementPanelRenderer",
+          "ItemSectionRenderer",
+          "NavigationEndpoint",
+          "NavigationWatch",
+          "Next",
+          "NextContent",
+          "NextResult",
+          "OnResponseReceivedCommand",
+          "OverlayCollection",
+          "OverlayCollectionRenderer",
+          "OverlayContent",
+          "OverlayItem",
+          "Player",
+          "PlayerOverlayRenderer",
+          "PlayerOverlays",
+          "ReelShelfRenderer",
+          "RelatedOverlay",
+          "RelatedOverlayContents",
+          "ResolveUrl",
+          "RichItemContent",
+          "RichSectionContent",
+          "Search",
+          "SectionListRenderer",
+          "SectionListSupportedRenderer",
+          "ShelfRenderer",
+          "SingleColumnResultsRenderer",
+          "TabRenderer",
+          "VideoContent",
+          "VideoContext",
+          "VideoInfo",
+          "VideoLockup",
+          "VideoRendererContent",
+          "Watch",
+          "WatchContent",
+        ]),
+        E = "YouTubeQuality";
+      function o(g) {
+        const I = new Uint8Array(g.reduce((g, I) => g + I.length, 0));
+        let A = 0;
+        for (const C of g) I.set(C, A), (A += C.length);
+        return I;
+      }
+      function e(g, I) {
+        return (
+          g === I || (g.length === I.length && g.every((g, A) => g === I[A]))
+        );
+      }
+      function B(g) {
+        const I = [];
+        do {
+          I.push(g % 128 | (g > 127 ? 128 : 0)), (g = Math.floor(g / 128));
+        } while (g);
+        return new Uint8Array(I);
+      }
+      function t(g) {
+        const I = [];
+        let A = 0;
+        function C() {
+          let I = 0,
+            C = 1;
+          for (let E = 0; E < 5; E++) {
+            if (A >= g.length) throw new Error("Truncated protobuf varint");
+            const E = g[A++];
+            if (((I += (127 & E) * C), !(128 & E))) {
+              if (I > 4294967295)
+                throw new Error("Protobuf length/tag overflow");
+              return I;
+            }
+            C *= 128;
+          }
+          throw new Error("Invalid protobuf varint");
+        }
+        for (; A < g.length; ) {
+          const E = A,
+            o = C(),
+            e = Math.floor(o / 8),
+            B = o % 8;
+          if (!e) throw new Error("Invalid protobuf field");
+          let t = A;
+          if (2 === B) {
+            const g = C();
+            (t = A), (A += g);
+          } else if (1 === B) A += 8;
+          else if (5 === B) A += 4;
+          else {
+            if (0 !== B) throw new Error("Unsupported protobuf wire type " + B);
+            {
+              let I,
+                C = 0;
+              do {
+                if (A >= g.length || 10 === C++)
+                  throw new Error("Invalid protobuf integer");
+                if (((I = g[A++]), 10 === C && I > 1))
+                  throw new Error("Protobuf integer overflow");
+              } while (128 & I);
+            }
+          }
+          if (A > g.length) throw new Error("Truncated protobuf field");
+          I.push({
+            no: e,
+            wire: B,
+            data: g.subarray(t, A),
+            raw: g.subarray(E, A),
+          });
+        }
+        return I;
+      }
+      function S(g) {
+        const I = (function (g) {
+          let I = 0,
+            A = 1;
+          for (const C of g) (I += (127 & C) * A), (A *= 128);
+          return I;
+        })(g);
+        if (!Number.isSafeInteger(I)) throw new Error("Unsafe decoded integer");
+        return I;
+      }
+      function n(g) {
+        const I = g.replace(/[-_\s=]/g, (g) =>
+            "-" === g ? "+" : "_" === g ? "/" : "",
+          ),
+          A = I.length % 4 == 1,
+          C = Uint8Array.fromBase64(A ? I + "A" : I);
+        return A ? C.subarray(0, -1) : C;
+      }
+      function i(g) {
+        const I = g;
+        return !!(
+          I &&
+          "object" == typeof I &&
+          !Array.isArray(I) &&
+          Number.isInteger(I.height) &&
+          I.height > 0 &&
+          I.height <= 2147483647 &&
+          Array.isArray(I.itags) &&
+          I.itags.length > 0 &&
+          I.itags.length <= 256 &&
+          I.itags.every(
+            (g) => Number.isInteger(g) && g > 0 && g <= 4294967295,
+          ) &&
+          new Set(I.itags).size === I.itags.length &&
+          (void 0 === I.premiumItags ||
+            (Array.isArray(I.premiumItags) &&
+              I.premiumItags.length <= I.itags.length &&
+              new Set(I.premiumItags).size === I.premiumItags.length &&
+              I.premiumItags.every((g) => I.itags.includes(g))))
+        );
+      }
+      function r(g, I) {
+        return (
+          void 0 !== g &&
+          g.height === I.height &&
+          g.itags.length === I.itags.length &&
+          I.itags.every((I) => g.itags.includes(I)) &&
+          (g.premiumItags?.length ?? 0) === (I.premiumItags?.length ?? 0) &&
+          (I.premiumItags ?? []).every((I) => g.premiumItags?.includes(I))
+        );
+      }
+      const a = g.encode("PAyouchat"),
+        h = g.encode("ai_summary_");
+      function K(g, I, A = a, C = !1) {
+        return I.length
+          ? t(g).some(
+              (g) =>
+                g.no === I[0] && 2 === g.wire && K(g.data, I.slice(1), A, C),
+            )
+          : e(C ? g.subarray(0, A.length) : g, A);
+      }
+      function Q(g, I, A) {
+        let C = !1;
+        const E = t(g).flatMap((g) => {
+          if (g.no !== I || 2 !== g.wire) return [g.raw];
+          const E = A(g.data);
+          return E && e(E, g.data)
+            ? [g.raw]
+            : ((C = !0), E ? [Cg([I, "", "bytes"], E)] : []);
+        });
+        return C ? o(E) : g;
+      }
+      function c(g) {
+        return Q(g, 1, (g) =>
+          K(g, [10, 461054335, 4, 169495254, 138681778, 1])
+            ? void 0
+            : Sg(g, [10, 37098], (g) =>
+                Q(g, 3, (g) =>
+                  K(g, [489973921, 997, 3, 3, 169495254, 138681778, 1])
+                    ? void 0
+                    : g,
+                ),
+              ),
+        );
+      }
+      function R(g) {
+        return Q(g, 10, (g) =>
+          K(g, [15, 461054335, 4, 169495254, 138681778, 1])
+            ? void 0
+            : Sg(g, [6], (g) =>
+                Q(g, 3, (g) =>
+                  K(g, [4, 16, 461054335, 4, 169495254, 138681778, 1])
+                    ? void 0
+                    : g,
+                ),
+              ),
+        );
+      }
+      function w(g) {
+        return Sg(g, [1], (g) => {
+          const I = t(g),
+            A = I.filter((g) => 1 === g.no && 2 === g.wire),
+            C = I.filter((g) => 2 === g.no && 2 === g.wire);
+          if (A.length !== C.length) return g;
+          const E = new Set();
+          return (
+            C.forEach((g, I) => {
+              K(g.data, [8, 2, 169495254, 138681778, 1]) &&
+                (E.add(g), E.add(A[I]));
+            }),
+            E.size ? o(I.filter((g) => !E.has(g)).map((g) => g.raw)) : g
+          );
+        });
+      }
+      function l(g) {
+        return Sg(g, [153515154, 172660663, 1, 168777401, 5], (g) => {
+          let I = Q(g, 386137609, R);
+          return (
+            (I = Sg(I, [413471385, 1], (g) => Q(g, 2185, c))),
+            Q(I, 408379376, w)
+          );
+        });
+      }
+      function s(g) {
+        return Sg(
+          Q(g, 45, (g) => (K(g, [], h, !0) ? void 0 : g)),
+          [1, 19, 1, 1, 4, 424915055, 1],
+          (g) =>
+            Q(g, 31, (g) =>
+              K(g, [1, 204158123, 194114827, 1], h, !0) ? void 0 : g,
+            ),
+        );
+      }
+      function M(g, I, A = !1) {
+        let C;
+        for (const E of t(g))
+          if (E.no === I && 2 === E.wire) {
+            if (!A) return E.data;
+            if (C) return;
+            C = E.data;
+          }
+        return C;
+      }
+      function G(g, I) {
+        return Cg(
+          [
+            g,
+            "",
+            "number" == typeof I
+              ? "uint"
+              : "string" == typeof I
+                ? "string"
+                : "bytes",
+          ],
+          I,
+        );
+      }
+      function D(g, I) {
+        for (let A = g.length - 1; A >= 0; A--) I = G(g[A], I);
+        return I;
+      }
+      function u(g, I) {
+        let A = g;
+        for (const g of I) if (((A = M(A, g, !0)), !A)) return;
+        return A;
+      }
+      const d = "on-the-go",
+        Y = "/youtube/app/player_overflow_menu/menu_item_on_the_go",
+        y = [153515154, 172660663, 1, 168777401, 5, 407694004],
+        p = [153515154, 172660663, 1, 168777401];
+      function f(g) {
+        if (!g.renderer) return;
+        const A = Bg(g.renderer),
+          C = A.find((g) => 18 === g.no && 2 === g.wire),
+          E =
+            (C && u(C.data, [3])) ??
+            A.find((g) => 1 === g.no && 2 === g.wire)?.data;
+        return E && I.decode(E);
+      }
+      function m() {
+        const g = "/youtube/app/on_the_go_menu_trigger_state";
+        return G(
+          170382688,
+          o([
+            D([1, 241780379, 1], 1),
+            D([1, 169495254, 423731020], new Uint8Array()),
+            D(
+              [1, 169495254, 204158123, 170382688],
+              o([
+                D([1, 170382720], o([G(1, g), G(2, o([G(1, g), G(2, 1)]))])),
+                D([1, 169495254, 138681778, 10], o([G(1, 1), G(3, d)])),
+              ]),
+            ),
+          ]),
+        );
+      }
+      function x(g, I, A, C) {
+        return G(
+          461054335,
+          o([
+            G(2, g),
+            G(4, A),
+            G(5, I),
+            ...(C
+              ? [G(17, "id.player_controls." + C + ".button")]
+              : [G(28, 1), G(29, 1)]),
+          ]),
+        );
+      }
+      function j(g) {
+        const A = u(g, [196886555]) ?? u(g, [426171394]),
+          C = A && M(A, 1, !0);
+        return C && I.decode(C);
+      }
+      function k(g, I, A = 0) {
+        for (const [A, C] of I) if (e(g, A)) return C;
+        if (96 === A) return g;
+        let C;
+        try {
+          C = t(g);
+        } catch {
+          return g;
+        }
+        let E = !1;
+        const B = C.map((g) => {
+          if (2 !== g.wire) return g.raw;
+          const C = k(g.data, I, A + 1);
+          return C === g.data ? g.raw : ((E = !0), G(g.no, C));
+        });
+        return E ? o(B) : g;
+      }
+      const b =
+          /^(?:inline_injection_entrypoint_layout|video_display_button_group_layout|full_width_portrait_image_layout|full_width_square_image_layout|video_display_full_buttoned_layout)\.eml(?:-js)?(?:-fe)?$/,
+        F =
+          /^(?:shopping_|products?_in_video_)[a-z0-9_]+\.eml(?:-js)?(?:-fe)?$/,
+        U = g.encode("/pagead/"),
+        H = g.encode("mini_game_card.eml"),
+        L = g.encode("shopping_item_card_list.eml"),
+        J = g.encode("store"),
+        v = g.encode("youtube_outline_experimental/live_24pt"),
+        W = g.encode("immersive_live"),
+        O = g.encode("SPunlimited");
+      function V(g, I = U) {
+        if (!I.length) return !0;
+        const A = g.length - I.length;
+        let C = 0,
+          E = 0;
+        for (
+          let o = g.indexOf(I[0]);
+          o >= 0 && o <= A;
+          o = g.indexOf(I[0], o + 1)
+        ) {
+          let A = !0;
+          for (let C = 1; C < I.length; C++)
+            if (g[o + C] !== I[C]) {
+              A = !1;
+              break;
+            }
+          if (A) return !0;
+          if (8 === ++C) {
+            if (o - E < 256) return P(g, I, o + 1);
+            (E = o), (C = 0);
+          }
+        }
+        return !1;
+      }
+      function P(g, I, A) {
+        g: for (let C = A; C <= g.length - I.length; C++) {
+          for (let A = 0; A < I.length; A++) if (g[C + A] !== I[A]) continue g;
+          return !0;
+        }
+        return !1;
+      }
+      function q(g) {
+        const I = g.tabRenderer?.endpoint?.browse?.params;
+        if (!I) return !1;
+        try {
+          const g = t(n(decodeURIComponent(I))).find(
+            (g) => 2 === g.no && 2 === g.wire,
+          );
+          return !!g && e(g.data, J);
+        } catch {
+          return !1;
+        }
+      }
+      function N(
+        E,
+        {
+          blockGames: i = !0,
+          blockVerticalLive: r = !1,
+          jumpAhead: U = !0,
+          blockStore: J = !0,
+          blockAi: P = !0,
+          onTheGo: N = !0,
+        } = {},
+      ) {
+        let X = (function (I) {
+          const A = I.playerOverlays?.renderer;
+          if (!A?.overflowMenu) return !1;
+          try {
+            const I = (function (I) {
+                const A = g.encode("PApremium_upsell");
+                return Sg(
+                  I,
+                  [
+                    66439850, 1, 153515154, 172660663, 1, 168777401, 5,
+                    407694004, 4, 4, 170382688, 1, 169495254, 443434441, 1, 1,
+                    441573002, 4, 153515154, 172660663, 1, 168777401, 5,
+                    413471385, 1, 1602,
+                  ],
+                  (g) => {
+                    const I = t(g),
+                      C = I.find((g) => 5 === g.no && 5 === g.wire);
+                    if (!C) return g;
+                    const E = new DataView(
+                      C.data.buffer,
+                      C.data.byteOffset,
+                      4,
+                    ).getFloat32(0, !0);
+                    if (!(E > 0)) return g;
+                    let e = g;
+                    if (E < 4) {
+                      const g = new Uint8Array(4);
+                      new DataView(g.buffer).setFloat32(0, 4, !0),
+                        (e = o(
+                          I.map((I) => (I === C ? o([B(45), g]) : I.raw)),
+                        ));
+                    }
+                    return Sg(e, [10, 1674], (g) => {
+                      const I = t(g),
+                        C = I.filter(
+                          (g) => 3 !== g.no || 2 !== g.wire || !V(g.data, A),
+                        );
+                      return C.length === I.length ? g : o(C.map((g) => g.raw));
+                    });
+                  },
+                );
+              })(A.overflowMenu),
+              C = !e(I, A.overflowMenu);
+            return C && Ag(A, "overflowMenu", I), C;
+          } catch (g) {
+            return console.log("YouTube speed menu: " + g), !1;
+          }
+        })(E);
+        if (N)
+          try {
+            X =
+              (function (A) {
+                const C = A.playerOverlays?.renderer;
+                if (!C?.overflowMenu || !Array.isArray(A.engagementPanels))
+                  return !1;
+                if (A.engagementPanels.some((g) => f(g) === d)) return !1;
+                const E = u(C.overflowMenu, [66439850]);
+                if (!E) return !1;
+                const B = t(E);
+                let i,
+                  r,
+                  a = B.length;
+                for (const [g, A] of B.entries()) {
+                  if (1 !== A.no || 2 !== A.wire) continue;
+                  const C = u(A.data, y),
+                    E = C && M(C, 10, !0);
+                  if (!C || !E) continue;
+                  const o = I.decode(E);
+                  if (o === Y) return !1;
+                  if (
+                    (o.endsWith("/menu_item_additional_settings") && (a = g),
+                    (i ??= A.data),
+                    o.endsWith("/menu_item_playback_speed"))
+                  ) {
+                    const g = u(C, [4, 4, 170382688]);
+                    if (g)
+                      for (const I of t(g))
+                        1 === I.no &&
+                          u(I.data, [169495254, 443434441]) &&
+                          (r = I.data);
+                  }
+                }
+                if (!i) return !1;
+                const h = (function (A) {
+                  if (Bg(A).some((g) => 777 === g.no)) return;
+                  const C = A.frameworkUpdates,
+                    E = C && u(C, [2]);
+                  if (!E) return;
+                  const e = new Set(),
+                    B = new Set();
+                  for (const g of t(E)) {
+                    if (1 !== g.no || 2 !== g.wire) continue;
+                    const A = j(g.data);
+                    A && (e.add(A), B.add(A));
+                    const C = u(g.data, [328964737]);
+                    if (C)
+                      for (const g of t(C)) {
+                        if (1 !== g.no || 2 !== g.wire) continue;
+                        const A = u(g.data, [1]),
+                          C = t(g.data).find((g) => 2 === g.no && 0 === g.wire);
+                        A &&
+                          C &&
+                          [1, 2].includes(S(C.data)) &&
+                          e.add(I.decode(A));
+                      }
+                  }
+                  const i = t(
+                      n(
+                        "CteBAdqBiO8Fz4EBCj5lbmdhZ2VtZW50X3BhbmVsX2xhcmdlX3BsYXllcl9jb250cm9scy5lbWwtZmV8ZWFhNmUwNWM5MmU2ZWU3OBKJgQGyx86HBYGBARLzgAEKBAgGEAkKBAgHEAUKBAgKEAgKBAgYEA4KBAgZEAIKBAgfEA4KBAggEA4KBAgoEA4KBAgtEA4KBAgwEA4KBAgxEA4KBAgyEA4KBAg0EA4KBAg6EA4KBAg/EA4KBAhMEA4KBAhREA4KBAhUEA4KBAhVEA4KBAhZEA4SBAgBGAESiGIIAhgCIoFiGv5hChEIARINGgsKCQjEyOFMEgIaAAofCAISGxoZChcI65i9UBIQGg4KDAgHEggILTIECgIIAwrHYQgDEsJhWr9hCAESumEat2EKEQgBEg0aCwoJCKeU3EsSAhoACoEBCAISfRp7CnkIhIu9UBJyGnAKDAgKEggIMDIECgIIAQoMCAsSCAgxMgQKAggFCgwIDBIICDIyBAoCCAQKEAgCEgwaCgoICAESBBICCBAKDAgTEggINDIECgIIAQokCAkSIBoeChwIBxIYGhYKFAgBEhASDggEEgIIBBICCAESAggECp1gCAMSmGBalWAIARK6FiK3Fgq0FgoKUggIARIEEgIIFRKlFhqiFgoRCAESDRoLCgkIp5TcSxICGgAKLQgCEikaJwolCISLvVASHhocCgwIChIICDAyBAoCCAMKDAgMEggIMjIECgIIBArdFQgDEtgVWtUVCAES0BUazRUKtREIARKwERqtEQqqEQi5lNxLEqIRGp8RCpwRCAESlxEalBEKDAgCEggIOjIECgIIAgqzCQgBEq4JIqsJCjwKKFImCAESIkogCAESCAgHMgQKAggAGhJSEAgCEgwSCggGEgIIARICCDMSEBIOCAYSAggBEgIIMxICCAES6gha5wgIARLiCCLfCArmBwrMBlrJBggCEp0GWpoGCAISgQFafwgCEmBaXggCEiwSKggBEgIIAxICCAESDhoMCAcyCAoGCKPTn44CEgIIARIKGggIBzIECgIIBhIsEioIARICCAMSAggBEg0aCwgHMgcKBQie2L9GEgIIARILGgkIBzIFCgMI6gcSGRIXCAESAggHEgYIiJfhpwESAggBEgMIigISkQVajgUIAxLOBFrLBAgDEosEWogECAMSyANaxQMIAxKFA1qCAwgDEsICWr8CCAMS/wFa/AEIAxK8AVq5AQgDEnpaeAgDEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAESGRIXCAESAggHEgYIiJfhpwESAggBEgMIpgISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIAhIZEhcIARICCAcSBgiIl+GnARICCAESAwipAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggDEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCKoCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAQSGRIXCAESAggHEgYIiJfhpwESAggBEgMIswISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIBRIZEhcIARICCAcSBgiIl+GnARICCAESAwi9AhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggGEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCL8CEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAcSGRIXCAESAggHEgYIiJfhpwESAggBEgMIxAISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIICBIZEhcIARICCAcSBgiIl+GnARICCAESAwjFAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggJEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCMYCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAoSGRIXCAESAggHEgYIiJfhpwESAggBEgMI4QISJVIjCAESH0odCAESCAgHMgQKAggAGg9SDQgCEgkIKDIFCgMIgwMSlAEikQEKjgEKYFpeCAISLBIqCAESAggDEgIIARIOGgwIBzIICgYIo9OfjgISAggBEgoaCAgHMgQKAggGEiwSKggBEgIIAxICCAESDRoLCAcyBwoFCJ7Yv0YSAggBEgsaCQgHMgUKAwjqBxIqGigKJggGEiIaIAoeCOoHEhkaFwoVCAESERoPCg0IARIJCCgyBQoDCIMDEnQacgpwCAMSbBpqChAIAhIMEgoIBhICCAESAggCCiIIAxIeIhwKFAoMEgoIARICCAQSAggLEgQSAggIEgQSAggLCjIIARIuIiwKKgoeUhwIARIYShYIARIICAYyBAoCCgAaCAgGMgQKAgoAEggIBjIECgIKAArNBwgDEsgHGsUHCsIHCPmj3EkSugcatwcKtAcIBhKvByKsBwqpBwr+Blr7BggDEihSJggBEiJKIAgBEggIBzIECgIIABoSUhAIAhIMEgoIBhICCAESAggzEswGWskGCAISnQZamgYIAhKBAVp/CAISYFpeCAISLBIqCAESAggDEgIIARIOGgwIBzIICgYIo9OfjgISAggBEgoaCAgHMgQKAggGEiwSKggBEgIIAxICCAESDRoLCAcyBwoFCJ7Yv0YSAggBEgsaCQgHMgUKAwjqBxIZEhcIARICCAcSBgiIl+GnARICCAESAwiKAhKRBVqOBQgDEs4EWssECAMSiwRaiAQIAxLIA1rFAwgDEoUDWoIDCAMSwgJavwIIAxL/AVr8AQgDErwBWrkBCAMSelp4CAMSOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIARIZEhcIARICCAcSBgiIl+GnARICCAESAwimAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggCEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCKkCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAMSGRIXCAESAggHEgYIiJfhpwESAggBEgMIqgISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIBBIZEhcIARICCAcSBgiIl+GnARICCAESAwizAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggFEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCL0CEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAYSGRIXCAESAggHEgYIiJfhpwESAggBEgMIvwISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIBxIZEhcIARICCAcSBgiIl+GnARICCAESAwjEAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggIEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCMUCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAkSGRIXCAESAggHEgYIiJfhpwESAggBEgMIxgISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIChIZEhcIARICCAcSBgiIl+GnARICCAESAwjhAhIlUiMIARIfSh0IARIICAcyBAoCCAAaD1INCAISCQgoMgUKAwiDAxImGiQKIggBEh4iHAoUCgwSCggBEgIIBBICCAsSBBICCAgSBBICCAsKkgQIAhKNBBqKBApcCISLvVASVRpTChgIAhIUGhIKEAgBEgxSCggFEgYIBxICCAMKGAgDEhQaEgoQCAESDFIKCAUSBggHEgIIAwoPCA4SCwgZMgcKBQ0AAAAACgwIEBIICDIyBAoCCAIKzQEIuZe9UBLFARrCAQq/AQgBEroBIrcBCrQBCgwSCggBEgIIBBICCAsSowEaoAEKnQEI4KqfURKVARqSAQqPAQgBEooBWocBCAESdSJzCnEKLhIsCAESAggDEgIIARINGgsIBzIHCgUI/5zcexICCAESDRoLCAcyBwoFCJuNpXMSPxo9CjsIm42lcxI0GjIKDAgBEggITDIECgIIAQoQCAMSDBIKCAYSAggBEgIIBgoQCAISDBIKCAYSAggBEgIICBIMEgoIBhICCAESAggECj4IlZe9UBI3GjUKMwgGEi8aLQorCNygiloSJBoiCggIAhIEEgIIAwoMCAMSCAgKMgQKAggACggIARIEEgIICgp9COuYvVASdhp0CkAIBRI8IjoKHgoMEgoIARICCAQSAggLEg5aDAgBEggIUTIECgIIAhIYWhYIARIICFEyBAoCCAISCAhRMgQKAggHChAIARIMEgoIBhICCAESAggFChAIBBIMEgoIBhICCAESAggRCgwIBhIICAoyBAoCCAEKGwiWkelQEhQaEgoQCAESDBIKCAYSAggBEgIICBLfFSLcFQrZFQoKUggIARIEEgIIFRLKFRrHFQoRCAESDRoLCgkIp5TcSxICGgAKLQgCEikaJwolCISLvVASHhocCgwIChIICDAyBAoCCAMKDAgMEggIMjIECgIIBAqCFQgDEv0UWvoUCAES9RQa8hQK6hAIARLlEBriEArfEAi5lNxLEtcQGtQQCtEQCAESzBAayRAKDAgCEggIOjIECgIIAgqHCQgBEoIJIv8ICjwKKFImCAESIkogCAESCAgHMgQKAggAGhJSEAgCEgwSCggGEgIIAhICCDMSEBIOCAYSAggCEgIIMxICCAESvghauwgIARK2CCKzCArcBwrHBlrEBggCEp0GWpoGCAISgQFafwgCEmBaXggCEiwSKggBEgIIAxICCAESDhoMCAcyCAoGCKPTn44CEgIIARIKGggIBzIECgIIBhIsEioIARICCAMSAggBEg0aCwgHMgcKBQie2L9GEgIIARILGgkIBzIFCgMI6gcSGRIXCAESAggHEgYIiJfhpwESAggBEgMIigISkQVajgUIAxLOBFrLBAgDEosEWogECAMSyANaxQMIAxKFA1qCAwgDEsICWr8CCAMS/wFa/AEIAxK8AVq5AQgDEnpaeAgDEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAESGRIXCAESAggHEgYIiJfhpwESAggBEgMIpgISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIAhIZEhcIARICCAcSBgiIl+GnARICCAESAwipAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggDEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCKoCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAQSGRIXCAESAggHEgYIiJfhpwESAggBEgMIswISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIBRIZEhcIARICCAcSBgiIl+GnARICCAESAwi9AhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggGEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCL8CEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAcSGRIXCAESAggHEgYIiJfhpwESAggBEgMIxAISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIICBIZEhcIARICCAcSBgiIl+GnARICCAESAwjFAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggJEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCMYCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAoSGRIXCAESAggHEgYIiJfhpwESAggBEgMI4QISIFIeCAESGkoYCAESCAgHMgQKAggAGgpSCAgCEgQSAggZEo8BIowBCokBCmBaXggCEiwSKggBEgIIAxICCAESDhoMCAcyCAoGCKPTn44CEgIIARIKGggIBzIECgIIBhIsEioIARICCAMSAggBEg0aCwgHMgcKBQie2L9GEgIIARILGgkIBzIFCgMI6gcSJRojCiEIBhIdGhsKGQjqBxIUGhIKEAgBEgwaCgoICAESBBICCBkSUhpQCk4IAxJKGkgKCAgCEgQSAggYCggIAxIEEgIICAoyCAESLiIsCioKHlIcCAESGEoWCAESCAgGMgQKAgoAGggIBjIECgIKABIICAYyBAoCCgAKrgcIAxKpBxqmBwqjBwj5o9xJEpsHGpgHCpUHCAYSkAcijQcKigcK+QZa9gYIAxIoUiYIARIiSiAIARIICAcyBAoCCAAaElIQCAISDBIKCAYSAggCEgIIMxLHBlrEBggCEp0GWpoGCAISgQFafwgCEmBaXggCEiwSKggBEgIIAxICCAESDhoMCAcyCAoGCKPTn44CEgIIARIKGggIBzIECgIIBhIsEioIARICCAMSAggBEg0aCwgHMgcKBQie2L9GEgIIARILGgkIBzIFCgMI6gcSGRIXCAESAggHEgYIiJfhpwESAggBEgMIigISkQVajgUIAxLOBFrLBAgDEosEWogECAMSyANaxQMIAxKFA1qCAwgDEsICWr8CCAMS/wFa/AEIAxK8AVq5AQgDEnpaeAgDEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAESGRIXCAESAggHEgYIiJfhpwESAggBEgMIpgISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIAhIZEhcIARICCAcSBgiIl+GnARICCAESAwipAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggDEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCKoCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAQSGRIXCAESAggHEgYIiJfhpwESAggBEgMIswISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIBRIZEhcIARICCAcSBgiIl+GnARICCAESAwi9AhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggGEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCL8CEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAcSGRIXCAESAggHEgYIiJfhpwESAggBEgMIxAISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIICBIZEhcIARICCAcSBgiIl+GnARICCAESAwjFAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggJEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCMYCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAoSGRIXCAESAggHEgYIiJfhpwESAggBEgMI4QISIFIeCAESGkoYCAESCAgHMgQKAggAGgpSCAgCEgQSAggZEgwaCgoICAESBBICCAgKggQIAhL9Axr6AwpcCISLvVASVRpTChgIAhIUGhIKEAgBEgxSCggFEgYIBxICCAMKGAgDEhQaEgoQCAESDFIKCAUSBggHEgIIAwoPCA4SCwgZMgcKBQ0AAAAACgwIEBIICDIyBAoCCAIKyQEIuZe9UBLBARq+AQq7AQgBErYBIrMBCrABCggICjIECgIIARKjARqgAQqdAQjgqp9REpUBGpIBCo8BCAESigFahwEIARJ1InMKcQouEiwIARICCAMSAggBEg0aCwgHMgcKBQj/nNx7EgIIARINGgsIBzIHCgUIm42lcxI/Gj0KOwibjaVzEjQaMgoMCAESCAhMMgQKAggBChAIAxIMEgoIBhICCAISAggGChAIAhIMEgoIBhICCAISAggIEgwSCggGEgIIAhICCAQKPgiVl71QEjcaNQozCAYSLxotCisI3KCKWhIkGiIKCAgCEgQSAggDCgwIAxIICAoyBAoCCAAKCAgBEgQSAggKCnEI65i9UBJqGmgKPAgFEjgiNgoaCggICjIECgIIARIOWgwIARIICFEyBAoCCAISGFoWCAESCAhRMgQKAggCEggIUTIECgIIBwoICAESBBICCBYKEAgEEgwSCggGEgIIAhICCBEKDAgGEggICjIECgIIAQobCJaR6VASFBoSChAIARIMEgoIBhICCAISAggIEtIHGs8HChEIARINGgsKCQinlNxLEgIaAApfCAISWxpZClcIhIu9UBJQGk4KDAgKEggIMDIECgIIAwoMCAwSCAgyMgQKAggECgwICxIICDEyBAoCCAMKEAgDEgwaCgoICAESBBICCBIKEAgCEgwaCgoICAESBBICCBIK2AYIAxLTBlrQBggBEtcDItQDCtEDCgQSAggHEsgDGsUDChEIARINGgsKCQinlNxLEgIaAAqvAwgCEqoDGqcDCjsIhIu9UBI0GjIKDAgREggIVDIECgIIAgoQCAMSDBoKCggIARIEEgIIDgoQCAISDBoKCggIARIEEgIIDgrnAgiVl71QEt8CGtwCCggIBRIEEgIIDwrPAggBEsoCIscCCrABChpKGAgBEgoIVRIGCAQSAggGGggIVTIECgIIAhKRASKOAQpECihSJggBEiJKIAgBEggIBzIECgIIABoSUhAIAhIMEgoIBBICCAcSAghsEhgSFggEEgIIBxICCGwSChoICAcyBAoCCC8SRiJECjQKJFIiCAESHkocCAESCAgHMgQKAggAGg5SDAgCEggSBggEEgIIBxIMEgoIBBICCAcSAggvEgwSCggEEgIIARICCDcSkQEijgEKRAooUiYIARIiSiAIARIICAcyBAoCCAAaElIQCAISDBIKCAQSAggHEgIIbBIYEhYIBBICCAcSAghsEgoaCAgHMgQKAggqEkYiRAo0CiRSIggBEh5KHAgBEggIBzIECgIIABoOUgwIAhIIEgYIBBICCAcSDBIKCAQSAggHEgIIKhIMEgoIBBICCAESAghJEvECGu4CCrABCAESqwEaqAEKpQEIoLrkpQESnAEamQEKEAgDEgwSCggBEgIIBBICCAcKKwgEEicaJQojCNaV6VASHBoaChgImtiVnAESEBoOCgwIARIICFkyBAoCCAEKKwgFEicaJQojCNaV6VASHBoaChgImtiVnAESEBoOCgwIARIICFkyBAoCCAIKKwgGEicaJQojCNaV6VASHBoaChgImtiVnAESEBoOCgwIARIICFkyBAoCCAcKuAEIAhKzARqwAQotCISLvVASJhokChAIAxIMGgoKCAgBEgQSAggMChAIAhIMGgoKCAgBEgQSAggMCj4IlZe9UBI3GjUKMwgGEi8aLQorCNygiloSJBoiCgwIAxIICAoyBAoCCAAKCAgCEgQSAggNCggIARIEEgIICgo/COuYvVASOBo2ChIIBRIOWgwIARIICFEyBAoCCAIKDAgGEggICjIECgIIAQoICAESBBICCBMKCAgEEgQSAggUEt8VItwVCtkVCgpSCAgBEgQSAggVEsoVGscVChEIARINGgsKCQinlNxLEgIaAAotCAISKRonCiUIhIu9UBIeGhwKDAgKEggIMDIECgIIAwoMCAwSCAgyMgQKAggECoIVCAMS/RRa+hQIARL1FBryFArqEAgBEuUQGuIQCt8QCLmU3EsS1xAa1BAK0RAIARLMEBrJEAoMCAISCAg6MgQKAggCCocJCAESggki/wgKPAooUiYIARIiSiAIARIICAcyBAoCCAAaElIQCAISDBIKCAYSAggDEgIIMxIQEg4IBhICCAMSAggzEgIIARK+CFq7CAgBErYIIrMICtwHCscGWsQGCAISnQZamgYIAhKBAVp/CAISYFpeCAISLBIqCAESAggDEgIIARIOGgwIBzIICgYIo9OfjgISAggBEgoaCAgHMgQKAggGEiwSKggBEgIIAxICCAESDRoLCAcyBwoFCJ7Yv0YSAggBEgsaCQgHMgUKAwjqBxIZEhcIARICCAcSBgiIl+GnARICCAESAwiKAhKRBVqOBQgDEs4EWssECAMSiwRaiAQIAxLIA1rFAwgDEoUDWoIDCAMSwgJavwIIAxL/AVr8AQgDErwBWrkBCAMSelp4CAMSOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIARIZEhcIARICCAcSBgiIl+GnARICCAESAwimAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggCEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCKkCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAMSGRIXCAESAggHEgYIiJfhpwESAggBEgMIqgISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIBBIZEhcIARICCAcSBgiIl+GnARICCAESAwizAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggFEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCL0CEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAYSGRIXCAESAggHEgYIiJfhpwESAggBEgMIvwISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIBxIZEhcIARICCAcSBgiIl+GnARICCAESAwjEAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggIEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCMUCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAkSGRIXCAESAggHEgYIiJfhpwESAggBEgMIxgISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIChIZEhcIARICCAcSBgiIl+GnARICCAESAwjhAhIgUh4IARIaShgIARIICAcyBAoCCAAaClIICAISBBICCBsSjwEijAEKiQEKYFpeCAISLBIqCAESAggDEgIIARIOGgwIBzIICgYIo9OfjgISAggBEgoaCAgHMgQKAggGEiwSKggBEgIIAxICCAESDRoLCAcyBwoFCJ7Yv0YSAggBEgsaCQgHMgUKAwjqBxIlGiMKIQgGEh0aGwoZCOoHEhQaEgoQCAESDBoKCggIARIEEgIIGxJSGlAKTggDEkoaSAoICAISBBICCBoKCAgDEgQSAggICjIIARIuIiwKKgoeUhwIARIYShYIARIICAYyBAoCCgAaCAgGMgQKAgoAEggIBjIECgIKAAquBwgDEqkHGqYHCqMHCPmj3EkSmwcamAcKlQcIBhKQByKNBwqKBwr5Blr2BggDEihSJggBEiJKIAgBEggIBzIECgIIABoSUhAIAhIMEgoIBhICCAMSAggzEscGWsQGCAISnQZamgYIAhKBAVp/CAISYFpeCAISLBIqCAESAggDEgIIARIOGgwIBzIICgYIo9OfjgISAggBEgoaCAgHMgQKAggGEiwSKggBEgIIAxICCAESDRoLCAcyBwoFCJ7Yv0YSAggBEgsaCQgHMgUKAwjqBxIZEhcIARICCAcSBgiIl+GnARICCAESAwiKAhKRBVqOBQgDEs4EWssECAMSiwRaiAQIAxLIA1rFAwgDEoUDWoIDCAMSwgJavwIIAxL/AVr8AQgDErwBWrkBCAMSelp4CAMSOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIARIZEhcIARICCAcSBgiIl+GnARICCAESAwimAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggCEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCKkCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAMSGRIXCAESAggHEgYIiJfhpwESAggBEgMIqgISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIBBIZEhcIARICCAcSBgiIl+GnARICCAESAwizAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggFEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCL0CEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAYSGRIXCAESAggHEgYIiJfhpwESAggBEgMIvwISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIBxIZEhcIARICCAcSBgiIl+GnARICCAESAwjEAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggIEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCMUCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAkSGRIXCAESAggHEgYIiJfhpwESAggBEgMIxgISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIChIZEhcIARICCAcSBgiIl+GnARICCAESAwjhAhIgUh4IARIaShgIARIICAcyBAoCCAAaClIICAISBBICCBsSDBoKCggIARIEEgIICAqCBAgCEv0DGvoDClwIhIu9UBJVGlMKGAgCEhQaEgoQCAESDFIKCAUSBggHEgIIAwoYCAMSFBoSChAIARIMUgoIBRIGCAcSAggDCg8IDhILCBkyBwoFDQAAAAAKDAgQEggIMjIECgIIAgrJAQi5l71QEsEBGr4BCrsBCAEStgEiswEKsAEKCAgKMgQKAggBEqMBGqABCp0BCOCqn1ESlQEakgEKjwEIARKKAVqHAQgBEnUicwpxCi4SLAgBEgIIAxICCAESDRoLCAcyBwoFCP+c3HsSAggBEg0aCwgHMgcKBQibjaVzEj8aPQo7CJuNpXMSNBoyCgwIARIICEwyBAoCCAEKEAgDEgwSCggGEgIIAxICCAYKEAgCEgwSCggGEgIIAxICCAgSDBIKCAYSAggDEgIIBAo+CJWXvVASNxo1CjMIBhIvGi0KKwjcoIpaEiQaIgoICAISBBICCAMKDAgDEggICjIECgIIAAoICAESBBICCAoKcQjrmL1QEmoaaAo8CAUSOCI2ChoKCAgKMgQKAggBEg5aDAgBEggIUTIECgIIAhIYWhYIARIICFEyBAoCCAISCAhRMgQKAggHCggIARIEEgIIFwoQCAQSDBIKCAYSAggDEgIIEQoMCAYSCAgKMgQKAggBChsIlpHpUBIUGhIKEAgBEgwSCggGEgIIAxICCAgSuhYitxYKtBYKClIICAESBBICCBUSpRYaohYKEQgBEg0aCwoJCKeU3EsSAhoACi0IAhIpGicKJQiEi71QEh4aHAoMCAoSCAgwMgQKAggDCgwIDBIICDIyBAoCCAQK3RUIAxLYFVrVFQgBEtAVGs0VCrURCAESsBEarREKqhEIuZTcSxKiERqfEQqcEQgBEpcRGpQRCgwIAhIICDoyBAoCCAIKswkIARKuCSKrCQo8CihSJggBEiJKIAgBEggIBzIECgIIABoSUhAIAhIMEgoIBhICCAQSAggzEhASDggGEgIIBBICCDMSAggBEuoIWucICAES4ggi3wgK5gcKzAZayQYIAhKdBlqaBggCEoEBWn8IAhJgWl4IAhIsEioIARICCAMSAggBEg4aDAgHMggKBgij05+OAhICCAESChoICAcyBAoCCAYSLBIqCAESAggDEgIIARINGgsIBzIHCgUInti/RhICCAESCxoJCAcyBQoDCOoHEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCIoCEpEFWo4FCAMSzgRaywQIAxKLBFqIBAgDEsgDWsUDCAMShQNaggMIAxLCAlq/AggDEv8BWvwBCAMSvAFauQEIAxJ6WngIAxI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggBEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCKYCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAISGRIXCAESAggHEgYIiJfhpwESAggBEgMIqQISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIAxIZEhcIARICCAcSBgiIl+GnARICCAESAwiqAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggEEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCLMCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAUSGRIXCAESAggHEgYIiJfhpwESAggBEgMIvQISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIBhIZEhcIARICCAcSBgiIl+GnARICCAESAwi/AhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggHEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCMQCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAgSGRIXCAESAggHEgYIiJfhpwESAggBEgMIxQISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIICRIZEhcIARICCAcSBgiIl+GnARICCAESAwjGAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggKEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCOECEiVSIwgBEh9KHQgBEggIBzIECgIIABoPUg0IAhIJCCgyBQoDCPMCEpQBIpEBCo4BCmBaXggCEiwSKggBEgIIAxICCAESDhoMCAcyCAoGCKPTn44CEgIIARIKGggIBzIECgIIBhIsEioIARICCAMSAggBEg0aCwgHMgcKBQie2L9GEgIIARILGgkIBzIFCgMI6gcSKhooCiYIBhIiGiAKHgjqBxIZGhcKFQgBEhEaDwoNCAESCQgoMgUKAwjzAhJ0GnIKcAgDEmwaagoQCAISDBIKCAYSAggEEgIIAgoiCAMSHiIcChQKDBIKCAESAggEEgIIChIEEgIICBIEEgIICwoyCAESLiIsCioKHlIcCAESGEoWCAESCAgGMgQKAgoAGggIBjIECgIKABIICAYyBAoCCgAKzQcIAxLIBxrFBwrCBwj5o9xJEroHGrcHCrQHCAYSrwcirAcKqQcK/gZa+wYIAxIoUiYIARIiSiAIARIICAcyBAoCCAAaElIQCAISDBIKCAYSAggEEgIIMxLMBlrJBggCEp0GWpoGCAISgQFafwgCEmBaXggCEiwSKggBEgIIAxICCAESDhoMCAcyCAoGCKPTn44CEgIIARIKGggIBzIECgIIBhIsEioIARICCAMSAggBEg0aCwgHMgcKBQie2L9GEgIIARILGgkIBzIFCgMI6gcSGRIXCAESAggHEgYIiJfhpwESAggBEgMIigISkQVajgUIAxLOBFrLBAgDEosEWogECAMSyANaxQMIAxKFA1qCAwgDEsICWr8CCAMS/wFa/AEIAxK8AVq5AQgDEnpaeAgDEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAESGRIXCAESAggHEgYIiJfhpwESAggBEgMIpgISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIAhIZEhcIARICCAcSBgiIl+GnARICCAESAwipAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggDEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCKoCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAQSGRIXCAESAggHEgYIiJfhpwESAggBEgMIswISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIBRIZEhcIARICCAcSBgiIl+GnARICCAESAwi9AhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggGEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCL8CEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAcSGRIXCAESAggHEgYIiJfhpwESAggBEgMIxAISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIICBIZEhcIARICCAcSBgiIl+GnARICCAESAwjFAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggJEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCMYCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAoSGRIXCAESAggHEgYIiJfhpwESAggBEgMI4QISJVIjCAESH0odCAESCAgHMgQKAggAGg9SDQgCEgkIKDIFCgMI8wISJhokCiIIARIeIhwKFAoMEgoIARICCAQSAggKEgQSAggIEgQSAggLCpIECAISjQQaigQKXAiEi71QElUaUwoYCAISFBoSChAIARIMUgoIBRIGCAcSAggDChgIAxIUGhIKEAgBEgxSCggFEgYIBxICCAMKDwgOEgsIGTIHCgUNAAAAAAoMCBASCAgyMgQKAggCCs0BCLmXvVASxQEawgEKvwEIARK6ASK3AQq0AQoMEgoIARICCAQSAggKEqMBGqABCp0BCOCqn1ESlQEakgEKjwEIARKKAVqHAQgBEnUicwpxCi4SLAgBEgIIAxICCAESDRoLCAcyBwoFCP+c3HsSAggBEg0aCwgHMgcKBQibjaVzEj8aPQo7CJuNpXMSNBoyCgwIARIICEwyBAoCCAEKEAgDEgwSCggGEgIIBBICCAYKEAgCEgwSCggGEgIIBBICCAgSDBIKCAYSAggEEgIIBAo+CJWXvVASNxo1CjMIBhIvGi0KKwjcoIpaEiQaIgoICAISBBICCAMKDAgDEggICjIECgIIAAoICAESBBICCAoKfQjrmL1QEnYadApACAUSPCI6Ch4KDBIKCAESAggEEgIIChIOWgwIARIICFEyBAoCCAISGFoWCAESCAhRMgQKAggCEggIUTIECgIIBwoQCAESDBIKCAYSAggEEgIIBQoQCAQSDBIKCAYSAggEEgIIEQoMCAYSCAgKMgQKAggBChsIlpHpUBIUGhIKEAgBEgwSCggGEgIIBBICCAgSEAgDEAcYBCIICAcyBAoCCCQSVAgEGAQiTiJMCkAKLFIqCAESJkokCAESCAgHMgQKAggAGhZSFAgCEhASDggBEgIIBxIGCMul76cBEhASDggBEgIIBxIGCMul76cBEggSBggBEgIIAhIsCAUQChgEIiRSIggBEh5KHAgBEggIBzIECgIIABoOUgwIAhIIEgYIBBICCAkSnAIIBhgEIpUCIpICCoUCCiRSIggBEh5KHAgBEggIBzIECgIIABoOUgwIAhIIEgYIARICCAUS3AEa2QEKIwgBEh9SHQgEEhkSFwgBEgIIBRIDCJkSEgIIARIGCP/C7NsBCiMIAhIfUh0IBBIZEhcIARICCAUSAwiZEhICCAISBgj/wuzbAQojCAMSH1IdCAQSGRIXCAESAggFEgMImRISAggDEgYI/8Ls2wEKIwgEEh9SHQgEEhkSFwgBEgIIBRIDCJkSEgIIBBIGCP/C7NsBChUIBRIREg8IARICCAUSAwiZEhICCAUKFQgGEhESDwgBEgIIBRIDCJkSEgIIBgoVCAcSERIPCAESAggFEgMImRISAggHEggSBggBEgIIARIsCAcQChgEIiRSIggBEh5KHAgBEggIBzIECgIIABoOUgwIAhIIEgYIARICCAUSmAEICBgEIpEBIo4BCkQKKFImCAESIkogCAESCAgHMgQKAggAGhJSEAgCEgwSCggEEgIIBxICCGwSGBIWCAQSAggHEgIIbBIKGggIBzIECgIIRhJGIkQKNAokUiIIARIeShwIARIICAcyBAoCCAAaDlIMCAISCBIGCAQSAggHEgwSCggEEgIIBxICCEYSDBIKCAQSAggBEgIITxIrCAkQChgEIiNKIQgBEhMIGBIPCAESAggHEgMI7wcSAggBGggIGDIECgIIHRKnAQgKGAQioAEinQEKmgEKBBICCAkSkQEijgEKRAooUiYIARIiSiAIARIICAcyBAoCCAAaElIQCAISDBIKCAQSAggHEgIIbBIYEhYIBBICCAcSAghsEgoaCAgHMgQKAggBEkYiRAo0CiRSIggBEh5KHAgBEggIBzIECgIIABoOUgwIAhIIEgYIBBICCAcSDBIKCAQSAggHEgIIARIMEgoIBBICCAESAghWEhIICxgEIgwSCggEEgIIARICCA4SkgEIDBAZGAQiiQEihgEKEwoEEgIIBxILCBkyBwoFDQAAMEISbyJtCl4KBBICCAUSViJUCkQKKFImCAESIkogCAESCAgHMgQKAggAGhJSEAgCEgwSCggEEgIICRICCCYSGBIWCAQSAggJEgIIJhIKGggIBzIECgIIAhIMEgoIBBICCAkSAggCEgsIGTIHCgUNAABgQhImCA0QBxgEIh4iHAoQCgQSAggHEggIBzIECgIIJBIICAcyBAoCCCwSEwgOEBkYBCILCBkyBwoFDQAAkEISEwgPEBkYBCILCBkyBwoFDQAAEEISEwgQEBkYBCILCBkyBwoFDQAAtEISHwgREAoYBCIXEhUIARICCAcSAwj+BxICCB8SBAjp0x0SJAgSEBkYBCIcIhoKGAoQWg4IAhIEEgIIERIEEgIIBxIEEgIIDhLHAQgTEAYYBCK+ASK7AQoqCh5KHAgBEg4IHxIKCAESAggEEgIIBxoICB8yBAoCCAISCBIGCAYSAggGCioKHkocCAESDggfEgoIARICCAQSAggHGggIHzIECgIIAxIIEgYIBhICCAUKKgoeShwIARIOCB8SCggBEgIIBBICCAcaCAgfMgQKAggHEggSBggGEgIIBQoqCh5KHAgBEg4IHxIKCAESAggEEgIIBxoICB8yBAoCCAYSCBIGCAYSAggHEgkIBjIFCgMKASASMggUEAYYBCIqCAYyJgokCiJpZC5wbGF5ZXJfY29udHJvbHMucGxheWJhY2suYnV0dG9uEhQIFRAKGAQiDBIKCAESAggEEgIIHhJSCBYQBhgEIkoiSAo4CihSJggBEiJKIAgBEggIBzIECgIIABoSUhAIAhIMEgoIARICCAQSAggREgwSCggBEgIIBBICCBESDBIKCAYSAggCEgIIBRJSCBcQBhgEIkoiSAo4CihSJggBEiJKIAgBEggIBzIECgIIABoSUhAIAhIMEgoIARICCAQSAggSEgwSCggBEgIIBBICCBISDBIKCAYSAggDEgIIBRL0AggYEAYYBCLrAiLoAgrWAgooUiYIARIiSiAIARIICAcyBAoCCAAaElIQCAISDBIKCAESAggEEgIIDxKpAiKmAgovCh5KHAgBEg4IIBIKCAESAggEEgIIDxoICCAyBAoCCAESDRILCAQSAggDEgMI2AMKLwoeShwIARIOCCASCggBEgIIBBICCA8aCAggMgQKAggCEg0SCwgEEgIIAxIDCJcBCi8KHkocCAESDgggEgoIARICCAQSAggPGggIIDIECgIIAxINEgsIBBICCAMSAwjZAwovCh5KHAgBEg4IIBIKCAESAggEEgIIDxoICCAyBAoCCAQSDRILCAQSAggDEgMI2gMKLwoeShwIARIOCCASCggBEgIIBBICCA8aCAggMgQKAggFEg0SCwgEEgIIAxIDCNsDCi8KHkocCAESDgggEgoIARICCAQSAggPGggIIDIECgIIBhINEgsIBBICCAMSAwjcAxINEgsIBBICCAMSAwiXARLHBQgZECgYBCK+BSK7BQr8BAooUiYIARIiSiAIARIICAcyBAoCCAAaElIQCAISDBIKCAESAggEEgIIDxLPBCLMBApgCh5KHAgBEg4IIBIKCAESAggEEgIIDxoICCAyBAoCCAESPiI8CjoKLRIrCAESAggDEgIIARIOGgwIBzIICgYIi5fg4wISAggBEgsaCQgHMgUKAwipAxIJCCgyBQoDCKkDCmAKHkocCAESDgggEgoIARICCAQSAggPGggIIDIECgIIAhI+IjwKOgotEisIARICCAMSAggBEg4aDAgHMggKBgiLl+DjAhICCAESCxoJCAcyBQoDCKEDEgkIKDIFCgMIoQMKYAoeShwIARIOCCASCggBEgIIBBICCA8aCAggMgQKAggDEj4iPAo6Ci0SKwgBEgIIAxICCAESDhoMCAcyCAoGCIuX4OMCEgIIARILGgkIBzIFCgMIowMSCQgoMgUKAwijAwpgCh5KHAgBEg4IIBIKCAESAggEEgIIDxoICCAyBAoCCAQSPiI8CjoKLRIrCAESAggDEgIIARIOGgwIBzIICgYIi5fg4wISAggBEgsaCQgHMgUKAwilAxIJCCgyBQoDCKUDCmAKHkocCAESDgggEgoIARICCAQSAggPGggIIDIECgIIBRI+IjwKOgotEisIARICCAMSAggBEg4aDAgHMggKBgiLl+DjAhICCAESCxoJCAcyBQoDCKcDEgkIKDIFCgMIpwMKYAoeShwIARIOCCASCggBEgIIBBICCA8aCAggMgQKAggGEj4iPAo6Ci0SKwgBEgIIAxICCAESDhoMCAcyCAoGCIuX4OMCEgIIARILGgkIBzIFCgMIqwMSCQgoMgUKAwirAwo6Ci0SKwgBEgIIAxICCAESDhoMCAcyCAoGCIuX4OMCEgIIARILGgkIBzIFCgMIoQMSCQgoMgUKAwihAxL0AggaEAYYBCLrAiLoAgrWAgooUiYIARIiSiAIARIICAcyBAoCCAAaElIQCAISDBIKCAESAggEEgIIDxKpAiKmAgovCh5KHAgBEg4IIBIKCAESAggEEgIIDxoICCAyBAoCCAESDRILCAQSAggDEgMI3QMKLwoeShwIARIOCCASCggBEgIIBBICCA8aCAggMgQKAggCEg0SCwgEEgIIAxIDCJgBCi8KHkocCAESDgggEgoIARICCAQSAggPGggIIDIECgIIAxINEgsIBBICCAMSAwjeAwovCh5KHAgBEg4IIBIKCAESAggEEgIIDxoICCAyBAoCCAQSDRILCAQSAggDEgMI3wMKLwoeShwIARIOCCASCggBEgIIBBICCA8aCAggMgQKAggFEg0SCwgEEgIIAxIDCOADCi8KHkocCAESDgggEgoIARICCAQSAggPGggIIDIECgIIBhINEgsIBBICCAMSAwjhAxINEgsIBBICCAMSAwiYARLHBQgbECgYBCK+BSK7BQr8BAooUiYIARIiSiAIARIICAcyBAoCCAAaElIQCAISDBIKCAESAggEEgIIDxLPBCLMBApgCh5KHAgBEg4IIBIKCAESAggEEgIIDxoICCAyBAoCCAESPiI8CjoKLRIrCAESAggDEgIIARIOGgwIBzIICgYIi5fg4wISAggBEgsaCQgHMgUKAwiqAxIJCCgyBQoDCKoDCmAKHkocCAESDgggEgoIARICCAQSAggPGggIIDIECgIIAhI+IjwKOgotEisIARICCAMSAggBEg4aDAgHMggKBgiLl+DjAhICCAESCxoJCAcyBQoDCKIDEgkIKDIFCgMIogMKYAoeShwIARIOCCASCggBEgIIBBICCA8aCAggMgQKAggDEj4iPAo6Ci0SKwgBEgIIAxICCAESDhoMCAcy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YrECEqMCGqACChEIARINEgsIARICCAMSAwjyBwoRCAISDRILCAESAggDEgMI7wcKDAgDEggSBggBEgIIBgoICAQSBBICCDAKDAgGEggIVTIECgIIQQoMCAcSCBIGCAESAggECsMBCAUSvgEauwEKqgEIBRKlASKiAQpMCixSKggBEiZKJAgBEggIGDIECgIIABoWUhQIAhIQEg4IARICCAQSAggHEgIIbBIcEhoIARICCAQSAggHEgIIbBIKGggIGDIECgIIRhJSIlAKPAooUiYIARIiSiAIARIICBgyBAoCCAAaElIQCAISDBIKCAESAggEEgIIBxIQEg4IARICCAQSAggHEgIIRhIQEg4IARICCAQSAggBEgIITwoMCAESCAglMgQKAggAKJaakduv9ezy3AES3AIq2QIISBIMEgoIAxICCAESAggFGsICYr8CErECGq4CChEIARINEgsIARICCAMSAwjyBwoRCAISDRILCAESAggDEgMI7wcKDAgDEggSBggBEgIIBgoICAQSBBICCDAKDAgGEggIVTIECgIIQQoMCAcSCBIGCAESAggECtEBCAUSzAEayQEKDAgBEggSBghIEgIIAQoMCAISCBIGCEgSAggCCqoBCAUSpQEiogEKTAosUioIARImSiQIARIICBgyBAoCCAAaFlIUCAISEBIOCAESAggEEgIIBxICCGwSHBIaCAESAggEEgIIBxICCGwSChoICBgyBAoCCAYSUiJQCjwKKFImCAESIkogCAESCAgYMgQKAggAGhJSEAgCEgwSCggBEgIIBBICCAcSEBIOCAESAggEEgIIBxICCAYSEBIOCAESAggEEgIIARICCDgolpqR26/17PLcASBJKEoKFAgFEhAaDgoMCAMSCAhpMgQKAggFKMqn+8eRyseEOQoiCAISHiIcChAKBBICCAoSCAglMgQKAggDEggIJTIECgIIAQpJCAISRRpDCkEIhIu9UBI6GjgKKAgIEiQaIgogCAESHBoaChgIARIUEhIIARICCAQSAggEEgIIARICCAMKDAgQEggISTIECgIIAhK8Axq5AwrrAggBEuYCGuMCCuACCNyU3EsS2AIa1QIKxAIIARK/AmK8AhKuAhqrAgoRCAESDRILCAESAggDEgMI8gcKEQgCEg0SCwgBEgIIAxIDCO8HCgwIAxIIEgYIARICCAYKDAgEEggSBggDEgIIAgqqAQgFEqUBIqIBCkwKLFIqCAESJkokCAESCAgYMgQKAggAGhZSFAgCEhASDggBEgIIBBICCAcSAghsEhwSGggBEgIIBBICCAcSAghsEgoaCAgYMgQKAghIElIiUAo8CihSJggBEiJKIAgBEggIGDIECgIIABoSUhAIAhIMEgoIARICCAQSAggHEhASDggBEgIIBBICCAcSAghIEhASDggBEgIIBBICCAESAghOCggIBxIEEgIIMQoMCAgSCAhVMgQKAggZCgwICRIIEgYIARICCAQKFAgGEhAaDgoMCAMSCAhpMgQKAggFKNiMkrnOnfLviQEKDAgCEggIJTIECgIIAQpJCAISRRpDCkEIhIu9UBI6GjgKKAgIEiQaIgogCAESHBoaChgIARIUEhIIARICCAQSAggEEgIIARICCAEKDAgQEggISTIECgIIAhLQDSLNDQrKDQoQWg4IAxIEEgIIGxIEEgIIHBK1DRqyDQoRCAESDRoLCgkIp5TcSxICGgAKcAgCEmwaagpoCISLvVASYRpfCgwIChIICEYyBAoCCAEKDAgQEggISTIECgIIBApBCAgSPRo7CjkIARI1GjMKMQgBEi0iKwoTCgQSAggaEgsIHzIHCgUNAAAAABIUEhIIARICCAQSAggEEgIIARICCAMKqgwIAxKlDFqiDAgBEo0GIooGCocGCgQSAggbEv4FGvsFCssFCAESxgUawwUKwAUIua29UBK4BRq1BQo8CAMSOBo2CjQIspmEUhItGisKKQgBEiUIBjIhCh8KHWJhZGdlLmVtbC1mZXw1MjkxY2ZlYWJjZTM4YjJmCi0IBRIpGicKJQjH9N1cEh4aHAoMCAcSCBIGCAMSAggPCgwIBBIIEgYIARICCAMKxQQIBhLABBq9BAqrAgj3wvBZEqMCGqACCg8IAhILCBgyBwoFCMf03VwKjAIIARKHAjqEAgqIASKFAQqCAQooSiYIBhIYCBhSFAgDEhASDggBEgIIAxIGCMe0vuABGggIGDIECgIIABJWGlQKFAgBEhASDggBEgIIAxIGCMe0vuABCh4IAxIaOhgKCAgYMgQKAggECgwIGDIICgYIy6XvpwEKDQgEEgkIgQEyBAoCCAEKDQgGEgkIggEyBAoCCAEKdyJ1CnMKKEomCAYSGAgYUhQIAxIQEg4IARICCAMSBgjC4q72ARoICBgyBAoCCAASRxpFChQIARIQEg4IARICCAMSBgjC4q72AQoMCAISCAgYMgQKAggFChAIAxIMOgoKCAgYMgQKAggFCg0IBhIJCIIBMgQKAggCCo8BCJX+m7gBEoYBGoMBCg8IAhILCBgyBwoFCMf03VwKcAgBEmw6agpoImYKZAooSiYIBhIYCBhSFAgDEhASDggBEgIIAxIGCMe0vuABGggIGDIECgIIABI4GjYKFAgBEhASDggBEgIIAxIGCMe0vuABCh4IAhIaOhgKCAgYMgQKAggECgwIGDIICgYIy6XvpwEKewiW/pu4ARJzGnEKDwgCEgsIGDIHCgUIx/TdXApeCAESWiJYClYKKEomCAYSGAgYUhQIAxIQEg4IARICCAMSBgjC4q72ARoICBgyBAoCCAASKhooChQIARIQEg4IARICCAMSBgjC4q72AQoQCAISDDoKCggIGDIECgIIBQorCAISJxolCiMIhIu9UBIcGhoKGAgJEhQaEgoQCAcSDBoKCggIARIEEgIIHRKNBiKKBgqHBgoEEgIIHBL+BRr7BQrLBQgBEsYFGsMFCsAFCLmtvVASuAUatQUKPAgDEjgaNgo0CLKZhFISLRorCikIARIlCAYyIQofCh1iYWRnZS5lbWwtZmV8NTI5MWNmZWFiY2UzOGIyZgotCAUSKRonCiUIx/TdXBIeGhwKDAgHEggSBggDEgIIEAoMCAQSCBIGCAESAggDCsUECAYSwAQavQQKqwII98LwWRKjAhqgAgoPCAISCwgYMgcKBQjH9N1cCowCCAEShwI6hAIKiAEihQEKggEKKEomCAYSGAgYUhQIAxIQEg4IARICCAMSBgjHtL7gARoICBgyBAoCCAASVhpUChQIARIQEg4IARICCAMSBgjHtL7gAQoeCAMSGjoYCggIGDIECgIIBAoMCBgyCAoGCMul76cBCg0IBBIJCIEBMgQKAggBCg0IBhIJCIIBMgQKAggBCncidQpzCihKJggGEhgIGFIUCAMSEBIOCAESAggDEgYIwuKu9gEaCAgYMgQKAggAEkcaRQoUCAESEBIOCAESAggDEgYIwuKu9gEKDAgCEggIGDIECgIIBQoQCAMSDDoKCggIGDIECgIIBQoNCAYSCQiCATIECgIIAgqPAQiV/pu4ARKGARqDAQoPCAISCwgYMgcKBQjH9N1cCnAIARJsOmoKaCJmCmQKKEomCAYSGAgYUhQIAxIQEg4IARICCAMSBgjHtL7gARoICBgyBAoCCAASOBo2ChQIARIQEg4IARICCAMSBgjHtL7gAQoeCAISGjoYCggIGDIECgIIBAoMCBgyCAoGCMul76cBCnsIlv6buAEScxpxCg8IAhILCBgyBwoFCMf03VwKXggBEloiWApWCihKJggGEhgIGFIUCAMSEBIOCAESAggDEgYIwuKu9gEaCAgYMgQKAggAEioaKAoUCAESEBIOCAESAggDEgYIwuKu9gEKEAgCEgw6CgoICBgyBAoCCAUKKwgCEicaJQojCISLvVASHBoaChgICRIUGhIKEAgHEgwaCgoICAESBBICCB0Sjg4iiw4KiA4KBBICCBAS/w0a/A0KEQgBEg0aCwoJCKeU3EsSAhoACiIIAhIeGhwKGgiEi71QEhMaEQoPCA0SCwgfMgcKBQ0AAIA/CsINCAMSvQ1aug0IARKZAxqWAwoRCAESDRoLCgkIp5TcSxICGgAKygEIAhLFARrCAQqmAQiEi71QEp4BGpsBCgwIChIICEYyBAoCCAMKDAgMEggISTIECgIIBAolCAMSIRofCg8IARILCB8yBwoFDQAAgD8KDAgCEggISjIECgIIAgoQCAISDBoKCggIARIEEgIIEwpECAkSQBo+CjwIARI4GjYKNAgBEjAiLgosCiRSIggBEh5KHAgBEggIGDIECgIIABoOUgwIAhIIEgYIAxICCAgSBBICCBIKFwjrmL1QEhAaDgoMCAYSCAgRMgQKAggACrMBCAMSrgFaqwEIARKmARqjAQpVCAESURpPCk0InKzQ+AESRRpDCkEIARI9IjsKOQosEioIARICCAYSAggBEg4aDAgYMggKBgjijtGxAhICCAESChoICBgyBAoCCAESCQiJATIECgIIAQpKCAISRhpECkIIhIu9UBI7GjkKEAgCEgwaCgoICAESBBICCBEKJQgDEiEaHwoPCAESCwgfMgcKBQ0AAIA/CgwIAhIICEoyBAoCCAISmQoilgoKkwoKJFIiCAESHkocCAESCAgYMgQKAggAGg5SDAgCEggSBggDEgIICBLqCRrnCQrVBwgBEtAHGs0HCsoHCLmtvVASwgcavwcKSQgDEkUaQwpBCLKZhFISOho4CjYIARIy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iAEihQEKggEKKEomCAYSGAgYUhQIAxIQEg4IARICCAMSBgjHtL7gARoICBgyBAoCCAASVhpUChQIARIQEg4IARICCAMSBgjHtL7gAQoeCAMSGjoYCggIGDIECgIIBwoMCBgyCAoGCMul76cBCg0IBBIJCIEBMgQKAggBCg0IBhIJCIIBMgQKAggBCpABCJX+m7gBEocBGoQBChAIAhIMCBgyCAoGCMiPqfUBCnAIARJsOmoKaCJmCmQKKEomCAYSGAgYUhQIAxIQEg4IARICCAMSBgjHtL7gARoICBgyBAoCCAASOBo2ChQIARIQEg4IARICCAMSBgjHtL7gAQoeCAISGjoYCggIGDIECgIIBwoMCBgyCAoGCMul76cBCnwIlv6buAESdBpyChAIAhIMCBgyCAoGCMiPqfUBCl4IARJaIlgKVgooSiYIBhIYCBhSFAgDEhASDggBEgIIAxIGCMLirvYBGggIGDIECgIIABIqGigKFAgBEhASDggBEgIIAxIGCMLirvYBChAIAhIMOgoKCAgYMgQKAggDCjsIAhI3GjUKGgiEi71QEhMaEQoPCA0SCwgfMgcKBQ0AAIA/ChcIlZe9UBIQGg4KDAgHEggIETIECgIIABKlLxqiLwoRCAESDRoLCgkIp5TcSxICGgAKlwEIAhKSARqPAQp0CISLvVASbRprCgwIChIICEYyBAoCCAEKDAgLEggIRzIECgIIBQoMCAwSCAhJMgQKAggCCg0IExIJCJEBMgQKAggBCg8IDRILCB8yBwoFDQAAgD4KHwgJEhsaGQoXCAcSExoRCg8IARILCB8yBwoFDQAAwEEKFwjrmL1QEhAaDgoMCAYSCAgRMgQKAggACvItCAMS7S1a6i0IARKZByKWBwqTBwokUiIIARIeShwIARIICBgyBAoCCAAaDlIMCAISCBIGCAMSAggNEuoGGucGChEIARINGgsKCQinlNxLEgIaAApVCAISURpPCk0IhIu9UBJGGkQKEAgEEgwaCgoICAESBBICCEYKEAgDEgwaCgoICAESBBICCB8KEAgCEgwaCgoICAESBBICCB8KDAgMEggISTIECgIIBAr6BQgDEvUFWvIFCAES7QUa6gUK5wUIARLiBRrfBQrcBQi5rb1QEtQFGtEFCkYIAxJCGkAKPgiymYRSEjcaNQozCAESLwgGMisKKQonZG93bmxvYWRfYnV0dG9uLmVtbC1mZXwxMzUyNjFhZDcwMjU4NDM5CjwIBRI4GjYKNAjEosiCARIsGioKDAgKEggSBggDEgIIDQoMCAMSCBIGCAESAggECgwIBhIIEgYIARICCAMKyAQIBhLDBBrABAqsAgj3wvBZEqQCGqECChAIAhIMCBgyCAoGCMSiyIIBCowCCAEShwI6hAIKiAEihQEKggEKKEomCAYSGAgYUhQIAxIQEg4IARICCAMSBgjHtL7gARoICBgyBAoCCAASVhpUChQIARIQEg4IARICCAMSBgjHtL7gAQoeCAMSGjoYCggIGDIECgIIBgoMCBgyCAoGCMul76cBCg0IBBIJCIEBMgQKAggBCg0IBhIJCIIBMgQKAggBCncidQpzCihKJggGEhgIGFIUCAMSEBIOCAESAggDEgYIwuKu9gEaCAgYMgQKAggAEkcaRQoUCAESEBIOCAESAggDEgYIwuKu9gEKDAgCEggIGDIECgIICQoQCAMSDDoKCggIGDIECgIICQoNCAYSCQiCATIECgIIAgqQAQiV/pu4ARKHARqEAQoQCAISDAgYMggKBgjEosiCAQpwCAESbDpqCmgiZgpkCihKJggGEhgIGFIUCAMSEBIOCAESAggDEgYIx7S+4AEaCAgYMgQKAggAEjgaNgoUCAESEBIOCAESAggDEgYIx7S+4AEKHggCEho6GAoICBgyBAoCCAYKDAgYMggKBgjLpe+nAQp8CJb+m7gBEnQacgoQCAISDAgYMggKBgjEosiCAQpeCAESWiJYClYKKEomCAYSGAgYUhQIAxIQEg4IARICCAMSBgjC4q72ARoICBgyBAoCCAASKhooChQIARIQEg4IARICCAMSBgjC4q72AQoQCAISDDoKCggIGDIECgIICRKvCRqsCQrRBwgBEswHGskHCsYHCLmtvVASvgcauwcKSQgDEkUaQwpBCLKZhFISOho4CjYIARIyCAYyLgosCip2aWRlb19hY3Rpb25fYnV0dG9uLmVtbC1mZXxhOTZlY2NiNjc4NmVhMzMKdggFEnIacApuCLr3oK0BEmYaZAoQCAUSDBoKCggIEBIEEgIIQgo0CAcSMAgGMiwKKgoob25fdGhlX2dvX2NvbnRyb2xzX2VuYWJsZW1lbnRfZW50aXR5X2tleQoMCAESCBIGCAESAggECgwICxIIEgYIARICCAMK9QUIBhLwBRrtBQrZAwj3wvBZEtEDGs4DChAIAhIMCBgyCAoGCLr3oK0BCrkDCAEStAM6sQMKqgEipwEKpAEKSEpGCAYSOAgYUjQIAxIwCAYyLAoqCihvbl90aGVfZ29fY29udHJvbHNfZW5hYmxlbWVudF9lbnRpdHlfa2V5GggIGDIECgIIABJYGlYKNAgBEjAIBjIsCioKKG9uX3RoZV9nb19jb250cm9sc19lbmFibGVtZW50X2VudGl0eV9rZXkKDAgCEggIGDIECgIIBgoQCAMSDDoKCggIGDIECgIIBgp3InUKcwooSiYIBhIYCBhSFAgDEhASDggBEgIIAxIGCMLirvYBGggIGDIECgIIABJHGkUKFAgBEhASDggBEgIIAxIGCMLirvYBCgwIAhIICBgyBAoCCAgKEAgDEgw6CgoICBgyBAoCCAgKDQgGEgkIggEyBAoCCAIKiAEihQEKggEKKEomCAYSGAgYUhQIAxIQEg4IARICCAMSBgjHtL7gARoICBgyBAoCCAASVhpUChQIARIQEg4IARICCAMSBgjHtL7gAQoeCAMSGjoYCggIGDIECgIICwoMCBgyCAoGCMul76cBCg0IBBIJCIEBMgQKAggBCg0IBhIJCIIBMgQKAggBCpABCJX+m7gBEocBGoQBChAIAhIMCBgyCAoGCLr3oK0BCnAIARJsOmoKaCJmCmQKKEomCAYSGAgYUhQIAxIQEg4IARICCAMSBgjHtL7gARoICBgyBAoCCAASOBo2ChQIARIQEg4IARICCAMSBgjHtL7gAQoeCAISGjoYCggIGDIECgIICwoMCBgyCAoGCMul76cBCnwIlv6buAESdBpyChAIAhIMCBgyCAoGCLr3oK0BCl4IARJaIlgKVgooSiYIBhIYCBhSFAgDEhASDggBEgIIAxIGCMLirvYBGggIGDIECgIIABIqGigKFAgBEhASDggBEgIIAxIGCMLirvYBChAIAhIMOgoKCAgYMgQKAggICjUIBBIxCAYyLQorCilhdWRpb190b2dnbGVfb25seV92aWRlb19hY3Rpb25fYnV0dG9uX2tleQqeAQgCEpkBGpYBCkkIhIu9UBJCGkAKCAgOEgQSAghFChAIBBIMGgoKCAgBEgQSAghGChAIAxIMGgoKCAgBEgQSAghHChAI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ZW5hYmxlbWVudF9lbnRpdHlfa2V5CgwIAhIICBgyBAoCCAYKEAgDEgw6CgoICBgyBAoCCAYKdyJ1CnMKKEomCAYSGAgYUhQIAxIQEg4IARICCAMSBgjC4q72ARoICBgyBAoCCAASRxpFChQIARIQEg4IARICCAMSBgjC4q72AQoMCAISCAgYMgQKAggIChAIAxIMOgoKCAgYMgQKAggICg0IBhIJCIIBMgQKAggCCogBIoUBCoIBCihKJggGEhgIGFIUCAMSEBIOCAESAggDEgYIx7S+4AEaCAgYMgQKAggAElYaVAoUCAESEBIOCAESAggDEgYIx7S+4AEKHggDEho6GAoICBgyBAoCCAsKDAgYMggKBgjLpe+nAQoNCAQSCQiBATIECgIIAQoNCAYSCQiCATIECgIIAQqQAQiV/pu4ARKHARqEAQoQCAISDAgYMggKBgi696CtAQpwCAESbDpqCmgiZgpkCihKJggGEhgIGFIUCAMSEBIOCAESAggDEgYIx7S+4AEaCAgYMgQKAggAEjgaNgoUCAESEBIOCAESAggDEgYIx7S+4AEKHggCEho6GAoICBgyBAoCCAsKDAgYMggKBgjLpe+nAQp8CJb+m7gBEnQacgoQCAISDAgYMggKBgi696CtAQpeCAESWiJYClYKKEomCAYSGAgYUhQIAxIQEg4IARICCAMSBgjC4q72ARoICBgyBAoCCAASKhooChQIARIQEg4IARICCAMSBgjC4q72AQoQCAISDDoKCggIGDIECgIICAotCAQSKQgGMiUKIwohdmFyaXNwZWVkX3ZpZGVvX2FjdGlvbl9idXR0b25fa2V5CrIBCAISrQEaqgEKSQiEi71QEkIaQAoICA4SBBICCEUKEAgEEgwaCgoICAESBBICCEYKEAgDEgwaCgoICAESBBICCEcKEAgCEgwaCgoICAESBBICCB4KXQiVl71QElYaVApSCAYSThpMCkoIkKzckgESQhpACjQIARIwUi4IARIqSigIARIICBgyBAoCCAAaGlIYCAISFBISCAMSAggJEgYI/8Ls2wESAggECggIAxIEEgIIIBK7CRq4CQrVBwgBEtAHGs0HCsoHCLmtvVASwgcavwcKSQgDEkUaQwpBCLKZhFISOho4CjYIARIyCAYyLgosCip2aWRlb19hY3Rpb25fYnV0dG9uLmVtbC1mZXxhOTZlY2NiNjc4NmVhMzMKeggFEnYadApyCLr3oK0BEmoaaAoUCAUSEBoOCgwIEBIIEgYIAxICCAcKDAgBEggSBggBEgIIBAo0CAcSMAgGMiwKKgoob25fdGhlX2dvX2NvbnRyb2xzX2VuYWJsZW1lbnRfZW50aXR5X2tleQoMCAsSCBIGCAESAggDCvUFCAYS8AUa7QUK2QMI98LwWRLRAxrOAwoQCAISDAgYMggKBgi696CtAQq5AwgBErQDOrEDCqoBIqcBCqQBCkhKRggGEjgIGFI0CAMSMAgGMiwKKgoob25fdGhlX2dvX2NvbnRyb2xzX2VuYWJsZW1lbnRfZW50aXR5X2tleRoICBgyBAoCCAASWBpWCjQIARIwCAYyLAoqCihvbl90aGVfZ29fY29udHJvbHNfZW5hYmxlbWVudF9lbnRpdHlfa2V5CgwIAhIICBgyBAoCCAYKEAgDEgw6CgoICBgyBAoCCAYKdyJ1CnMKKEomCAYSGAgYUhQIAxIQEg4IARICCAMSBgjC4q72ARoICBgyBAoCCAASRxpFChQIARIQEg4IARICCAMSBgjC4q72AQoMCAISCAgYMgQKAggIChAIAxIMOgoKCAgYMgQKAggICg0IBhIJCIIBMgQKAggCCogBIoUBCoIBCihKJggGEhgIGFIUCAMSEBIOCAESAggDEgYIx7S+4AEaCAgYMgQKAggAElYaVAoUCAESEBIOCAESAggDEgYIx7S+4AEKHggDEho6GAoICBgyBAoCCAsKDAgYMggKBgjLpe+nAQoNCAQSCQiBATIECgIIAQoNCAYSCQiCATIECgIIAQqQAQiV/pu4ARKHARqEAQoQCAISDAgYMggKBgi696CtAQpwCAESbDpqCmgiZgpkCihKJggGEhgIGFIUCAMSEBIOCAESAggDEgYIx7S+4AEaCAgYMgQKAggAEjgaNgoUCAESEBIOCAESAggDEgYIx7S+4AEKHggCEho6GAoICBgyBAoCCAsKDAgYMggKBgjLpe+nAQp8CJb+m7gBEnQacgoQCAISDAgYMggKBgi696CtAQpeCAESWiJYClYKKEomCAYSGAgYUhQIAxIQEg4IARICCAMSBgjC4q72ARoICBgyBAoCCAASKhooChQIARIQEg4IARICCAMSBgjC4q72AQoQCAISDDoKCggIGDIECgIICAopCAQSJQgGMiEKHwodcXVldWVfdmlkZW9fYWN0aW9uX2J1dHRvbl9rZXkKsgEIAhKtARqqAQpJCISLvVASQhpACggIDhIEEgIIRQoQCAQSDBoKCggIARIEEgIIRgoQCAMSDBoKCggIARIEEgIIRwoQCAISDBoKCggIARIEEgIIHgpdCJWXvVASVhpUClIIBhJOGkwKSgiQrNySARJCGkAKNAgBEjBSLggBEipKKAgBEggIGDIECgIIABoaUhgIAhIUEhIIAxICCAcSBgj/wuzbARICCAQKCAgDEgQSAgggEhMIAxgEIg0SCwgBEgIIARIDCJUSEjkIBBAGGAQiMQgGMi0KKwopL3lvdXR1YmUvYXBwL29uX3RoZV9nb19tZW51X3RyaWdnZXJfc3RhdGUSNwgFEAYYBCIvCAYyKwopCicveW91dHViZS9hcHAvb25fdGhlX2dvX2F1ZGlvX29ubHlfc3RhdGUSQAgGEAsYBCI4GjYKNAjWlelQEi0aKwopCLXhn48BEiEaHwodCAISGRoXChUIAxIRCAYyDQoLCglvbi10aGUtZ28SJggHEBEYBCIeShwIARIOCBASCggBEgIIBRICCAUaCAgQMgQKAggAEiYICBARGAQiHkocCAESDggQEgoIARICCAUSAggFGggIEDIECgIIARImCAkQERgEIh5KHAgBEg4IEhIKCAESAggFEgIIBhoICBIyBAoCCAESVAgKEBEYBCJMWkoIAxIiSiAIARISCBQSDggBEgIIBRICCAMSAggBGggIFDIECgIIAxIiSiAIARISCBQSDggBEgIIBRICCAMSAggBGggIFDIECgIIBBJUCAsQERgEIkxaSggDEiJKIAgBEhIIFBIOCAESAggFEgIIAxICCAEaCAgUMgQKAggBEiJKIAgBEhIIFBIOCAESAggFEgIIAxICCAEaCAgUMgQKAggCEhgIDBARGAQiEFoOCAISBBICCAsSBBICCAgSZwgNEBEYBCJfIl0KUQorEikIARICCAYSAggBEg0aCwgYMgcKBQjd5bR7EgIIARIKGggIGDIECgIIChIiSiAIARISCB0SDggBEgIIBRICCAoSAggDGggIHTIECgIIAxIICBEyBAoCCAASGAgOEB8YBCIQEg4IARICCAUSAggEEgIIAhIyCA8QERgEIipKKAgEEhIIHxIOCAESBgj+3cLgARICCAEaEBIOCAESBgj+3cLgARICCAMSNwgQEBEYBCIvEi0IARICCAYSAggBEg0aCwgYMgcKBQjdrbJ1EgIIARIOGgwIGDIICgYInKzQ+AESEwgREB8YBCILCB8yBwoFDQAANEISEwgSEB8YBCILCB8yBwoFDQAAcEESWwgTEB8YBCJTIlEKSQokUiIIARIeShwIARIICBgyBAoCCAAaDlIMCAISCBIGCAMSAggIEiEIH1odCAQSDQgGMgkKBwoFYSBiICsSBBICCBESBBICCBISBBICCBESLAgUEB8YBCIkIiIKEwoEEgIICRILCB8yBwoFDQAASEMSCwgfMgcKBQ0AAIJDEhMIFRAfGAQiCwgfMgcKBQ0AAFBAEkgIFhAfGAQiQAgfWjwIBBIPCAYyCwoJCgdhIGIgbWF4EiEIH1odCAQSDQgGMgkKBwoFYSBiIC8SBBICCA4SBBICCBUSBBICCBQSNwgXEB8YBCIvCB9aKwgEEg8IBjILCgkKB2EgYiBtYXgSEBIOCAESBgj+3cLgARICCAESBBICCBYSEwgYEB8YBCILCB8yBwoFDQAAcEISygEIGRAfGAQiwQEIH1q8AQgEEg8IBjILCgkKB2EgYiBtYXgSoAEIH1qbAQgEEg0IBjIJCgcKBWEgYiAtEoEBCB9afQgEEg0IBjIJCgcKBWEgYiAtEhASDggBEgIIBRICCAQSAggCElgIH1pUCAQSDQgGMgkKBwoFYSBiICoSLwgfWisIBBINCAYyCQoHCgVhIGIgLxILCB8yBwoFDQAAEEESCwgfMgcKBQ0AAIBBEhASDggBEgIIBRICCAQSAggBEgQSAggYEgQSAggUEiYIGhARGAQiHkocCAQSEggfEg4IARIGCP7dwuABEgIIARoEEgIIFBJECBsQERgEIjxaOggCEhASDggBEgYI/93C4AESAggWEiRSIggBEh5KHAgBEggIGDIECgIIABoOUgwIAhIIEgYIAxICCA8SRAgcEBEYBCI8WjoIAhIQEg4IARIGCP/dwuABEgIIGBIkUiIIARIeShwIARIICBgyBAoCCAAaDlIMCAISCBIGCAMSAggQEhwIHRAfGAQiFBISCAESAggEEgIIBBICCAESAggBEhMIHhAfGAQiCwgfMgcKBQ0AAChCEhMIHxAfGAQiCwgfMgcKBQ0AAIhCEhAIIBAlGAQiCAglMgQKAggVEhMIIRAfGAQiCwgfMgcKBQ2BleM/Eh8IIhARGAQiFxIVCAESAggDEgMI/gcSAggfEgQIk4seEhMIIxAfGAQiCwgfMgcKBQ1mZqY/EjwIJBAfGAQiNAgfWjAIBBINCAYyCQoHCgVhIGIgKhIQEg4IARIGCP7dwuABEgIIAxILCB8yBwoFDQAAYD8SPAglEB8YBCI0CB9aMAgEEg0IBjIJCgcKBWEgYiAqEhASDggBEgYI/t3C4AESAggDEgsIHzIHCgUNAAAAPxITCCYQHxgEIgsIHzIHCgUNAADSQxI1CCcQHxgEIi0IH1opCAQSDQgGMgkKBwoFYSBiIC0SEBIOCAESAggFEgIIBBICCAISBBICCBgSNwgoEB8YBCIvCB9aKwgEEg8IBjILCgkKB2EgYiBtaW4SEBIOCAESBgj+3cLgARICCAESBBICCCcSTwgpEB8YBCJHCB9aQwgEEg8IBjILCgkKB2EgYiBtYXgSIQgfWh0IBBINCAYyCQoHCgVhIGIgLRIEEgIIKBIEEgIIJhILCB8yBwoFDQAAAAASKQgqEB8YBCIhCB9aHQgEEg0IBjIJCgcKBWEgYiAqEgQSAggpEgQSAgghEisIKxAfGAQiIwgfWh8IBBIPCAYyCwoJCgdhIGIgbWluEgQSAggkEgQSAggqEn0ILBAfGAQidSJzCmQKP1o9CAISJVojCAISBBICCCISGUoXCAYSBggfEgIIJBoLCB8yBwoFDQAAAAASEkoQCAQSBggfEgIIKxoEEgIIJBIhCB9aHQgEEg0IBjIJCgcKBWEgYiAvEgQSAggrEgQSAggkEgsIHzIHCgUNAACAPxKcAQgtEBEYBCKTASKQAQpHCgQSAggiEj9aPQgCEiVKIwgGEhIIHxIOCAESBgj+3cLgARICCAMaCwgfMgcKBQ0AAAAAEhJKEAgHEgYIHxICCCsaBBICCCUSRUpDCAQSLQgfWikIBBINCAYyCQoHCgVhIGIgKhIQEg4IARIGCP7dwuABEgIIAxIEEgIIIxoQEg4IARIGCP7dwuABEgIIARJSCC4QERgEIkoiSApACiwSKggBEgIIBhICCAESDhoMCBgyCAoGCN2ki6kBEgIIARIKGggIGDIECgIICBIQEg4IARIGCP7dwuABEgIICBIEEgIILRIkCC8QERgEIhxaGggCEhBaDggCEgQSAggtEgQSAgguEgQSAggKEiQIMBgEIh4aHAoMCAESCAgqMgQKAggCCgwIAhIICCsyBAoCCAISJAgxGAQiHhocCgwIARIICCoyBAoCCAMKDAgCEggIKzIECgIIAxJFCDIQCxgEIj0aOwo5CICrn1ESMhowCggIARIEEgIIBAokCAISIFIeCAQSGhoYCggIARIEEgIIBAoMCAISCAgRMgQKAggAEkUIMxALGAQiPRo7CjkIgKufURIyGjAKCAgBEgQSAggFCiQIAhIgUh4IBBIaGhgKCAgBEgQSAggFCgwIAhIICBEyBAoCCAASdAg0EAsYBCJsGmoKaAjgqp9REmEaXwpdCAESWVpXCAESFBISCAMSAggGEgYI/8Ls2wESAggEEj0aOwo5CICrn1ESMhowCggIARIEEgIIBQokCAISIFIeCAQSGhoYCggIARIEEgIIBQoMCAISCAgRMgQKAggBEjsINRALGAQiMxoxCi8I4KqfURIoGiYKJAgBEiBaHggBEhQSEggDEgIIDBIGCP/C7NsBEgIIBBIEEgIIMxJsCDYQERgEImRaYggDEiZKJAgBEhYIMRISCAMSAggGEgYI/8Ls2wESAggOGggIMTIECgIIAxI2UjQIARIwUi4IARIqSigIARIICBgyBAoCCAAaGlIYCAISFBISCAMSAggGEgYI/8Ls2wESAggEEmwINxARGAQiZFpiCAMSJkokCAESFggxEhIIAxICCAwSBgj/wuzbARICCA4aCAgxMgQKAggDEjZSNAgBEjBSLggBEipKKAgBEggIGDIECgIIABoaUhgIAhIUEhIIAxICCAwSBgj/wuzbARICCAQSBAg4GAMSBgg5EDIYAxIGCDoQMBgDEgYIOxAyGAMSagg8GAQiZCJiClYKClIICAESBBICCDYSSEJGCDgSCBIGCAMSAggGGjYaNAoyCP/C7NsBEioIMEImCDoSEBIOCAMSAggGEgYI/8Ls2wEaDhoMCgoIBBIGCAsSAgg0IDsgORIIEgYIAxICCAYSBAg9GAMSBgg+EDIYAxIGCD8QMBgDEgYIQBAyGAMSaghBGAQiZCJiClYKClIICAESBBICCDcSSEJGCD0SCBIGCAMSAggMGjYaNAoyCP/C7NsBEioIMEImCD8SEBIOCAMSAggMEgYI/8Ls2wEaDhoMCgoIBBIGCAsSAgg1IEAgPhIIEgYIAxICCAwSkAEIQhgEIokBIoYBCmQKBBICCAwSXCJaClIKSlpICAISLVIrCAESJ0olCAESCAgYMgQKAggAGhdSFQgCEhESDwgBEgIIARIDCJUSEgIIEhIVEhMIARICCAESAwiVEhICCBISAggCEgQSAghBEgQSAgg8Eh4iHAoQCgQSAgguEggSBggDEgIIDBIIEgYIAxICCAYScghDEAsYBCJqImgKZgoVEhMIARICCAESAwiVEhICCA4SAggCEk0aSwpJCOCqn1ESQhpACj4IARI6WjgIARIcIhoKGAoQWg4IAxIEEgIICxIEEgIIDRIEEgIIBhIQIg4KDAoEEgIIDBIEEgIIMxIEEgIIMhIfCEQQERgEIhcSFQgBEgIIAxIDCP4HEgIIHxIECOnTHRIfCEUQHxgEIhciFQoTCgQSAghEEgsIHzIHCgUNAACAPxIYCEYQHxgEIhAiDgoMCgQSAghEEgQSAggeEh4IRxAfGAQiFiIUCgwKBBICCEQSBBICCB8SBBICCB4SBAhIGAMSBghJEBgYAxIGCEoQGBgDGIz3tbWrvsOEkgEg3bXTitvZo774ASonZG93bmxvYWRfYnV0dG9uLmVtbC1mZXwxMzUyNjFhZDcwMjU4NDM5Kj5lbmdhZ2VtZW50X3BhbmVsX2xhcmdlX3BsYXllcl9jb250cm9scy5lbWwtZmV8ZWFhNmUwNWM5MmU2ZWU3OCoqdmlkZW9fYWN0aW9uX2J1dHRvbi5lbWwtZmV8YTk2ZWNjYjY3ODZlYTMzKh1iYWRnZS5lbWwtZmV8NTI5MWNmZWFiY2UzOGIyZioQMzkwOTFlNTExOGZlZDNjYSoQODlkZmM4ZWNlNzI0ODY1OCoQZGNlNWIzYWFmYjY0NGQxNjAB",
+                      ),
+                    ),
+                    r = new Set(i.map((g) => j(g.data))),
+                    a = [];
+                  let h = "on_the_go_controls.eml-fe|f87c8ecdb154dadd";
+                  for (const A of i) {
+                    let C = u(A.data, [196886555]),
+                      E = j(A.data);
+                    const S = [];
+                    for (const A of t(C).filter(
+                      (g) => 5 === g.no && 2 === g.wire,
+                    )) {
+                      const C = I.decode(A.data);
+                      if (r.has(C) || e.has(C)) continue;
+                      const E = C.slice(0, C.indexOf("|") + 1),
+                        o = E ? [...e].filter((g) => g.startsWith(E)) : [];
+                      if (1 !== o.length) return;
+                      S.push([A.data, g.encode(o[0])]);
+                    }
+                    if (S.length) {
+                      if (((C = k(C, S)), S.some(([g]) => V(C, g)))) return;
+                      const g = u(C, [2]);
+                      let I = 2166136261;
+                      for (const A of g) I = Math.imul(I ^ A, 16777619);
+                      (E = E.split("|")[0] + "|" + (I >>> 0).toString(16)),
+                        (C = o(
+                          t(C).flatMap((g) =>
+                            4 === g.no
+                              ? []
+                              : 1 === g.no && 2 === g.wire
+                                ? [G(1, E)]
+                                : [g.raw],
+                          ),
+                        )),
+                        j(A.data) === h && (h = E);
+                    }
+                    B.has(E) || a.push(D([1, 196886555], C));
+                  }
+                  return {
+                    template: h,
+                    framework: a.length ? Sg(C, [2], () => o([E, ...a])) : C,
+                  };
+                })(A);
+                if (!h) return !1;
+                const K = (function (g, A, C, E) {
+                  const B = g.content?.nextResult;
+                  if (!B) return;
+                  const n = Bg(B).find((g) => 4 === g.no && 2 === g.wire),
+                    i = n && u(n.data, [61479009]),
+                    r = Bg(g).find((g) => 9 === g.no && 2 === g.wire),
+                    a = r && u(r.data, [48687757, 1]),
+                    h = i && u(i, [17]),
+                    K = i && u(i, [1, 1, 1]),
+                    Q = i && u(i, [10, 1, 1]),
+                    c = i && M(i, 2, !0);
+                  if (
+                    !(
+                      a &&
+                      h &&
+                      e(a, h) &&
+                      /^[\w-]{11}$/.test(I.decode(a)) &&
+                      K &&
+                      c
+                    )
+                  )
+                    return;
+                  const R = u(A, p),
+                    w = R && u(R, [6, 386334485, 1, 1, 1]),
+                    l = R && u(R, [6, 386334486, 1, 1]);
+                  if (!w || !l) return;
+                  const s = o([G(1, 1), G(3, d)]),
+                    Y = o(
+                      t(c).map((g) =>
+                        1 !== g.no || 2 !== g.wire
+                          ? g.raw
+                          : G(
+                              1,
+                              o(
+                                t(g.data).map((g) =>
+                                  0 !== g.wire || (2 !== g.no && 3 !== g.no)
+                                    ? g.raw
+                                    : G(g.no + 2, S(g.data)),
+                                ),
+                              ),
+                            ),
+                      ),
+                    ),
+                    y = [
+                      D([1, 1], K),
+                      ...(Q ? [G(2, Q)] : []),
+                      D(
+                        [3, 2329],
+                        o([
+                          ...[
+                            [
+                              1,
+                              6,
+                              176991,
+                              "youtube_fill_experimental/skip_previous_24pt",
+                              "Previous video",
+                              "previous",
+                            ],
+                            [
+                              2,
+                              4,
+                              176993,
+                              "youtube_outline_experimental/skip10_back_24pt",
+                              "Rewind",
+                              "seek.backward",
+                            ],
+                            [
+                              3,
+                              3,
+                              176994,
+                              "youtube_outline_experimental/skip10_forward_24pt",
+                              "Fast forward",
+                              "seek.forward",
+                            ],
+                            [
+                              4,
+                              5,
+                              176988,
+                              "youtube_fill_experimental/skip_next_24pt",
+                              "Next video",
+                              "next",
+                            ],
+                          ].map(([g, I, A, C, E, e]) =>
+                            G(
+                              g,
+                              x(
+                                C,
+                                E,
+                                D(
+                                  [169495254, 327511066],
+                                  o([G(1, I), G(2, A)]),
+                                ),
+                                e,
+                              ),
+                            ),
+                          ),
+                          G(5, "Play"),
+                          G(6, "Pause"),
+                          G(7, "Replay"),
+                        ]),
+                      ),
+                      G(5, Y),
+                      G(
+                        6,
+                        x(
+                          "youtube_outline_experimental/headset_24pt",
+                          "Switch to audio mode",
+                          D([169495254, 300135747, 2], s),
+                        ),
+                      ),
+                      G(
+                        12,
+                        x(
+                          "youtube_outline_experimental/video_24pt",
+                          "Switch to video mode",
+                          D([169495254, 300413109, 2], s),
+                        ),
+                      ),
+                    ];
+                  E &&
+                    y.push(
+                      G(
+                        9,
+                        x(
+                          "youtube_outline_experimental/speedometer_24pt",
+                          "Playback speed",
+                          E,
+                        ),
+                      ),
+                    );
+                  const m = g.engagementPanels
+                    .map(f)
+                    .find(
+                      (g) =>
+                        "engagement-panel-macro-markers-auto-chapters" === g ||
+                        "engagement-panel-macro-markers-description-chapters" ===
+                          g,
+                    );
+                  m &&
+                    y.push(
+                      G(
+                        8,
+                        x(
+                          "youtube_outline_experimental/view_list_24pt",
+                          "Chapters",
+                          D(
+                            [169495254, 138681778],
+                            o([G(3, d), G(10, o([G(1, 1), G(3, m)]))]),
+                          ),
+                        ),
+                      ),
+                    );
+                  const j = [
+                      G(
+                        1,
+                        o([
+                          G(1, "/youtube/app/engagement_panel"),
+                          G(2, 470855422),
+                          G(3, 470855422),
+                        ]),
+                      ),
+                      G(
+                        1,
+                        o([
+                          G(1, "/youtube/app/player_overlay"),
+                          G(2, 470855423),
+                          G(3, 470855423),
+                        ]),
+                      ),
+                      ...[
+                        ["menu_trigger", 14],
+                        ["audio_only", 18],
+                      ].map(([g, I]) =>
+                        G(
+                          1,
+                          o([
+                            G(1, "/youtube/app/on_the_go_" + g + "_state"),
+                            G(3, 1),
+                            G(3, 2325),
+                            G(3, Number(I)),
+                          ]),
+                        ),
+                      ),
+                      G(2, 413471385),
+                    ],
+                    k = o([
+                      G(188490103, o(j)),
+                      G(212323971, o([G(1, 413471385), G(2, 5)])),
+                      G(
+                        386334485,
+                        o([G(1, o([D([1, 1], w), G(2, 4)])), G(2, 413471385)]),
+                      ),
+                      G(
+                        386334486,
+                        o([G(1, o([G(1, l), G(2, 6)])), G(2, 413471385)]),
+                      ),
+                    ]);
+                  return og("EngagementPanel").fromBinary(
+                    G(
+                      138681066,
+                      o([
+                        D([2, 138681548, 1, 1, 1], "On-the-go"),
+                        D(
+                          [3, 49399797, 1, 50195462, 1, 153515154, 172660663],
+                          o([
+                            D(
+                              [1, 168777401],
+                              o([
+                                D([3, 172035250, 1], C),
+                                D([5, 413471385, 1, 2325], o(y)),
+                                G(6, k),
+                              ]),
+                            ),
+                            D([2, 183314536, 1], C),
+                          ]),
+                        ),
+                        G(5, 282218),
+                        G(6, 1),
+                        G(15, 1),
+                        G(17, 3),
+                        G(18, s),
+                        G(20, 1),
+                        G(21, 2),
+                        G(21, 1),
+                        G(36, 2),
+                      ]),
+                    ),
+                  );
+                })(A, i, h.template, r);
+                if (!K) return !1;
+                let Q = Sg(i, y, (g) =>
+                  o([
+                    ...t(g)
+                      .filter((g) => [1, 2, 13, 17].includes(g.no))
+                      .map((g) => g.raw),
+                    G(
+                      4,
+                      o([
+                        G(2, "youtube_outline_experimental/headset_24pt"),
+                        G(3, "On-the-go"),
+                        G(4, m()),
+                      ]),
+                    ),
+                    G(10, Y),
+                    G(12, 1),
+                  ]),
+                );
+                (Q = Sg(Q, [...p, 6, 188490103, 1, 1], () => g.encode(Y))),
+                  (Q = Sg(Q, [153515154, 3, 396644439, 1], () =>
+                    g.encode("menu_item_on_the_go"),
+                  ));
+                const c = B.map((g) => g.raw);
+                c.splice(a, 0, G(1, Q));
+                const R = Sg(C.overflowMenu, [66439850], () => o(c));
+                return (
+                  Ag(A, "frameworkUpdates", h.framework),
+                  Ag(A, "engagementPanels", [...A.engagementPanels, K]),
+                  Ag(C, "overflowMenu", R)
+                );
+              })(E) || X;
+          } catch (g) {
+            console.log("YouTube On-the-go: " + g);
+          }
+        const z = new Set(["richItemContents", "overlays"]),
+          T = new Set([
+            "richItemContents",
+            "contents",
+            "sectionListSupportedRenderers",
+            "overlayCollections",
+          ]),
+          $ = new Set([
+            "videoWithContextRenderer",
+            "videoRendererContent",
+            "itemSectionRenderer",
+            "shelfRenderer",
+            "richSectionContent",
+            "reelShelfRenderer",
+            "renderer",
+            "content",
+            "item",
+          ]);
+        return (
+          (function g(I, E = !1) {
+            if (!I || "object" != typeof I || ArrayBuffer.isView(I)) return 0;
+            if (Array.isArray(I)) {
+              let A = 0;
+              for (const C of I) A |= 1 & g(C, E);
+              return A;
+            }
+            let o =
+              E &&
+              ((function (g, I, A, C) {
+                const E = g.layoutRender?.eml?.split("|")[0];
+                return (
+                  !!(
+                    (E && (b.test(E) || (C && F.test(E)))) ||
+                    (C && g.shoppingShelf) ||
+                    g.sponsoredVideo ||
+                    g.sponsoredDisplay ||
+                    (A &&
+                      g.videoLockup &&
+                      (function (g) {
+                        let I = Bg(g).find(
+                          (g) => 18 === g.no && 2 === g.wire,
+                        )?.data;
+                        try {
+                          for (const g of [
+                            4, 169495254, 462702848, 1, 139608561, 50, 7, 3,
+                          ]) {
+                            if (!I) return !1;
+                            I = t(I).find(
+                              (I) => I.no === g && 2 === I.wire,
+                            )?.data;
+                          }
+                          return !!I && e(I, W);
+                        } catch {
+                          return !1;
+                        }
+                      })(g.videoLockup))
+                  ) ||
+                  Bg(g).some(
+                    (g) =>
+                      2 === g.wire &&
+                      (V(g.data) ||
+                        (325515470 === g.no &&
+                          (function (g) {
+                            const I = [
+                              2, 11, 1, 4, 170382656, 1, 169495254, 48687626, 2,
+                            ];
+                            try {
+                              return (function g(A, C) {
+                                if (C === I.length) return e(A, O);
+                                const E = t(A).filter(
+                                  (g) => g.no === I[C] && 2 === g.wire,
+                                );
+                                return (
+                                  (5 === C || 1 === E.length) &&
+                                  E.some((I) => g(I.data, C + 1))
+                                );
+                              })(g, 0);
+                            } catch {
+                              return !1;
+                            }
+                          })(g.data)) ||
+                        (C && 400157044 === g.no) ||
+                        455507059 === g.no ||
+                        (A && 519005951 === g.no && V(g.data, v)) ||
+                        (312131490 === g.no &&
+                          ((I && V(g.data, H)) || (C && V(g.data, L))))),
+                  )
+                );
+              })(I, i, r, J) ||
+                (P &&
+                  (function (g) {
+                    try {
+                      return Bg(g).some((g) => {
+                        if (408379376 !== g.no || 2 !== g.wire) return !1;
+                        const I = t(g.data).filter(
+                          (g) => 1 === g.no && 2 === g.wire,
+                        );
+                        if (1 !== I.length) return !1;
+                        const A = t(I[0].data),
+                          C = A.filter((g) => 1 === g.no && 2 === g.wire),
+                          E = A.filter((g) => 2 === g.no && 2 === g.wire);
+                        return (
+                          E.length > 0 &&
+                          E.length === C.length &&
+                          E.every((g) =>
+                            K(g.data, [8, 2, 169495254, 138681778, 1]),
+                          )
+                        );
+                      });
+                    } catch {
+                      return !1;
+                    }
+                  })(I)));
+            const B = I.renderInfo?.layoutRender?.eml?.split("|")[0];
+            let S = !!B && (b.test(B) || (J && F.test(B)));
+            if (E && (o || S)) return 1;
+            P &&
+              (X =
+                (function (g) {
+                  let I = !1;
+                  try {
+                    const A = g;
+                    if (A.engagementPanels?.length) {
+                      const g = A.engagementPanels.filter((g) => {
+                        const I = g.renderer;
+                        return (
+                          !I ||
+                          !Bg(I).some(
+                            (g) => 1 === g.no && 2 === g.wire && e(g.data, a),
+                          )
+                        );
+                      });
+                      I = Ag(A, "engagementPanels", g) || I;
+                      for (const A of g)
+                        A.renderer &&
+                          (I =
+                            tg(A.renderer, 10, (g) =>
+                              K(
+                                g,
+                                [
+                                  260791572, 1, 153515154, 172660663, 1,
+                                  168777401, 5, 413471385, 1, 2553, 997, 3, 3,
+                                  170382688, 1, 169495254, 138681778, 1,
+                                ],
+                              )
+                                ? void 0
+                                : g,
+                            ) || I);
+                    }
+                    A.playerOverlays?.renderer &&
+                      (I = tg(A.playerOverlays.renderer, 37, l) || I),
+                      (I = tg(g, 216561405, (g) => Sg(g, [1], l)) || I),
+                      (I = tg(g, 386137609, R) || I),
+                      (I = tg(g, 408379376, w) || I);
+                    const C = g;
+                    C.element?.data && (I = tg(C.element.data, 2185, c) || I),
+                      C.videoLockup && (I = tg(C.videoLockup, 18, s) || I),
+                      g.videoContent?.videoLockup &&
+                        (I =
+                          tg(g, 6, (g) =>
+                            Sg(g, [188490103], (g) =>
+                              Q(g, 1, (g) => (K(g, [1], h, !0) ? void 0 : g)),
+                            ),
+                          ) || I);
+                  } catch (g) {
+                    console.log("YouTube AI controls: " + g);
+                  }
+                  return I;
+                })(I) || X);
+            const n = I[_];
+            for (const e of Object.keys(I)) {
+              if (!E && n?.deferred) {
+                const g = A[n.type].find(([, g]) => g === e);
+                if (
+                  g &&
+                  !C.has(g[2]) &&
+                  !z.has(e) &&
+                  !T.has(e) &&
+                  "promotedContents" !== e &&
+                  (!J || ("tabs" !== e && "attachments" !== e))
+                )
+                  continue;
+              }
+              const B = I[e];
+              if (!B || "object" != typeof B || ArrayBuffer.isView(B)) continue;
+              if (!Array.isArray(B)) {
+                const I = g(B, E);
+                if (E && 1 & I) return 1;
+                (o = !!(1 & I) || o), 2 & I && $.has(e) && (S = !0);
+                continue;
+              }
+              let t;
+              const i = z.has(e),
+                r = T.has(e),
+                a = J && "tabs" === e,
+                h = J && "attachments" === e,
+                K = "promotedContents" === e;
+              for (let I = 0; I < B.length; I++) {
+                const A = B[I],
+                  C = (a && q(A)) || (h && A.products?.length) || (K && V(A)),
+                  e = C && !E ? 0 : g(A, E || i);
+                if (E && 1 & e) return 1;
+                (o = !!(1 & e) || o),
+                  C || (i && 1 & e) || (r && 2 & e)
+                    ? (t ??= B.slice(0, I))
+                    : t && t.push(A);
+              }
+              t && (Ag(I, e, t), (X = !0), t.length || (!i && !r) || (S = !0)),
+                J &&
+                  "attachments" === e &&
+                  !(t ?? B).length &&
+                  void 0 !== I.attachmentStateKey &&
+                  (X = Z(I, "attachmentStateKey") || X);
+            }
+            return (
+              U &&
+                I.smartSkipButton &&
+                (X =
+                  (function (g) {
+                    let I = !1;
+                    const A = g.controller;
+                    if (
+                      (!0 === A?.promotionMode &&
+                        (Ag(A, "promotionMode", !1), (I = !0)),
+                      g.actions?.items?.length)
+                    )
+                      for (const A of [g, ...g.actions.items])
+                        2147483647 !== A.displayLimit &&
+                          (Ag(A, "displayLimit", 2147483647), (I = !0));
+                    return I;
+                  })(I.smartSkipButton) || X),
+              (o ? 1 : 0) | (S ? 2 : 0)
+            );
+          })(E),
+          X
+        );
+      }
+      function X(g, I) {
+        let A = N(g, I);
+        A = Z(g, "paidPromotion") || A;
+        for (const I of ["adPlacements", "adSlots"])
+          g[I]?.length && (Ag(g, I, []), (A = !0));
+        const C = g.playerConfig?.granularVariableSpeedConfig;
+        void 0 !== C?.maximumPlaybackRate &&
+          C.maximumPlaybackRate > 0 &&
+          C.maximumPlaybackRate < 400 &&
+          (Ag(C, "maximumPlaybackRate", 400), (A = !0)),
+          g.playbackTracking &&
+            (A = Z(g.playbackTracking, "pageadViewthroughconversion") || A);
+        const E = g.playabilityStatus;
+        if (E) {
+          const g = E.pictureInPictureRender ?? {};
+          Ag(E, "pictureInPictureRender", g);
+          const I = g.pictureInPictureAbility ?? {};
+          Ag(g, "pictureInPictureAbility", I),
+            (A = Ag(I, "active", !0) || A),
+            (A = Ag(I, "f4", 0) || A),
+            (A = Ag(I, "f6", 0) || A),
+            (A = Ag(I, "f8", 1) || A);
+          const C = E.backgroundPlayerRender ?? {};
+          Ag(E, "backgroundPlayerRender", C);
+          const o = C.backgroundAbility ?? {};
+          Ag(C, "backgroundAbility", o), (A = Ag(o, "active", !0) || A);
+        }
+        return A;
+      }
+      function Z(g, I) {
+        return void 0 !== g[I] && (delete g[I], g[_] && $(g[_], I), !0);
+      }
+      function z(g, I) {
+        const A = [g];
+        for (; A.length; ) {
+          const g = A.pop();
+          g &&
+            "object" == typeof g &&
+            !ArrayBuffer.isView(g) &&
+            (I(g), A.push(...Object.values(g)));
+        }
+      }
+      const T = Object.create(null),
+        _ = Symbol("wireState");
+      function $(g, I) {
+        for (; g; )
+          (g.changed ??= new Set()).add(I), (I = g.parentName), (g = g.parent);
+      }
+      function gg(g, A, C) {
+        const [, E, o] = g.spec;
+        return "bytes" === o
+          ? g.data
+          : "string" === o
+            ? I.decode(g.data)
+            : "bool" === o
+              ? 0 !== S(g.data)
+              : "uint" === o
+                ? S(g.data)
+                : Ig(o, g.data, A + 1, C, E);
+      }
+      function Ig(g, I, E = 0, o, e) {
+        if (E > 64) throw new Error("Protobuf nesting limit");
+        const B = {},
+          S = t(I),
+          n = S.length > 1 ? new Map() : null,
+          i = { bytes: I, fields: S, parent: o, parentName: e },
+          r = (T[g] ??= new Map(A[g].map((g) => [g[0], g])));
+        Object.defineProperty(B, _, { value: i });
+        for (const [, I, , C] of A[g]) C && (B[I] = []);
+        if (n)
+          for (const g of S) {
+            const I = r.get(g.no);
+            I &&
+              g.wire === ("bool" === I[2] || "uint" === I[2] ? 0 : 2) &&
+              ((g.spec = I), I[3] || n.set(I[1], (n.get(I[1]) ?? 0) + 1));
+          }
+        let a;
+        for (const I of S) {
+          const o = n ? I.spec : r.get(I.no);
+          if (!o || I.wire !== ("bool" === o[2] || "uint" === o[2] ? 0 : 2))
+            continue;
+          I.spec = o;
+          const [, e, t, h] = o;
+          if (!h && (n?.get(e) ?? 0) > 1) delete I.spec;
+          else if (A[t] && !C.has(t)) {
+            if (a?.has(e)) continue;
+            (a ??= new Set()).add(e);
+            const I = S.filter((g) => g.spec?.[1] === e);
+            (i.type = g),
+              (i.deferred = !0),
+              Object.defineProperty(B, e, {
+                enumerable: !0,
+                configurable: !0,
+                get() {
+                  const g = h ? I.map((g) => gg(g, E, i)) : gg(I[0], E, i);
+                  return (
+                    Object.defineProperty(B, e, {
+                      value: g,
+                      enumerable: !0,
+                      writable: !0,
+                      configurable: !0,
+                    }),
+                    g
+                  );
+                },
+              });
+          } else {
+            const g = gg(I, E, i);
+            h ? B[e].push(g) : (B[e] = g);
+          }
+        }
+        return B;
+      }
+      function Ag(g, I, A) {
+        const C = g[I];
+        return (
+          !(Array.isArray(C) && Array.isArray(A)
+            ? C.length === A.length && C.every((g, I) => g === A[I])
+            : C === A) && ((g[I] = A), g[_] && $(g[_], I), !0)
+        );
+      }
+      function Cg(I, A) {
+        const [C, , E] = I,
+          e = "bool" === E || "uint" === E ? 0 : 2,
+          t =
+            "bytes" === E
+              ? A
+              : "string" === E
+                ? g.encode(A)
+                : "bool" === E
+                  ? B(A ? 1 : 0)
+                  : "uint" === E
+                    ? B(A)
+                    : Eg(E, A);
+        return o(2 === e ? [B(8 * C + e), B(t.length), t] : [B(8 * C), t]);
+      }
+      function Eg(g, I) {
+        const C = I[_];
+        if (C && !C.changed) return C.bytes;
+        const E = [],
+          B = new Map(),
+          t = new Set(),
+          S = (g, I) => (A[I] ? (g[_]?.bytes ?? g) : g);
+        function n(g) {
+          const [, A, , C] = g;
+          return C ? (I[A] ?? []) : void 0 === I[A] ? [] : [I[A]];
+        }
+        for (const I of A[g]) {
+          const [, g, A, E] = I;
+          E &&
+            C?.changed?.has(g) &&
+            B.set(g, new Map(n(I).map((g) => [S(g, A), g])));
+        }
+        for (const g of C?.fields ?? []) {
+          if (!g.spec || !C.changed.has(g.spec[1])) {
+            E.push(g.raw);
+            continue;
+          }
+          const [, o, e, n] = g.spec;
+          if ((t.add(o), n)) {
+            const I = B.get(o);
+            if (!I.has(g.data)) continue;
+            const C = I.get(g.data);
+            I.delete(g.data),
+              E.push(A[e] && C[_]?.changed ? Cg(g.spec, C) : g.raw);
+          } else {
+            const C = I[o];
+            void 0 !== C &&
+              E.push(
+                S(C, e) !== g.data || (A[e] && C[_]?.changed)
+                  ? Cg(g.spec, C)
+                  : g.raw,
+              );
+          }
+        }
+        for (const I of A[g]) {
+          const [, g, , A] = I;
+          if (!C || C.changed.has(g))
+            if (A && B.has(g))
+              for (const A of B.get(g).values()) E.push(Cg(I, A));
+            else if (!t.has(g)) for (const g of n(I)) E.push(Cg(I, g));
+        }
+        const i = o(E);
+        return C && e(i, C.bytes) ? C.bytes : i;
+      }
+      function og(g) {
+        return { fromBinary: (I) => Ig(g, I), toBinary: (I) => Eg(g, I) };
+      }
+      const eg = [];
+      function Bg(g) {
+        const I = g[_];
+        if (!I) return eg;
+        if (I.unknown) return I.unknown;
+        if (!I.fields.length || (1 === I.fields.length && I.fields[0].spec))
+          return eg;
+        let A;
+        for (const g of I.fields) g.spec || (A ??= []).push(g);
+        return (I.unknown = A ?? eg);
+      }
+      function tg(g, I, A) {
+        let C;
+        for (const E of Bg(g)) {
+          if (E.no !== I || 2 !== E.wire) continue;
+          const g = A(E.data);
+          (g && e(g, E.data)) || (C ??= []).push({ field: E, data: g });
+        }
+        if (!C) return !1;
+        const E = g[_];
+        for (const { field: g, data: A } of C)
+          A
+            ? ((g.data = A), (g.raw = Cg([I, "", "bytes"], A)))
+            : E.fields.splice(E.fields.indexOf(g), 1);
+        return (E.unknown = void 0), $(E, ""), !0;
+      }
+      function Sg(g, I, A) {
+        if (!I.length) return A(g);
+        let C = !1;
+        const E = t(g).map((g) => {
+          if (g.no !== I[0] || 2 !== g.wire) return g.raw;
+          const E = Sg(g.data, I.slice(1), A);
+          return e(E, g.data) ? g.raw : ((C = !0), Cg([g.no, "", "bytes"], E));
+        });
+        return C ? o(E) : g;
+      }
+      const ng = {
+        "navigation/resolve_url": [
+          "ResolveUrl",
+          function (g, I) {
+            const A = g.endpoint?.watch?.embedded?.response?.player;
+            return !!A && X(A, I);
+          },
+        ],
+        browse: ["Browse", N],
+        next: ["Next", N],
+        player: ["Player", X],
+        search: ["Search", N],
+        "reel/reel_watch_sequence": [
+          "Shorts",
+          function (g) {
+            const I = g.entries.filter(
+                (g) => !g.command?.reelWatchEndpoint?.adClientParams?.isAd,
+              ),
+              A = I.length !== g.entries.length;
+            return A && Ag(g, "entries", I), A;
+          },
+        ],
+        guide: [
+          "Guide",
+          function (g, I) {
+            const A = new Set(["SPunlimited"]);
+            I.blockUpload && A.add("FEuploads"),
+              I.blockShorts && A.add("FEshorts");
+            let C = !1;
+            return (
+              z(g, (g) => {
+                const I = g.rendererItems;
+                if (!Array.isArray(I)) return;
+                const E = I.filter(
+                  (g) =>
+                    !A.has(g.iconRender?.browseId ?? g.labelRender?.browseId),
+                );
+                (C = E.length !== I.length || C),
+                  E.length !== I.length && Ag(g, "rendererItems", E);
+              }),
+              C
+            );
+          },
+        ],
+        "account/get_setting": [
+          "Setting",
+          function (g) {
+            let I = !1;
+            z(g, (g) => {
+              const A = g;
+              if (10135 !== A.categoryId) return;
+              const C = (g) => ({
+                setClientSettingEndpoint: {
+                  settingData: {
+                    clientSettingEnum: { item: 151 },
+                    boolValue: g,
+                  },
+                },
+              });
+              A.subSettings.some(
+                (g) =>
+                  151 ===
+                  g.settingBooleanRenderer?.enableServiceEndpoint
+                    ?.setClientSettingEndpoint?.settingData?.clientSettingEnum
+                    ?.item,
+              ) ||
+                ((I = !0),
+                Ag(A, "subSettings", [
+                  ...A.subSettings,
+                  {
+                    settingBooleanRenderer: {
+                      itemId: 0,
+                      enableServiceEndpoint: C(!0),
+                      disableServiceEndpoint: C(!1),
+                    },
+                  },
+                ]));
+            });
+            const A = g.settingItems.find(
+              (g) => g.backgroundPlayBackSettingRenderer,
+            )?.backgroundPlayBackSettingRenderer;
+            return (
+              A
+                ? (I = Ag(A, "backgroundPlayback", !0) || I)
+                : ((I = !0),
+                  Ag(g, "settingItems", [
+                    ...g.settingItems,
+                    {
+                      backgroundPlayBackSettingRenderer: {
+                        backgroundPlayback: !0,
+                        icon: { iconType: 1093 },
+                      },
+                    },
+                  ])),
+              I
+            );
+          },
+        ],
+        get_watch: [
+          "Watch",
+          function (g, I) {
+            let A = !1;
+            for (const C of g.contents)
+              C.player && (A = X(C.player, I) || A),
+                C.next && (A = N(C.next, I) || A);
+            return A;
+          },
+        ],
+      };
+      !(function () {
+        try {
+          const A = $request.url.split("?")[0].split("/youtubei/v1/")[1],
+            C = Object.hasOwn(ng, A) && ng[A];
+          if (!C || Number($response.status) >= 300 || !$response.body?.length)
+            return $done();
+          const [o, e] = C,
+            B = og(o),
+            n = B.fromBinary($response.body),
+            a = (function (g = {}) {
+              return "string" != typeof $argument || $argument.includes("{{{")
+                ? g
+                : { ...g, ...JSON.parse($argument) };
+            })({ blockUpload: !0, blockShorts: !1 });
+          !1 !== a.autoHd &&
+            (function (A) {
+              if (!A.length) return;
+              const C = A.map(
+                (g) => Bg(g).find((g) => 4 === g.no && 2 === g.wire)?.data,
+              ).filter(Boolean);
+              if (!C.length) return;
+              let o;
+              try {
+                o = (function (g = "YouTubeConfig", I = 1 / 0) {
+                  const A = $persistentStore.read(g);
+                  if ("string" == typeof A && A.length > I) return {};
+                  try {
+                    const g = JSON.parse(A || "{}");
+                    return g && "object" == typeof g && !Array.isArray(g)
+                      ? g
+                      : {};
+                  } catch {
+                    return {};
+                  }
+                })(E, 65536);
+              } catch (g) {
+                return void console.log("YouTube quality read: " + g);
+              }
+              const e = Object.create(null);
+              let B = !1;
+              const n = Object.keys(o);
+              n.length > 16 && (B = !0);
+              for (const g of n.slice(-16)) {
+                const I = o[g];
+                g.length > 256 || !i(I)
+                  ? (B = !0)
+                  : ((e[g] = { height: I.height, itags: I.itags }),
+                    I.premiumItags?.length &&
+                      (e[g].premiumItags = I.premiumItags),
+                    Object.keys(I).length !== Object.keys(e[g]).length &&
+                      (B = !0));
+              }
+              for (const g of C)
+                try {
+                  const A = t(g),
+                    C = A.find((g) => 15 === g.no && 2 === g.wire),
+                    E = C && /[?&]id=([^&]+)/.exec(I.decode(C.data));
+                  if (!E) continue;
+                  const o = decodeURIComponent(E[1]),
+                    n = { height: 0, itags: [] };
+                  if (o.length > 256) continue;
+                  const a = new Set();
+                  let h = !1;
+                  for (const g of A) {
+                    if (3 !== g.no || 2 !== g.wire) continue;
+                    const A = t(g.data),
+                      C = A.find((g) => 5 === g.no && 2 === g.wire);
+                    if (!C || !I.decode(C.data).startsWith("video/")) continue;
+                    const E = (g) => {
+                        const I = A.find((I) => I.no === g && 0 === I.wire);
+                        return I ? S(I.data) : 0;
+                      },
+                      o = Math.min(E(7), E(8)),
+                      e = E(1);
+                    if (!e || !o || o > 2147483647 || o < n.height) continue;
+                    if (
+                      (o > n.height &&
+                        ((n.height = o),
+                        (n.itags = []),
+                        delete n.premiumItags,
+                        a.clear(),
+                        (h = !1)),
+                      h || a.has(e))
+                    )
+                      continue;
+                    if (256 === a.size) {
+                      h = !0;
+                      continue;
+                    }
+                    a.add(e), n.itags.push(e);
+                    const B = A.find((g) => 26 === g.no && 2 === g.wire);
+                    B &&
+                      /\bPremium\b/i.test(I.decode(B.data)) &&
+                      (n.premiumItags ??= []).push(e);
+                  }
+                  if (h || !i(n) || r(e[o], n)) continue;
+                  delete e[o], (e[o] = n), (B = !0);
+                } catch (g) {
+                  console.log("YouTube quality metadata: " + g);
+                }
+              if (B) {
+                const I = Object.keys(e);
+                for (const g of I.slice(0, Math.max(0, I.length - 16)))
+                  delete e[g];
+                try {
+                  let I = JSON.stringify(e);
+                  for (; g.encode(I).length > 65536; )
+                    delete e[Object.keys(e)[0]], (I = JSON.stringify(e));
+                  $persistentStore.write(I, E) ||
+                    console.log("YouTube quality write failed");
+                } catch (g) {
+                  console.log("YouTube quality cache: " + g);
+                }
+              }
+            })(
+              (function (g, I) {
+                if ("Player" === g) return [I];
+                if ("Watch" === g)
+                  return I.contents.map((g) => g.player).filter(Boolean);
+                if ("ResolveUrl" === g) {
+                  const g = I.endpoint?.watch?.embedded?.response?.player;
+                  return g ? [g] : [];
+                }
+                return [];
+              })(o, n),
+            ),
+            $done(e(n, a) ? { body: B.toBinary(n) } : void 0);
+        } catch (g) {
+          console.log("YouTube response: " + g), $done();
+        }
+      })();
+    })();
+  }
+
+  function compatibleKeys($request, $response, $argument, $done) {
+    (() => {
+      const e = "YouTubeConfig";
+      function t(e, t, r = !1) {
+        let n;
+        for (const o of (function (e) {
+          const t = [];
+          let r = 0;
+          function n() {
+            let t = 0,
+              n = 1;
+            for (let o = 0; o < 5; o++) {
+              if (r >= e.length) throw new Error("Truncated protobuf varint");
+              const o = e[r++];
+              if (((t += (127 & o) * n), !(128 & o))) {
+                if (t > 4294967295)
+                  throw new Error("Protobuf length/tag overflow");
+                return t;
+              }
+              n *= 128;
+            }
+            throw new Error("Invalid protobuf varint");
+          }
+          for (; r < e.length; ) {
+            const o = r,
+              i = n(),
+              l = Math.floor(i / 8),
+              s = i % 8;
+            if (!l) throw new Error("Invalid protobuf field");
+            let c = r;
+            if (2 === s) {
+              const e = n();
+              (c = r), (r += e);
+            } else if (1 === s) r += 8;
+            else if (5 === s) r += 4;
+            else {
+              if (0 !== s)
+                throw new Error("Unsupported protobuf wire type " + s);
+              {
+                let t,
+                  n = 0;
+                do {
+                  if (r >= e.length || 10 === n++)
+                    throw new Error("Invalid protobuf integer");
+                  if (((t = e[r++]), 10 === n && t > 1))
+                    throw new Error("Protobuf integer overflow");
+                } while (128 & t);
+              }
+            }
+            if (r > e.length) throw new Error("Truncated protobuf field");
+            t.push({
+              no: l,
+              wire: s,
+              data: e.subarray(c, r),
+              raw: e.subarray(o, r),
+            });
+          }
+          return t;
+        })(e))
+          if (o.no === t && 2 === o.wire) {
+            if (!r) return o.data;
+            if (n) return;
+            n = o.data;
+          }
+        return n;
+      }
+      !(function () {
+        try {
+          const o = $request.url.split("?")[0].split("/youtubei/v1/")[1];
+          if (("config" !== o && "log_event" !== o) || !$response.body?.length)
+            return $done();
+          let i = $response.body;
+          for (const e of [1, 16, 7, 138536474, 146311580])
+            if (((i = t(i, e, !0)), !i)) return $done();
+          const l = t(i, 1, !0),
+            s = t(i, 2, !0);
+          if (l?.length && s?.length && l.length <= 4096 && s.length <= 4096) {
+            const t =
+                ((n = $request),
+                Object.entries(n.headers ?? {}).some(
+                  ([e, t]) =>
+                    "user-agent" === e.toLowerCase() && /music/i.test(t),
+                )
+                  ? "youtubeMusic"
+                  : "youtube"),
+              o = (function (t = e, r = 1 / 0) {
+                const n = $persistentStore.read(t);
+                if ("string" == typeof n && n.length > r) return {};
+                try {
+                  const e = JSON.parse(n || "{}");
+                  return e && "object" == typeof e && !Array.isArray(e)
+                    ? e
+                    : {};
+                } catch {
+                  return {};
+                }
+              })(),
+              i = { clientKey: l.toBase64(), encryptKey: s.toBase64() };
+            if (
+              o[t]?.clientKey !== i.clientKey ||
+              o[t]?.encryptKey !== i.encryptKey
+            ) {
+              const n = ((r = o[t]),
+              r
+                ? [
+                    r,
+                    ...(Array.isArray(r.previous)
+                      ? r.previous.slice(0, 3)
+                      : []),
+                  ].filter(
+                    (e) =>
+                      e &&
+                      "string" == typeof e.clientKey &&
+                      "string" == typeof e.encryptKey &&
+                      e.clientKey.length > 0 &&
+                      e.clientKey.length <= 5500 &&
+                      e.encryptKey.length > 0 &&
+                      e.encryptKey.length <= 5500,
+                  )
+                : [])
+                .filter(
+                  (e) =>
+                    e.clientKey !== i.clientKey ||
+                    e.encryptKey !== i.encryptKey,
+                )
+                .slice(0, 3)
+                .map(({ clientKey: e, encryptKey: t }) => ({
+                  clientKey: e,
+                  encryptKey: t,
+                }));
+              n.length && (i.previous = n),
+                (o[t] = i),
+                (function (t, r = e) {
+                  return $persistentStore.write(JSON.stringify(t), r);
+                })(o) || console.log("YouTube key write failed");
+            }
+          }
+          $done();
+        } catch (e) {
+          console.log("YouTube keys: " + e), $done();
+        }
+        var r, n;
+      })();
+    })();
+  }
+
+  function compatibleUMP($request, $response, $argument, $done) {
+    (() => {
+      const g = new TextEncoder(),
+        I = new TextDecoder("utf-8", { fatal: !0 }),
+        A = {
+          BrowseContent: [
+            [
+              58173949,
+              "singleColumnResultsRenderer",
+              "SingleColumnResultsRenderer",
+            ],
+            [153515154, "elementRenderer", "ElementRenderer"],
+            [49399797, "sectionListRenderer", "SectionListRenderer"],
+          ],
+          SingleColumnResultsRenderer: [
+            [1, "tabs", "BrowseTabSupportedRenderer", !0],
+          ],
+          BrowseTabSupportedRenderer: [
+            [58174010, "tabRenderer", "TabRenderer"],
+          ],
+          TabRenderer: [
+            [1, "endpoint", "TabEndpoint"],
+            [4, "content", "BrowseContent"],
+          ],
+          TabEndpoint: [[48687626, "browse", "TabBrowseEndpoint"]],
+          TabBrowseEndpoint: [[3, "params", "string"]],
+          ElementRenderer: [
+            [172660663, "videoRendererContent", "VideoRendererContent"],
+          ],
+          VideoRendererContent: [
+            [1, "richItemContents", "VideoInfo", !0],
+            [2, "renderInfo", "RenderInfo"],
+          ],
+          VideoInfo: [[168777401, "videoContext", "VideoContext"]],
+          VideoContext: [
+            [3, "layout", "ElementLayout"],
+            [5, "videoContent", "VideoContent"],
+          ],
+          ElementLayout: [[172035250, "layoutRender", "LayoutRender"]],
+          VideoContent: [
+            [413471385, "element", "ElementModel"],
+            [512694658, "smartSkipButton", "SmartSkipButton"],
+            [232954548, "videoLockup", "VideoLockup"],
+            [454362329, "sponsoredVideo", "bytes"],
+            [491441836, "sponsoredDisplay", "bytes"],
+          ],
+          ElementModel: [[1, "data", "ElementData"]],
+          ElementData: [[1829, "shoppingShelf", "bytes"]],
+          SmartSkipButton: [
+            [1, "actions", "SmartSkipActions"],
+            [13, "controller", "SmartSkipController"],
+            [17, "displayLimit", "uint"],
+          ],
+          SmartSkipActions: [[3, "items", "SmartSkipAction", !0]],
+          SmartSkipAction: [[9, "displayLimit", "uint"]],
+          SmartSkipController: [[7, "promotionMode", "bool"]],
+          VideoLockup: [
+            [33, "attachments", "Attachment", !0],
+            [34, "attachmentStateKey", "bytes"],
+          ],
+          Attachment: [[9, "products", "bytes", !0]],
+          RenderInfo: [[183314536, "layoutRender", "LayoutRender"]],
+          LayoutRender: [[1, "eml", "string"]],
+          SectionListRenderer: [
+            [
+              1,
+              "sectionListSupportedRenderers",
+              "SectionListSupportedRenderer",
+              !0,
+            ],
+            [32, "promotedContents", "bytes", !0],
+          ],
+          SectionListSupportedRenderer: [
+            [50195462, "itemSectionRenderer", "ItemSectionRenderer"],
+            [51845067, "shelfRenderer", "ShelfRenderer"],
+          ],
+          ItemSectionRenderer: [[1, "richItemContents", "RichItemContent", !0]],
+          RichItemContent: [
+            [153515154, "videoWithContextRenderer", "ElementRenderer"],
+          ],
+          ShelfRenderer: [[5, "richSectionContent", "RichSectionContent"]],
+          RichSectionContent: [
+            [51431404, "reelShelfRenderer", "ReelShelfRenderer"],
+          ],
+          ReelShelfRenderer: [[1, "richItemContents", "RichItemContent", !0]],
+          Next: [
+            [7, "content", "NextContent"],
+            [8, "onResponseReceivedAction", "BrowseContent"],
+            [14, "playerOverlays", "PlayerOverlays"],
+            [25, "engagementPanels", "EngagementPanel", !0],
+            [777, "frameworkUpdates", "bytes"],
+          ],
+          EngagementPanel: [[138681066, "renderer", "EngagementPanelRenderer"]],
+          EngagementPanelRenderer: [[3, "content", "BrowseContent"]],
+          NextContent: [[51779735, "nextResult", "NextResult"]],
+          NextResult: [[1, "content", "BrowseContent"]],
+          PlayerOverlays: [[78882851, "renderer", "PlayerOverlayRenderer"]],
+          PlayerOverlayRenderer: [
+            [2, "overflowMenu", "bytes"],
+            [3, "related", "RelatedOverlay"],
+            [42, "overlayCollections", "OverlayCollection", !0],
+          ],
+          OverlayCollection: [
+            [401855120, "renderer", "OverlayCollectionRenderer"],
+          ],
+          OverlayCollectionRenderer: [[2, "overlays", "OverlayItem", !0]],
+          OverlayItem: [[401855122, "content", "OverlayContent"]],
+          OverlayContent: [[1, "item", "RichItemContent"]],
+          RelatedOverlay: [[29209665, "contents", "RelatedOverlayContents"]],
+          RelatedOverlayContents: [[2, "contents", "RichItemContent", !0]],
+          Player: [
+            [15, "playerConfig", "PlayerConfig"],
+            [60, "overlayCollections", "OverlayCollection", !0],
+            [61, "paidPromotion", "bytes"],
+            [7, "adPlacements", "bytes", !0],
+            [2, "playabilityStatus", "PlayabilityStatus"],
+            [9, "playbackTracking", "PlaybackTracking"],
+            [68, "adSlots", "bytes", !0],
+          ],
+          PlayerConfig: [
+            [1, "granularVariableSpeedConfig", "PlaybackSpeedConfig"],
+          ],
+          PlaybackSpeedConfig: [
+            [1, "minimumPlaybackRate", "uint"],
+            [2, "maximumPlaybackRate", "uint"],
+          ],
+          PlayabilityStatus: [
+            [21, "pictureInPictureRender", "PictureInPictureSupportedRenderer"],
+            [11, "backgroundPlayerRender", "BackgroundSupportedRenderer"],
+          ],
+          PictureInPictureSupportedRenderer: [
+            [151635310, "pictureInPictureAbility", "PictureInPictureAbility"],
+          ],
+          PictureInPictureAbility: [
+            [1, "active", "bool"],
+            [4, "f4", "uint"],
+            [6, "f6", "uint"],
+            [8, "f8", "uint"],
+          ],
+          BackgroundSupportedRenderer: [
+            [64657230, "backgroundAbility", "BackgroundAbility"],
+          ],
+          BackgroundAbility: [[1, "active", "bool"]],
+          PlaybackTracking: [[18, "pageadViewthroughconversion", "bytes"]],
+          WatchContent: [
+            [2, "player", "Player"],
+            [3, "next", "Next"],
+          ],
+          EncryptedResponsePart: [
+            [1, "encryptedContent", "bytes"],
+            [2, "hmac", "bytes"],
+            [3, "iv", "bytes"],
+            [4, "compressionAlgorithm", "uint"],
+          ],
+          OnesieInnertubeResponse: [[4, "contents", "WatchContent", !0]],
+        },
+        C = new Set([
+          "BrowseContent",
+          "BrowseTabSupportedRenderer",
+          "ElementRenderer",
+          "EngagementPanel",
+          "EngagementPanelRenderer",
+          "ItemSectionRenderer",
+          "Next",
+          "NextContent",
+          "NextResult",
+          "OnesieInnertubeResponse",
+          "OverlayCollection",
+          "OverlayCollectionRenderer",
+          "OverlayContent",
+          "OverlayItem",
+          "Player",
+          "PlayerOverlayRenderer",
+          "PlayerOverlays",
+          "ReelShelfRenderer",
+          "RelatedOverlay",
+          "RelatedOverlayContents",
+          "RichItemContent",
+          "RichSectionContent",
+          "SectionListRenderer",
+          "SectionListSupportedRenderer",
+          "ShelfRenderer",
+          "SingleColumnResultsRenderer",
+          "TabRenderer",
+          "VideoContent",
+          "VideoContext",
+          "VideoInfo",
+          "VideoLockup",
+          "VideoRendererContent",
+          "WatchContent",
+        ]),
+        E = "YouTubeConfig",
+        o = "YouTubeQuality";
+      function e(g = E, I = 1 / 0) {
+        const A = $persistentStore.read(g);
+        if ("string" == typeof A && A.length > I) return {};
+        try {
+          const g = JSON.parse(A || "{}");
+          return g && "object" == typeof g && !Array.isArray(g) ? g : {};
+        } catch {
+          return {};
+        }
+      }
+      function B(g) {
+        const I = new Uint8Array(g.reduce((g, I) => g + I.length, 0));
+        let A = 0;
+        for (const C of g) I.set(C, A), (A += C.length);
+        return I;
+      }
+      function t(g, I) {
+        return (
+          g === I || (g.length === I.length && g.every((g, A) => g === I[A]))
+        );
+      }
+      function n(g) {
+        const I = [];
+        do {
+          I.push(g % 128 | (g > 127 ? 128 : 0)), (g = Math.floor(g / 128));
+        } while (g);
+        return new Uint8Array(I);
+      }
+      function S(g) {
+        const I = [];
+        let A = 0;
+        function C() {
+          let I = 0,
+            C = 1;
+          for (let E = 0; E < 5; E++) {
+            if (A >= g.length) throw new Error("Truncated protobuf varint");
+            const E = g[A++];
+            if (((I += (127 & E) * C), !(128 & E))) {
+              if (I > 4294967295)
+                throw new Error("Protobuf length/tag overflow");
+              return I;
+            }
+            C *= 128;
+          }
+          throw new Error("Invalid protobuf varint");
+        }
+        for (; A < g.length; ) {
+          const E = A,
+            o = C(),
+            e = Math.floor(o / 8),
+            B = o % 8;
+          if (!e) throw new Error("Invalid protobuf field");
+          let t = A;
+          if (2 === B) {
+            const g = C();
+            (t = A), (A += g);
+          } else if (1 === B) A += 8;
+          else if (5 === B) A += 4;
+          else {
+            if (0 !== B) throw new Error("Unsupported protobuf wire type " + B);
+            {
+              let I,
+                C = 0;
+              do {
+                if (A >= g.length || 10 === C++)
+                  throw new Error("Invalid protobuf integer");
+                if (((I = g[A++]), 10 === C && I > 1))
+                  throw new Error("Protobuf integer overflow");
+              } while (128 & I);
+            }
+          }
+          if (A > g.length) throw new Error("Truncated protobuf field");
+          I.push({
+            no: e,
+            wire: B,
+            data: g.subarray(t, A),
+            raw: g.subarray(E, A),
+          });
+        }
+        return I;
+      }
+      function i(g) {
+        const I = (function (g) {
+          let I = 0,
+            A = 1;
+          for (const C of g) (I += (127 & C) * A), (A *= 128);
+          return I;
+        })(g);
+        if (!Number.isSafeInteger(I)) throw new Error("Unsafe decoded integer");
+        return I;
+      }
+      function r(g) {
+        const I = g.replace(/[-_\s=]/g, (g) =>
+            "-" === g ? "+" : "_" === g ? "/" : "",
+          ),
+          A = I.length % 4 == 1,
+          C = Uint8Array.fromBase64(A ? I + "A" : I);
+        return A ? C.subarray(0, -1) : C;
+      }
+      function h(g) {
+        const I = g;
+        return !!(
+          I &&
+          "object" == typeof I &&
+          !Array.isArray(I) &&
+          Number.isInteger(I.height) &&
+          I.height > 0 &&
+          I.height <= 2147483647 &&
+          Array.isArray(I.itags) &&
+          I.itags.length > 0 &&
+          I.itags.length <= 256 &&
+          I.itags.every(
+            (g) => Number.isInteger(g) && g > 0 && g <= 4294967295,
+          ) &&
+          new Set(I.itags).size === I.itags.length &&
+          (void 0 === I.premiumItags ||
+            (Array.isArray(I.premiumItags) &&
+              I.premiumItags.length <= I.itags.length &&
+              new Set(I.premiumItags).size === I.premiumItags.length &&
+              I.premiumItags.every((g) => I.itags.includes(g))))
+        );
+      }
+      function a(g, I) {
+        return (
+          void 0 !== g &&
+          g.height === I.height &&
+          g.itags.length === I.itags.length &&
+          I.itags.every((I) => g.itags.includes(I)) &&
+          (g.premiumItags?.length ?? 0) === (I.premiumItags?.length ?? 0) &&
+          (I.premiumItags ?? []).every((I) => g.premiumItags?.includes(I))
+        );
+      }
+      const K = g.encode("PAyouchat"),
+        s = g.encode("ai_summary_");
+      function c(g, I, A = K, C = !1) {
+        return I.length
+          ? S(g).some(
+              (g) =>
+                g.no === I[0] && 2 === g.wire && c(g.data, I.slice(1), A, C),
+            )
+          : t(C ? g.subarray(0, A.length) : g, A);
+      }
+      function Q(g, I, A) {
+        let C = !1;
+        const E = S(g).flatMap((g) => {
+          if (g.no !== I || 2 !== g.wire) return [g.raw];
+          const E = A(g.data);
+          return E && t(E, g.data)
+            ? [g.raw]
+            : ((C = !0), E ? [Eg([I, "", "bytes"], E)] : []);
+        });
+        return C ? B(E) : g;
+      }
+      function w(g) {
+        return Q(g, 1, (g) =>
+          c(g, [10, 461054335, 4, 169495254, 138681778, 1])
+            ? void 0
+            : Sg(g, [10, 37098], (g) =>
+                Q(g, 3, (g) =>
+                  c(g, [489973921, 997, 3, 3, 169495254, 138681778, 1])
+                    ? void 0
+                    : g,
+                ),
+              ),
+        );
+      }
+      function l(g) {
+        return Q(g, 10, (g) =>
+          c(g, [15, 461054335, 4, 169495254, 138681778, 1])
+            ? void 0
+            : Sg(g, [6], (g) =>
+                Q(g, 3, (g) =>
+                  c(g, [4, 16, 461054335, 4, 169495254, 138681778, 1])
+                    ? void 0
+                    : g,
+                ),
+              ),
+        );
+      }
+      function R(g) {
+        return Sg(g, [1], (g) => {
+          const I = S(g),
+            A = I.filter((g) => 1 === g.no && 2 === g.wire),
+            C = I.filter((g) => 2 === g.no && 2 === g.wire);
+          if (A.length !== C.length) return g;
+          const E = new Set();
+          return (
+            C.forEach((g, I) => {
+              c(g.data, [8, 2, 169495254, 138681778, 1]) &&
+                (E.add(g), E.add(A[I]));
+            }),
+            E.size ? B(I.filter((g) => !E.has(g)).map((g) => g.raw)) : g
+          );
+        });
+      }
+      function M(g) {
+        return Sg(g, [153515154, 172660663, 1, 168777401, 5], (g) => {
+          let I = Q(g, 386137609, l);
+          return (
+            (I = Sg(I, [413471385, 1], (g) => Q(g, 2185, w))),
+            Q(I, 408379376, R)
+          );
+        });
+      }
+      function G(g) {
+        return Sg(
+          Q(g, 45, (g) => (c(g, [], s, !0) ? void 0 : g)),
+          [1, 19, 1, 1, 4, 424915055, 1],
+          (g) =>
+            Q(g, 31, (g) =>
+              c(g, [1, 204158123, 194114827, 1], s, !0) ? void 0 : g,
+            ),
+        );
+      }
+      function u(g, I, A = !1) {
+        let C;
+        for (const E of S(g))
+          if (E.no === I && 2 === E.wire) {
+            if (!A) return E.data;
+            if (C) return;
+            C = E.data;
+          }
+        return C;
+      }
+      function D(g, I) {
+        return Eg(
+          [
+            g,
+            "",
+            "number" == typeof I
+              ? "uint"
+              : "string" == typeof I
+                ? "string"
+                : "bytes",
+          ],
+          I,
+        );
+      }
+      function f(g, I) {
+        for (let A = g.length - 1; A >= 0; A--) I = D(g[A], I);
+        return I;
+      }
+      function y(g, I) {
+        let A = g;
+        for (const g of I) if (((A = u(A, g, !0)), !A)) return;
+        return A;
+      }
+      const Y = "on-the-go",
+        p = "/youtube/app/player_overflow_menu/menu_item_on_the_go",
+        d = [153515154, 172660663, 1, 168777401, 5, 407694004],
+        x = [153515154, 172660663, 1, 168777401];
+      function m(g) {
+        if (!g.renderer) return;
+        const A = tg(g.renderer),
+          C = A.find((g) => 18 === g.no && 2 === g.wire),
+          E =
+            (C && y(C.data, [3])) ??
+            A.find((g) => 1 === g.no && 2 === g.wire)?.data;
+        return E && I.decode(E);
+      }
+      function j() {
+        const g = "/youtube/app/on_the_go_menu_trigger_state";
+        return D(
+          170382688,
+          B([
+            f([1, 241780379, 1], 1),
+            f([1, 169495254, 423731020], new Uint8Array()),
+            f(
+              [1, 169495254, 204158123, 170382688],
+              B([
+                f([1, 170382720], B([D(1, g), D(2, B([D(1, g), D(2, 1)]))])),
+                f([1, 169495254, 138681778, 10], B([D(1, 1), D(3, Y)])),
+              ]),
+            ),
+          ]),
+        );
+      }
+      function b(g, I, A, C) {
+        return D(
+          461054335,
+          B([
+            D(2, g),
+            D(4, A),
+            D(5, I),
+            ...(C
+              ? [D(17, "id.player_controls." + C + ".button")]
+              : [D(28, 1), D(29, 1)]),
+          ]),
+        );
+      }
+      function U(g) {
+        const A = y(g, [196886555]) ?? y(g, [426171394]),
+          C = A && u(A, 1, !0);
+        return C && I.decode(C);
+      }
+      function k(g, I, A = 0) {
+        for (const [A, C] of I) if (t(g, A)) return C;
+        if (96 === A) return g;
+        let C;
+        try {
+          C = S(g);
+        } catch {
+          return g;
+        }
+        let E = !1;
+        const o = C.map((g) => {
+          if (2 !== g.wire) return g.raw;
+          const C = k(g.data, I, A + 1);
+          return C === g.data ? g.raw : ((E = !0), D(g.no, C));
+        });
+        return E ? B(o) : g;
+      }
+      const F =
+          /^(?:inline_injection_entrypoint_layout|video_display_button_group_layout|full_width_portrait_image_layout|full_width_square_image_layout|video_display_full_buttoned_layout)\.eml(?:-js)?(?:-fe)?$/,
+        H =
+          /^(?:shopping_|products?_in_video_)[a-z0-9_]+\.eml(?:-js)?(?:-fe)?$/,
+        L = g.encode("/pagead/"),
+        J = g.encode("mini_game_card.eml"),
+        v = g.encode("shopping_item_card_list.eml"),
+        O = g.encode("store"),
+        V = g.encode("youtube_outline_experimental/live_24pt"),
+        W = g.encode("immersive_live"),
+        q = g.encode("SPunlimited");
+      function P(g, I = L) {
+        if (!I.length) return !0;
+        const A = g.length - I.length;
+        let C = 0,
+          E = 0;
+        for (
+          let o = g.indexOf(I[0]);
+          o >= 0 && o <= A;
+          o = g.indexOf(I[0], o + 1)
+        ) {
+          let A = !0;
+          for (let C = 1; C < I.length; C++)
+            if (g[o + C] !== I[C]) {
+              A = !1;
+              break;
+            }
+          if (A) return !0;
+          if (8 === ++C) {
+            if (o - E < 256) return N(g, I, o + 1);
+            (E = o), (C = 0);
+          }
+        }
+        return !1;
+      }
+      function N(g, I, A) {
+        g: for (let C = A; C <= g.length - I.length; C++) {
+          for (let A = 0; A < I.length; A++) if (g[C + A] !== I[A]) continue g;
+          return !0;
+        }
+        return !1;
+      }
+      function X(g) {
+        const I = g.tabRenderer?.endpoint?.browse?.params;
+        if (!I) return !1;
+        try {
+          const g = S(r(decodeURIComponent(I))).find(
+            (g) => 2 === g.no && 2 === g.wire,
+          );
+          return !!g && t(g.data, O);
+        } catch {
+          return !1;
+        }
+      }
+      function Z(
+        E,
+        {
+          blockGames: o = !0,
+          blockVerticalLive: e = !1,
+          jumpAhead: h = !0,
+          blockStore: a = !0,
+          blockAi: L = !0,
+          onTheGo: O = !0,
+        } = {},
+      ) {
+        let N = (function (I) {
+          const A = I.playerOverlays?.renderer;
+          if (!A?.overflowMenu) return !1;
+          try {
+            const I = (function (I) {
+                const A = g.encode("PApremium_upsell");
+                return Sg(
+                  I,
+                  [
+                    66439850, 1, 153515154, 172660663, 1, 168777401, 5,
+                    407694004, 4, 4, 170382688, 1, 169495254, 443434441, 1, 1,
+                    441573002, 4, 153515154, 172660663, 1, 168777401, 5,
+                    413471385, 1, 1602,
+                  ],
+                  (g) => {
+                    const I = S(g),
+                      C = I.find((g) => 5 === g.no && 5 === g.wire);
+                    if (!C) return g;
+                    const E = new DataView(
+                      C.data.buffer,
+                      C.data.byteOffset,
+                      4,
+                    ).getFloat32(0, !0);
+                    if (!(E > 0)) return g;
+                    let o = g;
+                    if (E < 4) {
+                      const g = new Uint8Array(4);
+                      new DataView(g.buffer).setFloat32(0, 4, !0),
+                        (o = B(
+                          I.map((I) => (I === C ? B([n(45), g]) : I.raw)),
+                        ));
+                    }
+                    return Sg(o, [10, 1674], (g) => {
+                      const I = S(g),
+                        C = I.filter(
+                          (g) => 3 !== g.no || 2 !== g.wire || !P(g.data, A),
+                        );
+                      return C.length === I.length ? g : B(C.map((g) => g.raw));
+                    });
+                  },
+                );
+              })(A.overflowMenu),
+              C = !t(I, A.overflowMenu);
+            return C && Cg(A, "overflowMenu", I), C;
+          } catch (g) {
+            return console.log("YouTube speed menu: " + g), !1;
+          }
+        })(E);
+        if (O)
+          try {
+            N =
+              (function (A) {
+                const C = A.playerOverlays?.renderer;
+                if (!C?.overflowMenu || !Array.isArray(A.engagementPanels))
+                  return !1;
+                if (A.engagementPanels.some((g) => m(g) === Y)) return !1;
+                const E = y(C.overflowMenu, [66439850]);
+                if (!E) return !1;
+                const o = S(E);
+                let e,
+                  n,
+                  h = o.length;
+                for (const [g, A] of o.entries()) {
+                  if (1 !== A.no || 2 !== A.wire) continue;
+                  const C = y(A.data, d),
+                    E = C && u(C, 10, !0);
+                  if (!C || !E) continue;
+                  const o = I.decode(E);
+                  if (o === p) return !1;
+                  if (
+                    (o.endsWith("/menu_item_additional_settings") && (h = g),
+                    (e ??= A.data),
+                    o.endsWith("/menu_item_playback_speed"))
+                  ) {
+                    const g = y(C, [4, 4, 170382688]);
+                    if (g)
+                      for (const I of S(g))
+                        1 === I.no &&
+                          y(I.data, [169495254, 443434441]) &&
+                          (n = I.data);
+                  }
+                }
+                if (!e) return !1;
+                const a = (function (A) {
+                  if (tg(A).some((g) => 777 === g.no)) return;
+                  const C = A.frameworkUpdates,
+                    E = C && y(C, [2]);
+                  if (!E) return;
+                  const o = new Set(),
+                    e = new Set();
+                  for (const g of S(E)) {
+                    if (1 !== g.no || 2 !== g.wire) continue;
+                    const A = U(g.data);
+                    A && (o.add(A), e.add(A));
+                    const C = y(g.data, [328964737]);
+                    if (C)
+                      for (const g of S(C)) {
+                        if (1 !== g.no || 2 !== g.wire) continue;
+                        const A = y(g.data, [1]),
+                          C = S(g.data).find((g) => 2 === g.no && 0 === g.wire);
+                        A &&
+                          C &&
+                          [1, 2].includes(i(C.data)) &&
+                          o.add(I.decode(A));
+                      }
+                  }
+                  const t = S(
+                      r(
+                        "CteBAdqBiO8Fz4EBCj5lbmdhZ2VtZW50X3BhbmVsX2xhcmdlX3BsYXllcl9jb250cm9scy5lbWwtZmV8ZWFhNmUwNWM5MmU2ZWU3OBKJgQGyx86HBYGBARLzgAEKBAgGEAkKBAgHEAUKBAgKEAgKBAgYEA4KBAgZEAIKBAgfEA4KBAggEA4KBAgoEA4KBAgtEA4KBAgwEA4KBAgxEA4KBAgyEA4KBAg0EA4KBAg6EA4KBAg/EA4KBAhMEA4KBAhREA4KBAhUEA4KBAhVEA4KBAhZEA4SBAgBGAESiGIIAhgCIoFiGv5hChEIARINGgsKCQjEyOFMEgIaAAofCAISGxoZChcI65i9UBIQGg4KDAgHEggILTIECgIIAwrHYQgDEsJhWr9hCAESumEat2EKEQgBEg0aCwoJCKeU3EsSAhoACoEBCAISfRp7CnkIhIu9UBJyGnAKDAgKEggIMDIECgIIAQoMCAsSCAgxMgQKAggFCgwIDBIICDIyBAoCCAQKEAgCEgwaCgoICAESBBICCBAKDAgTEggINDIECgIIAQokCAkSIBoeChwIBxIYGhYKFAgBEhASDggEEgIIBBICCAESAggECp1gCAMSmGBalWAIARK6FiK3Fgq0FgoKUggIARIEEgIIFRKlFhqiFgoRCAESDRoLCgkIp5TcSxICGgAKLQgCEikaJwolCISLvVASHhocCgwIChIICDAyBAoCCAMKDAgMEggIMjIECgIIBArdFQgDEtgVWtUVCAES0BUazRUKtREIARKwERqtEQqqEQi5lNxLEqIRGp8RCpwRCAESlxEalBEKDAgCEggIOjIECgIIAgqzCQgBEq4JIqsJCjwKKFImCAESIkogCAESCAgHMgQKAggAGhJSEAgCEgwSCggGEgIIARICCDMSEBIOCAYSAggBEgIIMxICCAES6gha5wgIARLiCCLfCArmBwrMBlrJBggCEp0GWpoGCAISgQFafwgCEmBaXggCEiwSKggBEgIIAxICCAESDhoMCAcyCAoGCKPTn44CEgIIARIKGggIBzIECgIIBhIsEioIARICCAMSAggBEg0aCwgHMgcKBQie2L9GEgIIARILGgkIBzIFCgMI6gcSGRIXCAESAggHEgYIiJfhpwESAggBEgMIigISkQVajgUIAxLOBFrLBAgDEosEWogECAMSyANaxQMIAxKFA1qCAwgDEsICWr8CCAMS/wFa/AEIAxK8AVq5AQgDEnpaeAgDEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAESGRIXCAESAggHEgYIiJfhpwESAggBEgMIpgISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIAhIZEhcIARICCAcSBgiIl+GnARICCAESAwipAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggDEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCKoCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAQSGRIXCAESAggHEgYIiJfhpwESAggBEgMIswISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIBRIZEhcIARICCAcSBgiIl+GnARICCAESAwi9AhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggGEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCL8CEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAcSGRIXCAESAggHEgYIiJfhpwESAggBEgMIxAISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIICBIZEhcIARICCAcSBgiIl+GnARICCAESAwjFAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggJEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCMYCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAoSGRIXCAESAggHEgYIiJfhpwESAggBEgMI4QISJVIjCAESH0odCAESCAgHMgQKAggAGg9SDQgCEgkIKDIFCgMIgwMSlAEikQEKjgEKYFpeCAISLBIqCAESAggDEgIIARIOGgwIBzIICgYIo9OfjgISAggBEgoaCAgHMgQKAggGEiwSKggBEgIIAxICCAESDRoLCAcyBwoFCJ7Yv0YSAggBEgsaCQgHMgUKAwjqBxIqGigKJggGEiIaIAoeCOoHEhkaFwoVCAESERoPCg0IARIJCCgyBQoDCIMDEnQacgpwCAMSbBpqChAIAhIMEgoIBhICCAESAggCCiIIAxIeIhwKFAoMEgoIARICCAQSAggLEgQSAggIEgQSAggLCjIIARIuIiwKKgoeUhwIARIYShYIARIICAYyBAoCCgAaCAgGMgQKAgoAEggIBjIECgIKAArNBwgDEsgHGsUHCsIHCPmj3EkSugcatwcKtAcIBhKvByKsBwqpBwr+Blr7BggDEihSJggBEiJKIAgBEggIBzIECgIIABoSUhAIAhIMEgoIBhICCAESAggzEswGWskGCAISnQZamgYIAhKBAVp/CAISYFpeCAISLBIqCAESAggDEgIIARIOGgwIBzIICgYIo9OfjgISAggBEgoaCAgHMgQKAggGEiwSKggBEgIIAxICCAESDRoLCAcyBwoFCJ7Yv0YSAggBEgsaCQgHMgUKAwjqBxIZEhcIARICCAcSBgiIl+GnARICCAESAwiKAhKRBVqOBQgDEs4EWssECAMSiwRaiAQIAxLIA1rFAwgDEoUDWoIDCAMSwgJavwIIAxL/AVr8AQgDErwBWrkBCAMSelp4CAMSOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIARIZEhcIARICCAcSBgiIl+GnARICCAESAwimAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggCEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCKkCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAMSGRIXCAESAggHEgYIiJfhpwESAggBEgMIqgISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIBBIZEhcIARICCAcSBgiIl+GnARICCAESAwizAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggFEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCL0CEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAYSGRIXCAESAggHEgYIiJfhpwESAggBEgMIvwISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIBxIZEhcIARICCAcSBgiIl+GnARICCAESAwjEAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggIEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCMUCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAkSGRIXCAESAggHEgYIiJfhpwESAggBEgMIxgISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIChIZEhcIARICCAcSBgiIl+GnARICCAESAwjhAhIlUiMIARIfSh0IARIICAcyBAoCCAAaD1INCAISCQgoMgUKAwiDAxImGiQKIggBEh4iHAoUCgwSCggBEgIIBBICCAsSBBICCAgSBBICCAsKkgQIAhKNBBqKBApcCISLvVASVRpTChgIAhIUGhIKEAgBEgxSCggFEgYIBxICCAMKGAgDEhQaEgoQCAESDFIKCAUSBggHEgIIAwoPCA4SCwgZMgcKBQ0AAAAACgwIEBIICDIyBAoCCAIKzQEIuZe9UBLFARrCAQq/AQgBEroBIrcBCrQBCgwSCggBEgIIBBICCAsSowEaoAEKnQEI4KqfURKVARqSAQqPAQgBEooBWocBCAESdSJzCnEKLhIsCAESAggDEgIIARINGgsIBzIHCgUI/5zcexICCAESDRoLCAcyBwoFCJuNpXMSPxo9CjsIm42lcxI0GjIKDAgBEggITDIECgIIAQoQCAMSDBIKCAYSAggBEgIIBgoQCAISDBIKCAYSAggBEgIICBIMEgoIBhICCAESAggECj4IlZe9UBI3GjUKMwgGEi8aLQorCNygiloSJBoiCggIAhIEEgIIAwoMCAMSCAgKMgQKAggACggIARIEEgIICgp9COuYvVASdhp0CkAIBRI8IjoKHgoMEgoIARICCAQSAggLEg5aDAgBEggIUTIECgIIAhIYWhYIARIICFEyBAoCCAISCAhRMgQKAggHChAIARIMEgoIBhICCAESAggFChAIBBIMEgoIBhICCAESAggRCgwIBhIICAoyBAoCCAEKGwiWkelQEhQaEgoQCAESDBIKCAYSAggBEgIICBLfFSLcFQrZFQoKUggIARIEEgIIFRLKFRrHFQoRCAESDRoLCgkIp5TcSxICGgAKLQgCEikaJwolCISLvVASHhocCgwIChIICDAyBAoCCAMKDAgMEggIMjIECgIIBAqCFQgDEv0UWvoUCAES9RQa8hQK6hAIARLlEBriEArfEAi5lNxLEtcQGtQQCtEQCAESzBAayRAKDAgCEggIOjIECgIIAgqHCQgBEoIJIv8ICjwKKFImCAESIkogCAESCAgHMgQKAggAGhJSEAgCEgwSCggGEgIIAhICCDMSEBIOCAYSAggCEgIIMxICCAESvghauwgIARK2CCKzCArcBwrHBlrEBggCEp0GWpoGCAISgQFafwgCEmBaXggCEiwSKggBEgIIAxICCAESDhoMCAcyCAoGCKPTn44CEgIIARIKGggIBzIECgIIBhIsEioIARICCAMSAggBEg0aCwgHMgcKBQie2L9GEgIIARILGgkIBzIFCgMI6gcSGRIXCAESAggHEgYIiJfhpwESAggBEgMIigISkQVajgUIAxLOBFrLBAgDEosEWogECAMSyANaxQMIAxKFA1qCAwgDEsICWr8CCAMS/wFa/AEIAxK8AVq5AQgDEnpaeAgDEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAESGRIXCAESAggHEgYIiJfhpwESAggBEgMIpgISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIAhIZEhcIARICCAcSBgiIl+GnARICCAESAwipAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggDEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCKoCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAQSGRIXCAESAggHEgYIiJfhpwESAggBEgMIswISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIBRIZEhcIARICCAcSBgiIl+GnARICCAESAwi9AhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggGEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCL8CEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAcSGRIXCAESAggHEgYIiJfhpwESAggBEgMIxAISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIICBIZEhcIARICCAcSBgiIl+GnARICCAESAwjFAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggJEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCMYCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAoSGRIXCAESAggHEgYIiJfhpwESAggBEgMI4QISIFIeCAESGkoYCAESCAgHMgQKAggAGgpSCAgCEgQSAggZEo8BIowBCokBCmBaXggCEiwSKggBEgIIAxICCAESDhoMCAcyCAoGCKPTn44CEgIIARIKGggIBzIECgIIBhIsEioIARICCAMSAggBEg0aCwgHMgcKBQie2L9GEgIIARILGgkIBzIFCgMI6gcSJRojCiEIBhIdGhsKGQjqBxIUGhIKEAgBEgwaCgoICAESBBICCBkSUhpQCk4IAxJKGkgKCAgCEgQSAggYCggIAxIEEgIICAoyCAESLiIsCioKHlIcCAESGEoWCAESCAgGMgQKAgoAGggIBjIECgIKABIICAYyBAoCCgAKrgcIAxKpBxqmBwqjBwj5o9xJEpsHGpgHCpUHCAYSkAcijQcKigcK+QZa9gYIAxIoUiYIARIiSiAIARIICAcyBAoCCAAaElIQCAISDBIKCAYSAggCEgIIMxLHBlrEBggCEp0GWpoGCAISgQFafwgCEmBaXggCEiwSKggBEgIIAxICCAESDhoMCAcyCAoGCKPTn44CEgIIARIKGggIBzIECgIIBhIsEioIARICCAMSAggBEg0aCwgHMgcKBQie2L9GEgIIARILGgkIBzIFCgMI6gcSGRIXCAESAggHEgYIiJfhpwESAggBEgMIigISkQVajgUIAxLOBFrLBAgDEosEWogECAMSyANaxQMIAxKFA1qCAwgDEsICWr8CCAMS/wFa/AEIAxK8AVq5AQgDEnpaeAgDEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAESGRIXCAESAggHEgYIiJfhpwESAggBEgMIpgISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIAhIZEhcIARICCAcSBgiIl+GnARICCAESAwipAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggDEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCKoCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAQSGRIXCAESAggHEgYIiJfhpwESAggBEgMIswISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIBRIZEhcIARICCAcSBgiIl+GnARICCAESAwi9AhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggGEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCL8CEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAcSGRIXCAESAggHEgYIiJfhpwESAggBEgMIxAISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIICBIZEhcIARICCAcSBgiIl+GnARICCAESAwjFAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggJEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCMYCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAoSGRIXCAESAggHEgYIiJfhpwESAggBEgMI4QISIFIeCAESGkoYCAESCAgHMgQKAggAGgpSCAgCEgQSAggZEgwaCgoICAESBBICCAgKggQIAhL9Axr6AwpcCISLvVASVRpTChgIAhIUGhIKEAgBEgxSCggFEgYIBxICCAMKGAgDEhQaEgoQCAESDFIKCAUSBggHEgIIAwoPCA4SCwgZMgcKBQ0AAAAACgwIEBIICDIyBAoCCAIKyQEIuZe9UBLBARq+AQq7AQgBErYBIrMBCrABCggICjIECgIIARKjARqgAQqdAQjgqp9REpUBGpIBCo8BCAESigFahwEIARJ1InMKcQouEiwIARICCAMSAggBEg0aCwgHMgcKBQj/nNx7EgIIARINGgsIBzIHCgUIm42lcxI/Gj0KOwibjaVzEjQaMgoMCAESCAhMMgQKAggBChAIAxIMEgoIBhICCAISAggGChAIAhIMEgoIBhICCAISAggIEgwSCggGEgIIAhICCAQKPgiVl71QEjcaNQozCAYSLxotCisI3KCKWhIkGiIKCAgCEgQSAggDCgwIAxIICAoyBAoCCAAKCAgBEgQSAggKCnEI65i9UBJqGmgKPAgFEjgiNgoaCggICjIECgIIARIOWgwIARIICFEyBAoCCAISGFoWCAESCAhRMgQKAggCEggIUTIECgIIBwoICAESBBICCBYKEAgEEgwSCggGEgIIAhICCBEKDAgGEggICjIECgIIAQobCJaR6VASFBoSChAIARIMEgoIBhICCAISAggIEtIHGs8HChEIARINGgsKCQinlNxLEgIaAApfCAISWxpZClcIhIu9UBJQGk4KDAgKEggIMDIECgIIAwoMCAwSCAgyMgQKAggECgwICxIICDEyBAoCCAMKEAgDEgwaCgoICAESBBICCBIKEAgCEgwaCgoICAESBBICCBIK2AYIAxLTBlrQBggBEtcDItQDCtEDCgQSAggHEsgDGsUDChEIARINGgsKCQinlNxLEgIaAAqvAwgCEqoDGqcDCjsIhIu9UBI0GjIKDAgREggIVDIECgIIAgoQCAMSDBoKCggIARIEEgIIDgoQCAISDBoKCggIARIEEgIIDgrnAgiVl71QEt8CGtwCCggIBRIEEgIIDwrPAggBEsoCIscCCrABChpKGAgBEgoIVRIGCAQSAggGGggIVTIECgIIAhKRASKOAQpECihSJggBEiJKIAgBEggIBzIECgIIABoSUhAIAhIMEgoIBBICCAcSAghsEhgSFggEEgIIBxICCGwSChoICAcyBAoCCC8SRiJECjQKJFIiCAESHkocCAESCAgHMgQKAggAGg5SDAgCEggSBggEEgIIBxIMEgoIBBICCAcSAggvEgwSCggEEgIIARICCDcSkQEijgEKRAooUiYIARIiSiAIARIICAcyBAoCCAAaElIQCAISDBIKCAQSAggHEgIIbBIYEhYIBBICCAcSAghsEgoaCAgHMgQKAggqEkYiRAo0CiRSIggBEh5KHAgBEggIBzIECgIIABoOUgwIAhIIEgYIBBICCAcSDBIKCAQSAggHEgIIKhIMEgoIBBICCAESAghJEvECGu4CCrABCAESqwEaqAEKpQEIoLrkpQESnAEamQEKEAgDEgwSCggBEgIIBBICCAcKKwgEEicaJQojCNaV6VASHBoaChgImtiVnAESEBoOCgwIARIICFkyBAoCCAEKKwgFEicaJQojCNaV6VASHBoaChgImtiVnAESEBoOCgwIARIICFkyBAoCCAIKKwgGEicaJQojCNaV6VASHBoaChgImtiVnAESEBoOCgwIARIICFkyBAoCCAcKuAEIAhKzARqwAQotCISLvVASJhokChAIAxIMGgoKCAgBEgQSAggMChAIAhIMGgoKCAgBEgQSAggMCj4IlZe9UBI3GjUKMwgGEi8aLQorCNygiloSJBoiCgwIAxIICAoyBAoCCAAKCAgCEgQSAggNCggIARIEEgIICgo/COuYvVASOBo2ChIIBRIOWgwIARIICFEyBAoCCAIKDAgGEggICjIECgIIAQoICAESBBICCBMKCAgEEgQSAggUEt8VItwVCtkVCgpSCAgBEgQSAggVEsoVGscVChEIARINGgsKCQinlNxLEgIaAAotCAISKRonCiUIhIu9UBIeGhwKDAgKEggIMDIECgIIAwoMCAwSCAgyMgQKAggECoIVCAMS/RRa+hQIARL1FBryFArqEAgBEuUQGuIQCt8QCLmU3EsS1xAa1BAK0RAIARLMEBrJEAoMCAISCAg6MgQKAggCCocJCAESggki/wgKPAooUiYIARIiSiAIARIICAcyBAoCCAAaElIQCAISDBIKCAYSAggDEgIIMxIQEg4IBhICCAMSAggzEgIIARK+CFq7CAgBErYIIrMICtwHCscGWsQGCAISnQZamgYIAhKBAVp/CAISYFpeCAISLBIqCAESAggDEgIIARIOGgwIBzIICgYIo9OfjgISAggBEgoaCAgHMgQKAggGEiwSKggBEgIIAxICCAESDRoLCAcyBwoFCJ7Yv0YSAggBEgsaCQgHMgUKAwjqBxIZEhcIARICCAcSBgiIl+GnARICCAESAwiKAhKRBVqOBQgDEs4EWssECAMSiwRaiAQIAxLIA1rFAwgDEoUDWoIDCAMSwgJavwIIAxL/AVr8AQgDErwBWrkBCAMSelp4CAMSOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIARIZEhcIARICCAcSBgiIl+GnARICCAESAwimAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggCEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCKkCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAMSGRIXCAESAggHEgYIiJfhpwESAggBEgMIqgISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIBBIZEhcIARICCAcSBgiIl+GnARICCAESAwizAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggFEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCL0CEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAYSGRIXCAESAggHEgYIiJfhpwESAggBEgMIvwISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIBxIZEhcIARICCAcSBgiIl+GnARICCAESAwjEAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggIEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCMUCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAkSGRIXCAESAggHEgYIiJfhpwESAggBEgMIxgISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIChIZEhcIARICCAcSBgiIl+GnARICCAESAwjhAhIgUh4IARIaShgIARIICAcyBAoCCAAaClIICAISBBICCBsSjwEijAEKiQEKYFpeCAISLBIqCAESAggDEgIIARIOGgwIBzIICgYIo9OfjgISAggBEgoaCAgHMgQKAggGEiwSKggBEgIIAxICCAESDRoLCAcyBwoFCJ7Yv0YSAggBEgsaCQgHMgUKAwjqBxIlGiMKIQgGEh0aGwoZCOoHEhQaEgoQCAESDBoKCggIARIEEgIIGxJSGlAKTggDEkoaSAoICAISBBICCBoKCAgDEgQSAggICjIIARIuIiwKKgoeUhwIARIYShYIARIICAYyBAoCCgAaCAgGMgQKAgoAEggIBjIECgIKAAquBwgDEqkHGqYHCqMHCPmj3EkSmwcamAcKlQcIBhKQByKNBwqKBwr5Blr2BggDEihSJggBEiJKIAgBEggIBzIECgIIABoSUhAIAhIMEgoIBhICCAMSAggzEscGWsQGCAISnQZamgYIAhKBAVp/CAISYFpeCAISLBIqCAESAggDEgIIARIOGgwIBzIICgYIo9OfjgISAggBEgoaCAgHMgQKAggGEiwSKggBEgIIAxICCAESDRoLCAcyBwoFCJ7Yv0YSAggBEgsaCQgHMgUKAwjqBxIZEhcIARICCAcSBgiIl+GnARICCAESAwiKAhKRBVqOBQgDEs4EWssECAMSiwRaiAQIAxLIA1rFAwgDEoUDWoIDCAMSwgJavwIIAxL/AVr8AQgDErwBWrkBCAMSelp4CAMSOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIARIZEhcIARICCAcSBgiIl+GnARICCAESAwimAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggCEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCKkCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAMSGRIXCAESAggHEgYIiJfhpwESAggBEgMIqgISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIBBIZEhcIARICCAcSBgiIl+GnARICCAESAwizAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggFEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCL0CEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAYSGRIXCAESAggHEgYIiJfhpwESAggBEgMIvwISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIBxIZEhcIARICCAcSBgiIl+GnARICCAESAwjEAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggIEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCMUCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAkSGRIXCAESAggHEgYIiJfhpwESAggBEgMIxgISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIChIZEhcIARICCAcSBgiIl+GnARICCAESAwjhAhIgUh4IARIaShgIARIICAcyBAoCCAAaClIICAISBBICCBsSDBoKCggIARIEEgIICAqCBAgCEv0DGvoDClwIhIu9UBJVGlMKGAgCEhQaEgoQCAESDFIKCAUSBggHEgIIAwoYCAMSFBoSChAIARIMUgoIBRIGCAcSAggDCg8IDhILCBkyBwoFDQAAAAAKDAgQEggIMjIECgIIAgrJAQi5l71QEsEBGr4BCrsBCAEStgEiswEKsAEKCAgKMgQKAggBEqMBGqABCp0BCOCqn1ESlQEakgEKjwEIARKKAVqHAQgBEnUicwpxCi4SLAgBEgIIAxICCAESDRoLCAcyBwoFCP+c3HsSAggBEg0aCwgHMgcKBQibjaVzEj8aPQo7CJuNpXMSNBoyCgwIARIICEwyBAoCCAEKEAgDEgwSCggGEgIIAxICCAYKEAgCEgwSCggGEgIIAxICCAgSDBIKCAYSAggDEgIIBAo+CJWXvVASNxo1CjMIBhIvGi0KKwjcoIpaEiQaIgoICAISBBICCAMKDAgDEggICjIECgIIAAoICAESBBICCAoKcQjrmL1QEmoaaAo8CAUSOCI2ChoKCAgKMgQKAggBEg5aDAgBEggIUTIECgIIAhIYWhYIARIICFEyBAoCCAISCAhRMgQKAggHCggIARIEEgIIFwoQCAQSDBIKCAYSAggDEgIIEQoMCAYSCAgKMgQKAggBChsIlpHpUBIUGhIKEAgBEgwSCggGEgIIAxICCAgSuhYitxYKtBYKClIICAESBBICCBUSpRYaohYKEQgBEg0aCwoJCKeU3EsSAhoACi0IAhIpGicKJQiEi71QEh4aHAoMCAoSCAgwMgQKAggDCgwIDBIICDIyBAoCCAQK3RUIAxLYFVrVFQgBEtAVGs0VCrURCAESsBEarREKqhEIuZTcSxKiERqfEQqcEQgBEpcRGpQRCgwIAhIICDoyBAoCCAIKswkIARKuCSKrCQo8CihSJggBEiJKIAgBEggIBzIECgIIABoSUhAIAhIMEgoIBhICCAQSAggzEhASDggGEgIIBBICCDMSAggBEuoIWucICAES4ggi3wgK5gcKzAZayQYIAhKdBlqaBggCEoEBWn8IAhJgWl4IAhIsEioIARICCAMSAggBEg4aDAgHMggKBgij05+OAhICCAESChoICAcyBAoCCAYSLBIqCAESAggDEgIIARINGgsIBzIHCgUInti/RhICCAESCxoJCAcyBQoDCOoHEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCIoCEpEFWo4FCAMSzgRaywQIAxKLBFqIBAgDEsgDWsUDCAMShQNaggMIAxLCAlq/AggDEv8BWvwBCAMSvAFauQEIAxJ6WngIAxI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggBEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCKYCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAISGRIXCAESAggHEgYIiJfhpwESAggBEgMIqQISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIAxIZEhcIARICCAcSBgiIl+GnARICCAESAwiqAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggEEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCLMCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAUSGRIXCAESAggHEgYIiJfhpwESAggBEgMIvQISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIBhIZEhcIARICCAcSBgiIl+GnARICCAESAwi/AhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggHEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCMQCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAgSGRIXCAESAggHEgYIiJfhpwESAggBEgMIxQISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIICRIZEhcIARICCAcSBgiIl+GnARICCAESAwjGAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggKEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCOECEiVSIwgBEh9KHQgBEggIBzIECgIIABoPUg0IAhIJCCgyBQoDCPMCEpQBIpEBCo4BCmBaXggCEiwSKggBEgIIAxICCAESDhoMCAcyCAoGCKPTn44CEgIIARIKGggIBzIECgIIBhIsEioIARICCAMSAggBEg0aCwgHMgcKBQie2L9GEgIIARILGgkIBzIFCgMI6gcSKhooCiYIBhIiGiAKHgjqBxIZGhcKFQgBEhEaDwoNCAESCQgoMgUKAwjzAhJ0GnIKcAgDEmwaagoQCAISDBIKCAYSAggEEgIIAgoiCAMSHiIcChQKDBIKCAESAggEEgIIChIEEgIICBIEEgIICwoyCAESLiIsCioKHlIcCAESGEoWCAESCAgGMgQKAgoAGggIBjIECgIKABIICAYyBAoCCgAKzQcIAxLIBxrFBwrCBwj5o9xJEroHGrcHCrQHCAYSrwcirAcKqQcK/gZa+wYIAxIoUiYIARIiSiAIARIICAcyBAoCCAAaElIQCAISDBIKCAYSAggEEgIIMxLMBlrJBggCEp0GWpoGCAISgQFafwgCEmBaXggCEiwSKggBEgIIAxICCAESDhoMCAcyCAoGCKPTn44CEgIIARIKGggIBzIECgIIBhIsEioIARICCAMSAggBEg0aCwgHMgcKBQie2L9GEgIIARILGgkIBzIFCgMI6gcSGRIXCAESAggHEgYIiJfhpwESAggBEgMIigISkQVajgUIAxLOBFrLBAgDEosEWogECAMSyANaxQMIAxKFA1qCAwgDEsICWr8CCAMS/wFa/AEIAxK8AVq5AQgDEnpaeAgDEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAESGRIXCAESAggHEgYIiJfhpwESAggBEgMIpgISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIAhIZEhcIARICCAcSBgiIl+GnARICCAESAwipAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggDEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCKoCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAQSGRIXCAESAggHEgYIiJfhpwESAggBEgMIswISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIIBRIZEhcIARICCAcSBgiIl+GnARICCAESAwi9AhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggGEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCL8CEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAcSGRIXCAESAggHEgYIiJfhpwESAggBEgMIxAISOVo3CAISGEoWCAESCAg/MgQKAggDGggIPzIECgIICBIZEhcIARICCAcSBgiIl+GnARICCAESAwjFAhI5WjcIAhIYShYIARIICD8yBAoCCAMaCAg/MgQKAggJEhkSFwgBEgIIBxIGCIiX4acBEgIIARIDCMYCEjlaNwgCEhhKFggBEggIPzIECgIIAxoICD8yBAoCCAoSGRIXCAESAggHEgYIiJfhpwESAggBEgMI4QISJVIjCAESH0odCAESCAgHMgQKAggAGg9SDQgCEgkIKDIFCgMI8wISJhokCiIIARIeIhwKFAoMEgoIARICCAQSAggKEgQSAggIEgQSAggLCpIECAISjQQaigQKXAiEi71QElUaUwoYCAISFBoSChAIARIMUgoIBRIGCAcSAggDChgIAxIUGhIKEAgBEgxSCggFEgYIBxICCAMKDwgOEgsIGTIHCgUNAAAAAAoMCBASCAgyMgQKAggCCs0BCLmXvVASxQEawgEKvwEIARK6ASK3AQq0AQoMEgoIARICCAQSAggKEqMBGqABCp0BCOCqn1ESlQEakgEKjwEIARKKAVqHAQgBEnUicwpxCi4SLAgBEgIIAxICCAESDRoLCAcyBwoFCP+c3HsSAggBEg0aCwgHMgcKBQibjaVzEj8aPQo7CJuNpXMSNBoyCgwIARIICEwyBAoCCAEKEAgDEgwSCggGEgIIBBICCAYKEAgCEgwSCggGEgIIBBICCAgSDBIKCAYSAggEEgIIBAo+CJWXvVASNxo1CjMIBhIvGi0KKwjcoIpaEiQaIgoICAISBBICCAMKDAgDEggICjIECgIIAAoICAESBBICCAoKfQjrmL1QEnYadApACAUSPCI6Ch4KDBIKCAESAggEEgIIChIOWgwIARIICFEyBAoCCAISGFoWCAESCAhRMgQKAggCEggIUTIECgIIBwoQCAESDBIKCAYSAggEEgIIBQoQCAQSDBIKCAYSAggEEgIIEQoMCAYSCAgKMgQKAggBChsIlpHpUBIUGhIKEAgBEgwSCggGEgIIBBICCAgSEAgDEAcYBCIICAcyBAoCCCQSVAgEGAQiTiJMCkAKLFIqCAESJkokCAESCAgHMgQKAggAGhZSFAgCEhASDggBEgIIBxIGCMul76cBEhASDggBEgIIBxIGCMul76cBEggSBggBEgIIAhIsCAUQChgEIiRSIggBEh5KHAgBEggIBzIECgIIABoOUgwIAhIIEgYIBBICCAkSnAIIBhgEIpUCIpICCoUCCiRSIggBEh5KHAgBEggIBzIECgIIABoOUgwIAhIIEgYIARICCAUS3AEa2QEKIwgBEh9SHQgEEhkSFwgBEgIIBRIDCJkSEgIIARIGCP/C7NsBCiMIAhIfUh0IBBIZEhcIARICCAUSAwiZEhICCAISBgj/wuzbAQojCAMSH1IdCAQSGRIXCAESAggFEgMImRISAggDEgYI/8Ls2wEKIwgEEh9SHQgEEhkSFwgBEgIIBRIDCJkSEgIIBBIGCP/C7NsBChUIBRIREg8IARICCAUSAwiZEhICCAUKFQgGEhESDwgBEgIIBRIDCJkSEgIIBgoVCAcSERIPCAESAggFEgMImRISAggHEggSBggBEgIIARIsCAcQChgEIiRSIggBEh5KHAgBEggIBzIECgIIABoOUgwIAhIIEgYIARICCAUSmAEICBgEIpEBIo4BCkQKKFImCAESIkogCAESCAgHMgQKAggAGhJSEAgCEgwSCggEEgIIBxICCGwSGBIWCAQSAggHEgIIbBIKGggIBzIECgIIRhJGIkQKNAokUiIIARIeShwIARIICAcyBAoCCAAaDlIMCAISCBIGCAQSAggHEgwSCggEEgIIBxICCEYSDBIKCAQSAggBEgIITxIrCAkQChgEIiNKIQgBEhMIGBIPCAESAggHEgMI7wcSAggBGggIGDIECgIIHRKnAQgKGAQioAEinQEKmgEKBBICCAkSkQEijgEKRAooUiYIARIiSiAIARIICAcyBAoCCAAaElIQCAISDBIKCAQSAggHEgIIbBIYEhYIBBICCAcSAghsEgoaCAgHMgQKAggBEkYiRAo0CiRSIggBEh5KHAgBEggIBzIECgIIABoOUgwIAhIIEgYIBBICCAcSDBIKCAQSAggHEgIIARIMEgoIBBICCAESAghWEhIICxgEIgwSCggEEgIIARICCA4SkgEIDBAZGAQiiQEihgEKEwoEEgIIBxILCBkyBwoFDQAAMEISbyJtCl4KBBICCAUSViJUCkQKKFImCAESIkogCAESCAgHMgQKAggAGhJSEAgCEgwSCggEEgIICRICCCYSGBIWCAQSAggJEgIIJhIKGggIBzIECgIIAhIMEgoIBBICCAkSAggCEgsIGTIHCgUNAABgQhImCA0QBxgEIh4iHAoQCgQSAggHEggIBzIECgIIJBIICAcyBAoCCCwSEwgOEBkYBCILCBkyBwoFDQAAkEISEwgPEBkYBCILCBkyBwoFDQAAEEISEwgQEBkYBCILCBkyBwoFDQAAtEISHwgREAoYBCIXEhUIARICCAcSAwj+BxICCB8SBAjp0x0SJAgSEBkYBCIcIhoKGAoQWg4IAhIEEgIIERIEEgIIBxIEEgIIDhLHAQgTEAYYBCK+ASK7AQoqCh5KHAgBEg4IHxIKCAESAggEEgIIBxoICB8yBAoCCAISCBIGCAYSAggGCioKHkocCAESDggfEgoIARICCAQSAggHGggIHzIECgIIAxIIEgYIBhICCAUKKgoeShwIARIOCB8SCggBEgIIBBICCAcaCAgfMgQKAggHEggSBggGEgIIBQoqCh5KHAgBEg4IHxIKCAESAggEEgIIBxoICB8yBAoCCAYSCBIGCAYSAggHEgkIBjIFCgMKASASMggUEAYYBCIqCAYyJgokCiJpZC5wbGF5ZXJfY29udHJvbHMucGxheWJhY2suYnV0dG9uEhQIFRAKGAQiDBIKCAESAggEEgIIHhJSCBYQBhgEIkoiSAo4CihSJggBEiJKIAgBEggIBzIECgIIABoSUhAIAhIMEgoIARICCAQSAggREgwSCggBEgIIBBICCBESDBIKCAYSAggCEgIIBRJSCBcQBhgEIkoiSAo4CihSJggBEiJKIAgBEggIBzIECgIIABoSUhAIAhIMEgoIARICCAQSAggSEgwSCggBEgIIBBICCBISDBIKCAYSAggDEgIIBRL0AggYEAYYBCLrAiLoAgrWAgooUiYIARIiSiAIARIICAcyBAoCCAAaElIQCAISDBIKCAESAggEEgIIDxKpAiKmAgovCh5KHAgBEg4IIBIKCAESAggEEgIIDxoICCAyBAoCCAESDRILCAQSAggDEgMI2AMKLwoeShwIARIOCCASCggBEgIIBBICCA8aCAggMgQKAggCEg0SCwgEEgIIAxIDCJcBCi8KHkocCAESDgggEgoIARICCAQSAggPGggIIDIECgIIAxINEgsIBBICCAMSAwjZAwovCh5KHAgBEg4IIBIKCAESAggEEgIIDxoICCAyBAoCCAQSDRILCAQSAggDEgMI2gMKLwoeShwIARIOCCASCggBEgIIBBICCA8aCAggMgQKAggFEg0SCwgEEgIIAxIDCNsDCi8KHkocCAESDgggEgoIARICCAQSAggPGggIIDIECgIIBhINEgsIBBICCAMSAwjcAxINEgsIBBICCAMSAwiXARLHBQgZECgYBCK+BSK7BQr8BAooUiYIARIiSiAIARIICAcyBAoCCAAaElIQCAISDBIKCAESAggEEgIIDxLPBCLMBApgCh5KHAgBEg4IIBIKCAESAggEEgIIDxoICCAyBAoCCAESPiI8CjoKLRIrCAESAggDEgIIARIOGgwIBzIICgYIi5fg4wISAggBEgsaCQgHMgUKAwipAxIJCCgyBQoDCKkDCmAKHkocCAESDgggEgoIARICCAQSAggPGggIIDIECgIIAhI+IjwKOgotEisIARICCAMSAggBEg4aDAgHMggKBgiLl+DjAhICCAESCxoJCAcyBQoDCKEDEgkIKDIFCgMIoQMKYAoeShwIARIOCCASCggBEgIIBBICCA8aCAggMgQKAggDEj4iPAo6Ci0SKwgBEgIIAxICCAESDhoMCAcyCAoGCIuX4OMCEgIIARILGgkIBzIFCgMIowMSCQgoMgUKAwijAwpgCh5KHAgBEg4IIBIKCAESAggEEgIIDxoICCAyBAoCCAQSPiI8CjoKLRIrCAESAggDEgIIARIOGgwIBzIICgYIi5fg4wISAggBEgsaCQgHMgUKAwilAxIJCCgyBQoDCKUDCmAKHkocCAESDgggEgoIARICCAQSAggPGggIIDIECgIIBRI+IjwKOgotEisIARICCAMSAggBEg4aDAgHMggKBgiLl+DjAhICCAESCxoJCAcyBQoDCKcDEgkIKDIFCgMIpwMKYAoeShwIARIOCCASCggBEgIIBBICCA8aCAggMgQKAggGEj4iPAo6Ci0SKwgBEgIIAxICCAESDhoMCAcyCAoGCIuX4OMCEgIIARILGgkIBzIFCgMIqwMSCQgoMgUKAwirAwo6Ci0SKwgBEgIIAxICCAESDhoMCAcyCAoGCIuX4OMCEgIIARILGgkIBzIFCgMIoQMSCQgoMgUKAwihAxL0AggaEAYYBCLrAiLoAgrWAgooUiYIARIiSiAIARIICAcyBAoCCAAaElIQCAISDBIKCAESAggEEgIIDxKpAiKmAgovCh5KHAgBEg4IIBIKCAESAggEEgIIDxoICCAyBAoCCAESDRILCAQSAggDEgMI3QMKLwoeShwIARIOCCASCggBEgIIBBICCA8aCAggMgQKAggCEg0SCwgEEgIIAxIDCJgBCi8KHkocCAESDgggEgoIARICCAQSAggPGggIIDIECgIIAxINEgsIBBICCAMSAwjeAwovCh5KHAgBEg4IIBIKCAESAggEEgIIDxoICCAyBAoCCAQSDRILCAQSAggDEgMI3wMKLwoeShwIARIOCCASCggBEgIIBBICCA8aCAggMgQKAggFEg0SCwgEEgIIAxIDCOADCi8KHkocCAESDgggEgoIARICCAQSAggPGggIIDIECgIIBhINEgsIBBICCAMSAwjhAxINEgsIBBICCAMSAwiYARLHBQgbECgYBCK+BSK7BQr8BAooUiYIARIiSiAIARIICAcyBAoCCAAaElIQCAISDBIKCAESAggEEgIIDxLPBCLMBApgCh5KHAgBEg4IIBIKCAESAggEEgIIDxoICCAyBAoCCAESPiI8CjoKLRIrCAESAggDEgIIARIOGgwIBzIICgYIi5fg4wISAggBEgsaCQgHMgUKAwiqAxIJCCgyBQoDCKoDCmAKHkocCAESDgggEgoIARICCAQSAggPGggIIDIECgIIAhI+IjwKOgotEisIARICCAMSAggBEg4aDAgHMggKBgiLl+DjAhICCAESCxoJCAcyBQoDCKIDEgkIKDIFCgMIogMKYAoeShwIARIOCCASCggBEgIIBBICCA8aCAggMgQKAggDEj4iPAo6Ci0SKwgBEgIIAxICCAESDhoMCAcy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YrECEqMCGqACChEIARINEgsIARICCAMSAwjyBwoRCAISDRILCAESAggDEgMI7wcKDAgDEggSBggBEgIIBgoICAQSBBICCDAKDAgGEggIVTIECgIIQQoMCAcSCBIGCAESAggECsMBCAUSvgEauwEKqgEIBRKlASKiAQpMCixSKggBEiZKJAgBEggIGDIECgIIABoWUhQIAhIQEg4IARICCAQSAggHEgIIbBIcEhoIARICCAQSAggHEgIIbBIKGggIGDIECgIIRhJSIlAKPAooUiYIARIiSiAIARIICBgyBAoCCAAaElIQCAISDBIKCAESAggEEgIIBxIQEg4IARICCAQSAggHEgIIRhIQEg4IARICCAQSAggBEgIITwoMCAESCAglMgQKAggAKJaakduv9ezy3AES3AIq2QIISBIMEgoIAxICCAESAggFGsICYr8CErECGq4CChEIARINEgsIARICCAMSAwjyBwoRCAISDRILCAESAggDEgMI7wcKDAgDEggSBggBEgIIBgoICAQSBBICCDAKDAgGEggIVTIECgIIQQoMCAcSCBIGCAESAggECtEBCAUSzAEayQEKDAgBEggSBghIEgIIAQoMCAISCBIGCEgSAggCCqoBCAUSpQEiogEKTAosUioIARImSiQIARIICBgyBAoCCAAaFlIUCAISEBIOCAESAggEEgIIBxICCGwSHBIaCAESAggEEgIIBxICCGwSChoICBgyBAoCCAYSUiJQCjwKKFImCAESIkogCAESCAgYMgQKAggAGhJSEAgCEgwSCggBEgIIBBICCAcSEBIOCAESAggEEgIIBxICCAYSEBIOCAESAggEEgIIARICCDgolpqR26/17PLcASBJKEoKFAgFEhAaDgoMCAMSCAhpMgQKAggFKMqn+8eRyseEOQoiCAISHiIcChAKBBICCAoSCAglMgQKAggDEggIJTIECgIIAQpJCAISRRpDCkEIhIu9UBI6GjgKKAgIEiQaIgogCAESHBoaChgIARIUEhIIARICCAQSAggEEgIIARICCAMKDAgQEggISTIECgIIAhK8Axq5AwrrAggBEuYCGuMCCuACCNyU3EsS2AIa1QIKxAIIARK/AmK8AhKuAhqrAgoRCAESDRILCAESAggDEgMI8gcKEQgCEg0SCwgBEgIIAxIDCO8HCgwIAxIIEgYIARICCAYKDAgEEggSBggDEgIIAgqqAQgFEqUBIqIBCkwKLFIqCAESJkokCAESCAgYMgQKAggAGhZSFAgCEhASDggBEgIIBBICCAcSAghsEhwSGggBEgIIBBICCAcSAghsEgoaCAgYMgQKAghIElIiUAo8CihSJggBEiJKIAgBEggIGDIECgIIABoSUhAIAhIMEgoIARICCAQSAggHEhASDggBEgIIBBICCAcSAghIEhASDggBEgIIBBICCAESAghOCggIBxIEEgIIMQoMCAgSCAhVMgQKAggZCgwICRIIEgYIARICCAQKFAgGEhAaDgoMCAMSCAhpMgQKAggFKNiMkrnOnfLviQEKDAgCEggIJTIECgIIAQpJCAISRRpDCkEIhIu9UBI6GjgKKAgIEiQaIgogCAESHBoaChgIARIUEhIIARICCAQSAggEEgIIARICCAEKDAgQEggISTIECgIIAhLQDSLNDQrKDQoQWg4IAxIEEgIIGxIEEgIIHBK1DRqyDQoRCAESDRoLCgkIp5TcSxICGgAKcAgCEmwaagpoCISLvVASYRpfCgwIChIICEYyBAoCCAEKDAgQEggISTIECgIIBApBCAgSPRo7CjkIARI1GjMKMQgBEi0iKwoTCgQSAggaEgsIHzIHCgUNAAAAABIUEhIIARICCAQSAggEEgIIARICCAMKqgwIAxKlDFqiDAgBEo0GIooGCocGCgQSAggbEv4FGvsFCssFCAESxgUawwUKwAUIua29UBK4BRq1BQo8CAMSOBo2CjQIspmEUhItGisKKQgBEiUIBjIhCh8KHWJhZGdlLmVtbC1mZXw1MjkxY2ZlYWJjZTM4YjJmCi0IBRIpGicKJQjH9N1cEh4aHAoMCAcSCBIGCAMSAggPCgwIBBIIEgYIARICCAMKxQQIBhLABBq9BAqrAgj3wvBZEqMCGqACCg8IAhILCBgyBwoFCMf03VwKjAIIARKHAjqEAgqIASKFAQqCAQooSiYIBhIYCBhSFAgDEhASDggBEgIIAxIGCMe0vuABGggIGDIECgIIABJWGlQKFAgBEhASDggBEgIIAxIGCMe0vuABCh4IAxIaOhgKCAgYMgQKAggECgwIGDIICgYIy6XvpwEKDQgEEgkIgQEyBAoCCAEKDQgGEgkIggEyBAoCCAEKdyJ1CnMKKEomCAYSGAgYUhQIAxIQEg4IARICCAMSBgjC4q72ARoICBgyBAoCCAASRxpFChQIARIQEg4IARICCAMSBgjC4q72AQoMCAISCAgYMgQKAggFChAIAxIMOgoKCAgYMgQKAggFCg0IBhIJCIIBMgQKAggCCo8BCJX+m7gBEoYBGoMBCg8IAhILCBgyBwoFCMf03VwKcAgBEmw6agpoImYKZAooSiYIBhIYCBhSFAgDEhASDggBEgIIAxIGCMe0vuABGggIGDIECgIIABI4GjYKFAgBEhASDggBEgIIAxIGCMe0vuABCh4IAhIaOhgKCAgYMgQKAggECgwIGDIICgYIy6XvpwEKewiW/pu4ARJzGnEKDwgCEgsIGDIHCgUIx/TdXApeCAESWiJYClYKKEomCAYSGAgYUhQIAxIQEg4IARICCAMSBgjC4q72ARoICBgyBAoCCAASKhooChQIARIQEg4IARICCAMSBgjC4q72AQoQCAISDDoKCggIGDIECgIIBQorCAISJxolCiMIhIu9UBIcGhoKGAgJEhQaEgoQCAcSDBoKCggIARIEEgIIHRKNBiKKBgqHBgoEEgIIHBL+BRr7BQrLBQgBEsYFGsMFCsAFCLmtvVASuAUatQUKPAgDEjgaNgo0CLKZhFISLRorCikIARIlCAYyIQofCh1iYWRnZS5lbWwtZmV8NTI5MWNmZWFiY2UzOGIyZgotCAUSKRonCiUIx/TdXBIeGhwKDAgHEggSBggDEgIIEAoMCAQSCBIGCAESAggDCsUECAYSwAQavQQKqwII98LwWRKjAhqgAgoPCAISCwgYMgcKBQjH9N1cCowCCAEShwI6hAIKiAEihQEKggEKKEomCAYSGAgYUhQIAxIQEg4IARICCAMSBgjHtL7gARoICBgyBAoCCAASVhpUChQIARIQEg4IARICCAMSBgjHtL7gAQoeCAMSGjoYCggIGDIECgIIBAoMCBgyCAoGCMul76cBCg0IBBIJCIEBMgQKAggBCg0IBhIJCIIBMgQKAggBCncidQpzCihKJggGEhgIGFIUCAMSEBIOCAESAggDEgYIwuKu9gEaCAgYMgQKAggAEkcaRQoUCAESEBIOCAESAggDEgYIwuKu9gEKDAgCEggIGDIECgIIBQoQCAMSDDoKCggIGDIECgIIBQoNCAYSCQiCATIECgIIAgqPAQiV/pu4ARKGARqDAQoPCAISCwgYMgcKBQjH9N1cCnAIARJsOmoKaCJmCmQKKEomCAYSGAgYUhQIAxIQEg4IARICCAMSBgjHtL7gARoICBgyBAoCCAASOBo2ChQIARIQEg4IARICCAMSBgjHtL7gAQoeCAISGjoYCggIGDIECgIIBAoMCBgyCAoGCMul76cBCnsIlv6buAEScxpxCg8IAhILCBgyBwoFCMf03VwKXggBEloiWApWCihKJggGEhgIGFIUCAMSEBIOCAESAggDEgYIwuKu9gEaCAgYMgQKAggAEioaKAoUCAESEBIOCAESAggDEgYIwuKu9gEKEAgCEgw6CgoICBgyBAoCCAUKKwgCEicaJQojCISLvVASHBoaChgICRIUGhIKEAgHEgwaCgoICAESBBICCB0Sjg4iiw4KiA4KBBICCBAS/w0a/A0KEQgBEg0aCwoJCKeU3EsSAhoACiIIAhIeGhwKGgiEi71QEhMaEQoPCA0SCwgfMgcKBQ0AAIA/CsINCAMSvQ1aug0IARKZAxqWAwoRCAESDRoLCgkIp5TcSxICGgAKygEIAhLFARrCAQqmAQiEi71QEp4BGpsBCgwIChIICEYyBAoCCAMKDAgMEggISTIECgIIBAolCAMSIRofCg8IARILCB8yBwoFDQAAgD8KDAgCEggISjIECgIIAgoQCAISDBoKCggIARIEEgIIEwpECAkSQBo+CjwIARI4GjYKNAgBEjAiLgosCiRSIggBEh5KHAgBEggIGDIECgIIABoOUgwIAhIIEgYIAxICCAgSBBICCBIKFwjrmL1QEhAaDgoMCAYSCAgRMgQKAggACrMBCAMSrgFaqwEIARKmARqjAQpVCAESURpPCk0InKzQ+AESRRpDCkEIARI9IjsKOQosEioIARICCAYSAggBEg4aDAgYMggKBgjijtGxAhICCAESChoICBgyBAoCCAESCQiJATIECgIIAQpKCAISRhpECkIIhIu9UBI7GjkKEAgCEgwaCgoICAESBBICCBEKJQgDEiEaHwoPCAESCwgfMgcKBQ0AAIA/CgwIAhIICEoyBAoCCAISmQoilgoKkwoKJFIiCAESHkocCAESCAgYMgQKAggAGg5SDAgCEggSBggDEgIICBLqCRrnCQrVBwgBEtAHGs0HCsoHCLmtvVASwgcavwcKSQgDEkUaQwpBCLKZhFISOho4CjYIARIy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iAEihQEKggEKKEomCAYSGAgYUhQIAxIQEg4IARICCAMSBgjHtL7gARoICBgyBAoCCAASVhpUChQIARIQEg4IARICCAMSBgjHtL7gAQoeCAMSGjoYCggIGDIECgIIBwoMCBgyCAoGCMul76cBCg0IBBIJCIEBMgQKAggBCg0IBhIJCIIBMgQKAggBCpABCJX+m7gBEocBGoQBChAIAhIMCBgyCAoGCMiPqfUBCnAIARJsOmoKaCJmCmQKKEomCAYSGAgYUhQIAxIQEg4IARICCAMSBgjHtL7gARoICBgyBAoCCAASOBo2ChQIARIQEg4IARICCAMSBgjHtL7gAQoeCAISGjoYCggIGDIECgIIBwoMCBgyCAoGCMul76cBCnwIlv6buAESdBpyChAIAhIMCBgyCAoGCMiPqfUBCl4IARJaIlgKVgooSiYIBhIYCBhSFAgDEhASDggBEgIIAxIGCMLirvYBGggIGDIECgIIABIqGigKFAgBEhASDggBEgIIAxIGCMLirvYBChAIAhIMOgoKCAgYMgQKAggDCjsIAhI3GjUKGgiEi71QEhMaEQoPCA0SCwgfMgcKBQ0AAIA/ChcIlZe9UBIQGg4KDAgHEggIETIECgIIABKlLxqiLwoRCAESDRoLCgkIp5TcSxICGgAKlwEIAhKSARqPAQp0CISLvVASbRprCgwIChIICEYyBAoCCAEKDAgLEggIRzIECgIIBQoMCAwSCAhJMgQKAggCCg0IExIJCJEBMgQKAggBCg8IDRILCB8yBwoFDQAAgD4KHwgJEhsaGQoXCAcSExoRCg8IARILCB8yBwoFDQAAwEEKFwjrmL1QEhAaDgoMCAYSCAgRMgQKAggACvItCAMS7S1a6i0IARKZByKWBwqTBwokUiIIARIeShwIARIICBgyBAoCCAAaDlIMCAISCBIGCAMSAggNEuoGGucGChEIARINGgsKCQinlNxLEgIaAApVCAISURpPCk0IhIu9UBJGGkQKEAgEEgwaCgoICAESBBICCEYKEAgDEgwaCgoICAESBBICCB8KEAgCEgwaCgoICAESBBICCB8KDAgMEggISTIECgIIBAr6BQgDEvUFWvIFCAES7QUa6gUK5wUIARLiBRrfBQrcBQi5rb1QEtQFGtEFCkYIAxJCGkAKPgiymYRSEjcaNQozCAESLwgGMisKKQonZG93bmxvYWRfYnV0dG9uLmVtbC1mZXwxMzUyNjFhZDcwMjU4NDM5CjwIBRI4GjYKNAjEosiCARIsGioKDAgKEggSBggDEgIIDQoMCAMSCBIGCAESAggECgwIBhIIEgYIARICCAMKyAQIBhLDBBrABAqsAgj3wvBZEqQCGqECChAIAhIMCBgyCAoGCMSiyIIBCowCCAEShwI6hAIKiAEihQEKggEKKEomCAYSGAgYUhQIAxIQEg4IARICCAMSBgjHtL7gARoICBgyBAoCCAASVhpUChQIARIQEg4IARICCAMSBgjHtL7gAQoeCAMSGjoYCggIGDIECgIIBgoMCBgyCAoGCMul76cBCg0IBBIJCIEBMgQKAggBCg0IBhIJCIIBMgQKAggBCncidQpzCihKJggGEhgIGFIUCAMSEBIOCAESAggDEgYIwuKu9gEaCAgYMgQKAggAEkcaRQoUCAESEBIOCAESAggDEgYIwuKu9gEKDAgCEggIGDIECgIICQoQCAMSDDoKCggIGDIECgIICQoNCAYSCQiCATIECgIIAgqQAQiV/pu4ARKHARqEAQoQCAISDAgYMggKBgjEosiCAQpwCAESbDpqCmgiZgpkCihKJggGEhgIGFIUCAMSEBIOCAESAggDEgYIx7S+4AEaCAgYMgQKAggAEjgaNgoUCAESEBIOCAESAggDEgYIx7S+4AEKHggCEho6GAoICBgyBAoCCAYKDAgYMggKBgjLpe+nAQp8CJb+m7gBEnQacgoQCAISDAgYMggKBgjEosiCAQpeCAESWiJYClYKKEomCAYSGAgYUhQIAxIQEg4IARICCAMSBgjC4q72ARoICBgyBAoCCAASKhooChQIARIQEg4IARICCAMSBgjC4q72AQoQCAISDDoKCggIGDIECgIICRKvCRqsCQrRBwgBEswHGskHCsYHCLmtvVASvgcauwcKSQgDEkUaQwpBCLKZhFISOho4CjYIARIyCAYyLgosCip2aWRlb19hY3Rpb25fYnV0dG9uLmVtbC1mZXxhOTZlY2NiNjc4NmVhMzMKdggFEnIacApuCLr3oK0BEmYaZAoQCAUSDBoKCggIEBIEEgIIQgo0CAcSMAgGMiwKKgoob25fdGhlX2dvX2NvbnRyb2xzX2VuYWJsZW1lbnRfZW50aXR5X2tleQoMCAESCBIGCAESAggECgwICxIIEgYIARICCAMK9QUIBhLwBRrtBQrZAwj3wvBZEtEDGs4DChAIAhIMCBgyCAoGCLr3oK0BCrkDCAEStAM6sQMKqgEipwEKpAEKSEpGCAYSOAgYUjQIAxIwCAYyLAoqCihvbl90aGVfZ29fY29udHJvbHNfZW5hYmxlbWVudF9lbnRpdHlfa2V5GggIGDIECgIIABJYGlYKNAgBEjAIBjIsCioKKG9uX3RoZV9nb19jb250cm9sc19lbmFibGVtZW50X2VudGl0eV9rZXkKDAgCEggIGDIECgIIBgoQCAMSDDoKCggIGDIECgIIBgp3InUKcwooSiYIBhIYCBhSFAgDEhASDggBEgIIAxIGCMLirvYBGggIGDIECgIIABJHGkUKFAgBEhASDggBEgIIAxIGCMLirvYBCgwIAhIICBgyBAoCCAgKEAgDEgw6CgoICBgyBAoCCAgKDQgGEgkIggEyBAoCCAIKiAEihQEKggEKKEomCAYSGAgYUhQIAxIQEg4IARICCAMSBgjHtL7gARoICBgyBAoCCAASVhpUChQIARIQEg4IARICCAMSBgjHtL7gAQoeCAMSGjoYCggIGDIECgIICwoMCBgyCAoGCMul76cBCg0IBBIJCIEBMgQKAggBCg0IBhIJCIIBMgQKAggBCpABCJX+m7gBEocBGoQBChAIAhIMCBgyCAoGCLr3oK0BCnAIARJsOmoKaCJmCmQKKEomCAYSGAgYUhQIAxIQEg4IARICCAMSBgjHtL7gARoICBgyBAoCCAASOBo2ChQIARIQEg4IARICCAMSBgjHtL7gAQoeCAISGjoYCggIGDIECgIICwoMCBgyCAoGCMul76cBCnwIlv6buAESdBpyChAIAhIMCBgyCAoGCLr3oK0BCl4IARJaIlgKVgooSiYIBhIYCBhSFAgDEhASDggBEgIIAxIGCMLirvYBGggIGDIECgIIABIqGigKFAgBEhASDggBEgIIAxIGCMLirvYBChAIAhIMOgoKCAgYMgQKAggICjUIBBIxCAYyLQorCilhdWRpb190b2dnbGVfb25seV92aWRlb19hY3Rpb25fYnV0dG9uX2tleQqeAQgCEpkBGpYBCkkIhIu9UBJCGkAKCAgOEgQSAghFChAIBBIMGgoKCAgBEgQSAghGChAIAxIMGgoKCAgBEgQSAghHChAIAhIMGgoKCAgBEgQSAggeCkkIlZe9UBJCGkAKPggGEjoaOAo2CJCs3JIBEi4aLAogCAESHFoaCAISClIICAESBBICCDYSClIICAESBBICCDcKCAgDEgQSAgggEugJIuUJCuIJCiRSIggBEh5KHAgBEggIGDIECgIIABoOUgwIAhIIEgYIAxICCBMSuQkatgkK1QcIARLQBxrNBwrKBwi5rb1QEsIHGr8HCkkIAxJFGkMKQQiymYRSEjoaOAo2CAESMggGMi4KLAoqdmlkZW9fYWN0aW9uX2J1dHRvbi5lbWwtZmV8YTk2ZWNjYjY3ODZlYTMzCnoIBRJ2GnQKcgi696CtARJqGmgKFAgFEhAaDgoMCBASCBIGCAMSAggTCgwIARIIEgYIARICCAQKNAgHEjAIBjIsCioKKG9uX3RoZV9nb19jb250cm9sc19lbmFibGVtZW50X2VudGl0eV9rZXkKDAgLEggSBggBEgIIAwr1BQgGEvAFGu0FCtkDCPfC8FkS0QMazgMKEAgCEgwIGDIICgYIuvegrQEKuQMIARK0AzqxAwqqASKnAQqkAQpISkYIBhI4CBhSNAgDEjAIBjIsCioKKG9uX3RoZV9nb19jb250cm9sc19lbmFibGVtZW50X2VudGl0eV9rZXkaCAgYMgQKAggAElgaVgo0CAESMAgGMiwKKgoob25fdGhlX2dvX2NvbnRyb2xzX2VuYWJsZW1lbnRfZW50aXR5X2tleQoMCAISCAgYMgQKAggGChAIAxIMOgoKCAgYMgQKAggGCncidQpzCihKJggGEhgIGFIUCAMSEBIOCAESAggDEgYIwuKu9gEaCAgYMgQKAggAEkcaRQoUCAESEBIOCAESAggDEgYIwuKu9gEKDAgCEggIGDIECgIICAoQCAMSDDoKCggIGDIECgIICAoNCAYSCQiCATIECgIIAgqIASKFAQqCAQooSiYIBhIYCBhSFAgDEhASDggBEgIIAxIGCMe0vuABGggIGDIECgIIABJWGlQKFAgBEhASDggBEgIIAxIGCMe0vuABCh4IAxIaOhgKCAgYMgQKAggLCgwIGDIICgYIy6XvpwEKDQgEEgkIgQEyBAoCCAEKDQgGEgkIggEyBAoCCAEKkAEIlf6buAEShwEahAEKEAgCEgwIGDIICgYIuvegrQEKcAgBEmw6agpoImYKZAooSiYIBhIYCBhSFAgDEhASDggBEgIIAxIGCMe0vuABGggIGDIECgIIABI4GjYKFAgBEhASDggBEgIIAxIGCMe0vuABCh4IAhIaOhgKCAgYMgQKAggLCgwIGDIICgYIy6XvpwEKfAiW/pu4ARJ0GnIKEAgCEgwIGDIICgYIuvegrQEKXggBEloiWApWCihKJggGEhgIGFIUCAMSEBIOCAESAggDEgYIwuKu9gEaCAgYMgQKAggAEioaKAoUCAESEBIOCAESAggDEgYIwuKu9gEKEAgCEgw6CgoICBgyBAoCCAgKJwgEEiMIBjIfCh0KG2Fza192aWRlb19hY3Rpb25fYnV0dG9uX2tleQqyAQgCEq0BGqoBCkkIhIu9UBJCGkAKCAgOEgQSAghFChAIBBIMGgoKCAgBEgQSAghGChAIAxIMGgoKCAgBEgQSAghHChAIAhIMGgoKCAgBEgQSAggeCl0IlZe9UBJWGlQKUggGEk4aTApKCJCs3JIBEkIaQAo0CAESMFIuCAESKkooCAESCAgYMgQKAggAGhpSGAgCEhQSEggDEgIIExIGCP/C7NsBEgIIBAoICAMSBBICCCAS7gki6wkK6AkKJFIiCAESHkocCAESCAgYMgQKAggAGg5SDAgCEggSBggDEgIICRK/CRq8CQrVBwgBEtAHGs0HCsoHCLmtvVASwgcavwcKSQgDEkUaQwpBCLKZhFISOho4CjYIARIyCAYyLgosCip2aWRlb19hY3Rpb25fYnV0dG9uLmVtbC1mZXxhOTZlY2NiNjc4NmVhMzMKeggFEnYadApyCLr3oK0BEmoaaAoUCAUSEBoOCgwIEBIIEgYIAxICCAkKDAgBEggSBggBEgIIBAo0CAcSMAgGMiwKKgoob25fdGhlX2dvX2NvbnRyb2xzX2VuYWJsZW1lbnRfZW50aXR5X2tleQoMCAsSCBIGCAESAggDCvUFCAYS8AUa7QUK2QMI98LwWRLRAxrOAwoQCAISDAgYMggKBgi696CtAQq5AwgBErQDOrEDCqoBIqcBCqQBCkhKRggGEjgIGFI0CAMSMAgGMiwKKgoob25fdGhlX2dvX2NvbnRyb2xzX2VuYWJsZW1lbnRfZW50aXR5X2tleRoICBgyBAoCCAASWBpWCjQIARIwCAYyLAoqCihvbl90aGVfZ29fY29udHJvbHNfZW5hYmxlbWVudF9lbnRpdHlfa2V5CgwIAhIICBgyBAoCCAYKEAgDEgw6CgoICBgyBAoCCAYKdyJ1CnMKKEomCAYSGAgYUhQIAxIQEg4IARICCAMSBgjC4q72ARoICBgyBAoCCAASRxpFChQIARIQEg4IARICCAMSBgjC4q72AQoMCAISCAgYMgQKAggIChAIAxIMOgoKCAgYMgQKAggICg0IBhIJCIIBMgQKAggCCogBIoUBCoIBCihKJggGEhgIGFIUCAMSEBIOCAESAggDEgYIx7S+4AEaCAgYMgQKAggAElYaVAoUCAESEBIOCAESAggDEgYIx7S+4AEKHggDEho6GAoICBgyBAoCCAsKDAgYMggKBgjLpe+nAQoNCAQSCQiBATIECgIIAQoNCAYSCQiCATIECgIIAQqQAQiV/pu4ARKHARqEAQoQCAISDAgYMggKBgi696CtAQpwCAESbDpqCmgiZgpkCihKJggGEhgIGFIUCAMSEBIOCAESAggDEgYIx7S+4AEaCAgYMgQKAggAEjgaNgoUCAESEBIOCAESAggDEgYIx7S+4AEKHggCEho6GAoICBgyBAoCCAsKDAgYMggKBgjLpe+nAQp8CJb+m7gBEnQacgoQCAISDAgYMggKBgi696CtAQpeCAESWiJYClYKKEomCAYSGAgYUhQIAxIQEg4IARICCAMSBgjC4q72ARoICBgyBAoCCAASKhooChQIARIQEg4IARICCAMSBgjC4q72AQoQCAISDDoKCggIGDIECgIICAotCAQSKQgGMiUKIwohdmFyaXNwZWVkX3ZpZGVvX2FjdGlvbl9idXR0b25fa2V5CrIBCAISrQEaqgEKSQiEi71QEkIaQAoICA4SBBICCEUKEAgEEgwaCgoICAESBBICCEYKEAgDEgwaCgoICAESBBICCEcKEAgCEgwaCgoICAESBBICCB4KXQiVl71QElYaVApSCAYSThpMCkoIkKzckgESQhpACjQIARIwUi4IARIqSigIARIICBgyBAoCCAAaGlIYCAISFBISCAMSAggJEgYI/8Ls2wESAggECggIAxIEEgIIIBK7CRq4CQrVBwgBEtAHGs0HCsoHCLmtvVASwgcavwcKSQgDEkUaQwpBCLKZhFISOho4CjYIARIyCAYyLgosCip2aWRlb19hY3Rpb25fYnV0dG9uLmVtbC1mZXxhOTZlY2NiNjc4NmVhMzMKeggFEnYadApyCLr3oK0BEmoaaAoUCAUSEBoOCgwIEBIIEgYIAxICCAcKDAgBEggSBggBEgIIBAo0CAcSMAgGMiwKKgoob25fdGhlX2dvX2NvbnRyb2xzX2VuYWJsZW1lbnRfZW50aXR5X2tleQoMCAsSCBIGCAESAggDCvUFCAYS8AUa7QUK2QMI98LwWRLRAxrOAwoQCAISDAgYMggKBgi696CtAQq5AwgBErQDOrEDCqoBIqcBCqQBCkhKRggGEjgIGFI0CAMSMAgGMiwKKgoob25fdGhlX2dvX2NvbnRyb2xzX2VuYWJsZW1lbnRfZW50aXR5X2tleRoICBgyBAoCCAASWBpWCjQIARIwCAYyLAoqCihvbl90aGVfZ29fY29udHJvbHNfZW5hYmxlbWVudF9lbnRpdHlfa2V5CgwIAhIICBgyBAoCCAYKEAgDEgw6CgoICBgyBAoCCAYKdyJ1CnMKKEomCAYSGAgYUhQIAxIQEg4IARICCAMSBgjC4q72ARoICBgyBAoCCAASRxpFChQIARIQEg4IARICCAMSBgjC4q72AQoMCAISCAgYMgQKAggIChAIAxIMOgoKCAgYMgQKAggICg0IBhIJCIIBMgQKAggCCogBIoUBCoIBCihKJggGEhgIGFIUCAMSEBIOCAESAggDEgYIx7S+4AEaCAgYMgQKAggAElYaVAoUCAESEBIOCAESAggDEgYIx7S+4AEKHggDEho6GAoICBgyBAoCCAsKDAgYMggKBgjLpe+nAQoNCAQSCQiBATIECgIIAQoNCAYSCQiCATIECgIIAQqQAQiV/pu4ARKHARqEAQoQCAISDAgYMggKBgi696CtAQpwCAESbDpqCmgiZgpkCihKJggGEhgIGFIUCAMSEBIOCAESAggDEgYIx7S+4AEaCAgYMgQKAggAEjgaNgoUCAESEBIOCAESAggDEgYIx7S+4AEKHggCEho6GAoICBgyBAoCCAsKDAgYMggKBgjLpe+nAQp8CJb+m7gBEnQacgoQCAISDAgYMggKBgi696CtAQpeCAESWiJYClYKKEomCAYSGAgYUhQIAxIQEg4IARICCAMSBgjC4q72ARoICBgyBAoCCAASKhooChQIARIQEg4IARICCAMSBgjC4q72AQoQCAISDDoKCggIGDIECgIICAopCAQSJQgGMiEKHwodcXVldWVfdmlkZW9fYWN0aW9uX2J1dHRvbl9rZXkKsgEIAhKtARqqAQpJCISLvVASQhpACggIDhIEEgIIRQoQCAQSDBoKCggIARIEEgIIRgoQCAMSDBoKCggIARIEEgIIRwoQCAISDBoKCggIARIEEgIIHgpdCJWXvVASVhpUClIIBhJOGkwKSgiQrNySARJCGkAKNAgBEjBSLggBEipKKAgBEggIGDIECgIIABoaUhgIAhIUEhIIAxICCAcSBgj/wuzbARICCAQKCAgDEgQSAgggEhMIAxgEIg0SCwgBEgIIARIDCJUSEjkIBBAGGAQiMQgGMi0KKwopL3lvdXR1YmUvYXBwL29uX3RoZV9nb19tZW51X3RyaWdnZXJfc3RhdGUSNwgFEAYYBCIvCAYyKwopCicveW91dHViZS9hcHAvb25fdGhlX2dvX2F1ZGlvX29ubHlfc3RhdGUSQAgGEAsYBCI4GjYKNAjWlelQEi0aKwopCLXhn48BEiEaHwodCAISGRoXChUIAxIRCAYyDQoLCglvbi10aGUtZ28SJggHEBEYBCIeShwIARIOCBASCggBEgIIBRICCAUaCAgQMgQKAggAEiYICBARGAQiHkocCAESDggQEgoIARICCAUSAggFGggIEDIECgIIARImCAkQERgEIh5KHAgBEg4IEhIKCAESAggFEgIIBhoICBIyBAoCCAESVAgKEBEYBCJMWkoIAxIiSiAIARISCBQSDggBEgIIBRICCAMSAggBGggIFDIECgIIAxIiSiAIARISCBQSDggBEgIIBRICCAMSAggBGggIFDIECgIIBBJUCAsQERgEIkxaSggDEiJKIAgBEhIIFBIOCAESAggFEgIIAxICCAEaCAgUMgQKAggBEiJKIAgBEhIIFBIOCAESAggFEgIIAxICCAEaCAgUMgQKAggCEhgIDBARGAQiEFoOCAISBBICCAsSBBICCAgSZwgNEBEYBCJfIl0KUQorEikIARICCAYSAggBEg0aCwgYMgcKBQjd5bR7EgIIARIKGggIGDIECgIIChIiSiAIARISCB0SDggBEgIIBRICCAoSAggDGggIHTIECgIIAxIICBEyBAoCCAASGAgOEB8YBCIQEg4IARICCAUSAggEEgIIAhIyCA8QERgEIipKKAgEEhIIHxIO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",
+                      ),
+                    ),
+                    n = new Set(t.map((g) => U(g.data))),
+                    h = [];
+                  let a = "on_the_go_controls.eml-fe|f87c8ecdb154dadd";
+                  for (const A of t) {
+                    let C = y(A.data, [196886555]),
+                      E = U(A.data);
+                    const t = [];
+                    for (const A of S(C).filter(
+                      (g) => 5 === g.no && 2 === g.wire,
+                    )) {
+                      const C = I.decode(A.data);
+                      if (n.has(C) || o.has(C)) continue;
+                      const E = C.slice(0, C.indexOf("|") + 1),
+                        e = E ? [...o].filter((g) => g.startsWith(E)) : [];
+                      if (1 !== e.length) return;
+                      t.push([A.data, g.encode(e[0])]);
+                    }
+                    if (t.length) {
+                      if (((C = k(C, t)), t.some(([g]) => P(C, g)))) return;
+                      const g = y(C, [2]);
+                      let I = 2166136261;
+                      for (const A of g) I = Math.imul(I ^ A, 16777619);
+                      (E = E.split("|")[0] + "|" + (I >>> 0).toString(16)),
+                        (C = B(
+                          S(C).flatMap((g) =>
+                            4 === g.no
+                              ? []
+                              : 1 === g.no && 2 === g.wire
+                                ? [D(1, E)]
+                                : [g.raw],
+                          ),
+                        )),
+                        U(A.data) === a && (a = E);
+                    }
+                    e.has(E) || h.push(f([1, 196886555], C));
+                  }
+                  return {
+                    template: a,
+                    framework: h.length ? Sg(C, [2], () => B([E, ...h])) : C,
+                  };
+                })(A);
+                if (!a) return !1;
+                const K = (function (g, A, C, E) {
+                  const o = g.content?.nextResult;
+                  if (!o) return;
+                  const e = tg(o).find((g) => 4 === g.no && 2 === g.wire),
+                    n = e && y(e.data, [61479009]),
+                    r = tg(g).find((g) => 9 === g.no && 2 === g.wire),
+                    h = r && y(r.data, [48687757, 1]),
+                    a = n && y(n, [17]),
+                    K = n && y(n, [1, 1, 1]),
+                    s = n && y(n, [10, 1, 1]),
+                    c = n && u(n, 2, !0);
+                  if (
+                    !(
+                      h &&
+                      a &&
+                      t(h, a) &&
+                      /^[\w-]{11}$/.test(I.decode(h)) &&
+                      K &&
+                      c
+                    )
+                  )
+                    return;
+                  const Q = y(A, x),
+                    w = Q && y(Q, [6, 386334485, 1, 1, 1]),
+                    l = Q && y(Q, [6, 386334486, 1, 1]);
+                  if (!w || !l) return;
+                  const R = B([D(1, 1), D(3, Y)]),
+                    M = B(
+                      S(c).map((g) =>
+                        1 !== g.no || 2 !== g.wire
+                          ? g.raw
+                          : D(
+                              1,
+                              B(
+                                S(g.data).map((g) =>
+                                  0 !== g.wire || (2 !== g.no && 3 !== g.no)
+                                    ? g.raw
+                                    : D(g.no + 2, i(g.data)),
+                                ),
+                              ),
+                            ),
+                      ),
+                    ),
+                    G = [
+                      f([1, 1], K),
+                      ...(s ? [D(2, s)] : []),
+                      f(
+                        [3, 2329],
+                        B([
+                          ...[
+                            [
+                              1,
+                              6,
+                              176991,
+                              "youtube_fill_experimental/skip_previous_24pt",
+                              "Previous video",
+                              "previous",
+                            ],
+                            [
+                              2,
+                              4,
+                              176993,
+                              "youtube_outline_experimental/skip10_back_24pt",
+                              "Rewind",
+                              "seek.backward",
+                            ],
+                            [
+                              3,
+                              3,
+                              176994,
+                              "youtube_outline_experimental/skip10_forward_24pt",
+                              "Fast forward",
+                              "seek.forward",
+                            ],
+                            [
+                              4,
+                              5,
+                              176988,
+                              "youtube_fill_experimental/skip_next_24pt",
+                              "Next video",
+                              "next",
+                            ],
+                          ].map(([g, I, A, C, E, o]) =>
+                            D(
+                              g,
+                              b(
+                                C,
+                                E,
+                                f(
+                                  [169495254, 327511066],
+                                  B([D(1, I), D(2, A)]),
+                                ),
+                                o,
+                              ),
+                            ),
+                          ),
+                          D(5, "Play"),
+                          D(6, "Pause"),
+                          D(7, "Replay"),
+                        ]),
+                      ),
+                      D(5, M),
+                      D(
+                        6,
+                        b(
+                          "youtube_outline_experimental/headset_24pt",
+                          "Switch to audio mode",
+                          f([169495254, 300135747, 2], R),
+                        ),
+                      ),
+                      D(
+                        12,
+                        b(
+                          "youtube_outline_experimental/video_24pt",
+                          "Switch to video mode",
+                          f([169495254, 300413109, 2], R),
+                        ),
+                      ),
+                    ];
+                  E &&
+                    G.push(
+                      D(
+                        9,
+                        b(
+                          "youtube_outline_experimental/speedometer_24pt",
+                          "Playback speed",
+                          E,
+                        ),
+                      ),
+                    );
+                  const p = g.engagementPanels
+                    .map(m)
+                    .find(
+                      (g) =>
+                        "engagement-panel-macro-markers-auto-chapters" === g ||
+                        "engagement-panel-macro-markers-description-chapters" ===
+                          g,
+                    );
+                  p &&
+                    G.push(
+                      D(
+                        8,
+                        b(
+                          "youtube_outline_experimental/view_list_24pt",
+                          "Chapters",
+                          f(
+                            [169495254, 138681778],
+                            B([D(3, Y), D(10, B([D(1, 1), D(3, p)]))]),
+                          ),
+                        ),
+                      ),
+                    );
+                  const d = [
+                      D(
+                        1,
+                        B([
+                          D(1, "/youtube/app/engagement_panel"),
+                          D(2, 470855422),
+                          D(3, 470855422),
+                        ]),
+                      ),
+                      D(
+                        1,
+                        B([
+                          D(1, "/youtube/app/player_overlay"),
+                          D(2, 470855423),
+                          D(3, 470855423),
+                        ]),
+                      ),
+                      ...[
+                        ["menu_trigger", 14],
+                        ["audio_only", 18],
+                      ].map(([g, I]) =>
+                        D(
+                          1,
+                          B([
+                            D(1, "/youtube/app/on_the_go_" + g + "_state"),
+                            D(3, 1),
+                            D(3, 2325),
+                            D(3, Number(I)),
+                          ]),
+                        ),
+                      ),
+                      D(2, 413471385),
+                    ],
+                    j = B([
+                      D(188490103, B(d)),
+                      D(212323971, B([D(1, 413471385), D(2, 5)])),
+                      D(
+                        386334485,
+                        B([D(1, B([f([1, 1], w), D(2, 4)])), D(2, 413471385)]),
+                      ),
+                      D(
+                        386334486,
+                        B([D(1, B([D(1, l), D(2, 6)])), D(2, 413471385)]),
+                      ),
+                    ]);
+                  return eg("EngagementPanel").fromBinary(
+                    D(
+                      138681066,
+                      B([
+                        f([2, 138681548, 1, 1, 1], "On-the-go"),
+                        f(
+                          [3, 49399797, 1, 50195462, 1, 153515154, 172660663],
+                          B([
+                            f(
+                              [1, 168777401],
+                              B([
+                                f([3, 172035250, 1], C),
+                                f([5, 413471385, 1, 2325], B(G)),
+                                D(6, j),
+                              ]),
+                            ),
+                            f([2, 183314536, 1], C),
+                          ]),
+                        ),
+                        D(5, 282218),
+                        D(6, 1),
+                        D(15, 1),
+                        D(17, 3),
+                        D(18, R),
+                        D(20, 1),
+                        D(21, 2),
+                        D(21, 1),
+                        D(36, 2),
+                      ]),
+                    ),
+                  );
+                })(A, e, a.template, n);
+                if (!K) return !1;
+                let s = Sg(e, d, (g) =>
+                  B([
+                    ...S(g)
+                      .filter((g) => [1, 2, 13, 17].includes(g.no))
+                      .map((g) => g.raw),
+                    D(
+                      4,
+                      B([
+                        D(2, "youtube_outline_experimental/headset_24pt"),
+                        D(3, "On-the-go"),
+                        D(4, j()),
+                      ]),
+                    ),
+                    D(10, p),
+                    D(12, 1),
+                  ]),
+                );
+                (s = Sg(s, [...x, 6, 188490103, 1, 1], () => g.encode(p))),
+                  (s = Sg(s, [153515154, 3, 396644439, 1], () =>
+                    g.encode("menu_item_on_the_go"),
+                  ));
+                const c = o.map((g) => g.raw);
+                c.splice(h, 0, D(1, s));
+                const Q = Sg(C.overflowMenu, [66439850], () => B(c));
+                return (
+                  Cg(A, "frameworkUpdates", a.framework),
+                  Cg(A, "engagementPanels", [...A.engagementPanels, K]),
+                  Cg(C, "overflowMenu", Q)
+                );
+              })(E) || N;
+          } catch (g) {
+            console.log("YouTube On-the-go: " + g);
+          }
+        const Z = new Set(["richItemContents", "overlays"]),
+          z = new Set([
+            "richItemContents",
+            "contents",
+            "sectionListSupportedRenderers",
+            "overlayCollections",
+          ]),
+          _ = new Set([
+            "videoWithContextRenderer",
+            "videoRendererContent",
+            "itemSectionRenderer",
+            "shelfRenderer",
+            "richSectionContent",
+            "reelShelfRenderer",
+            "renderer",
+            "content",
+            "item",
+          ]);
+        return (
+          (function g(I, E = !1) {
+            if (!I || "object" != typeof I || ArrayBuffer.isView(I)) return 0;
+            if (Array.isArray(I)) {
+              let A = 0;
+              for (const C of I) A |= 1 & g(C, E);
+              return A;
+            }
+            let B =
+              E &&
+              ((function (g, I, A, C) {
+                const E = g.layoutRender?.eml?.split("|")[0];
+                return (
+                  !!(
+                    (E && (F.test(E) || (C && H.test(E)))) ||
+                    (C && g.shoppingShelf) ||
+                    g.sponsoredVideo ||
+                    g.sponsoredDisplay ||
+                    (A &&
+                      g.videoLockup &&
+                      (function (g) {
+                        let I = tg(g).find(
+                          (g) => 18 === g.no && 2 === g.wire,
+                        )?.data;
+                        try {
+                          for (const g of [
+                            4, 169495254, 462702848, 1, 139608561, 50, 7, 3,
+                          ]) {
+                            if (!I) return !1;
+                            I = S(I).find(
+                              (I) => I.no === g && 2 === I.wire,
+                            )?.data;
+                          }
+                          return !!I && t(I, W);
+                        } catch {
+                          return !1;
+                        }
+                      })(g.videoLockup))
+                  ) ||
+                  tg(g).some(
+                    (g) =>
+                      2 === g.wire &&
+                      (P(g.data) ||
+                        (325515470 === g.no &&
+                          (function (g) {
+                            const I = [
+                              2, 11, 1, 4, 170382656, 1, 169495254, 48687626, 2,
+                            ];
+                            try {
+                              return (function g(A, C) {
+                                if (C === I.length) return t(A, q);
+                                const E = S(A).filter(
+                                  (g) => g.no === I[C] && 2 === g.wire,
+                                );
+                                return (
+                                  (5 === C || 1 === E.length) &&
+                                  E.some((I) => g(I.data, C + 1))
+                                );
+                              })(g, 0);
+                            } catch {
+                              return !1;
+                            }
+                          })(g.data)) ||
+                        (C && 400157044 === g.no) ||
+                        455507059 === g.no ||
+                        (A && 519005951 === g.no && P(g.data, V)) ||
+                        (312131490 === g.no &&
+                          ((I && P(g.data, J)) || (C && P(g.data, v))))),
+                  )
+                );
+              })(I, o, e, a) ||
+                (L &&
+                  (function (g) {
+                    try {
+                      return tg(g).some((g) => {
+                        if (408379376 !== g.no || 2 !== g.wire) return !1;
+                        const I = S(g.data).filter(
+                          (g) => 1 === g.no && 2 === g.wire,
+                        );
+                        if (1 !== I.length) return !1;
+                        const A = S(I[0].data),
+                          C = A.filter((g) => 1 === g.no && 2 === g.wire),
+                          E = A.filter((g) => 2 === g.no && 2 === g.wire);
+                        return (
+                          E.length > 0 &&
+                          E.length === C.length &&
+                          E.every((g) =>
+                            c(g.data, [8, 2, 169495254, 138681778, 1]),
+                          )
+                        );
+                      });
+                    } catch {
+                      return !1;
+                    }
+                  })(I)));
+            const n = I.renderInfo?.layoutRender?.eml?.split("|")[0];
+            let i = !!n && (F.test(n) || (a && H.test(n)));
+            if (E && (B || i)) return 1;
+            L &&
+              (N =
+                (function (g) {
+                  let I = !1;
+                  try {
+                    const A = g;
+                    if (A.engagementPanels?.length) {
+                      const g = A.engagementPanels.filter((g) => {
+                        const I = g.renderer;
+                        return (
+                          !I ||
+                          !tg(I).some(
+                            (g) => 1 === g.no && 2 === g.wire && t(g.data, K),
+                          )
+                        );
+                      });
+                      I = Cg(A, "engagementPanels", g) || I;
+                      for (const A of g)
+                        A.renderer &&
+                          (I =
+                            ng(A.renderer, 10, (g) =>
+                              c(
+                                g,
+                                [
+                                  260791572, 1, 153515154, 172660663, 1,
+                                  168777401, 5, 413471385, 1, 2553, 997, 3, 3,
+                                  170382688, 1, 169495254, 138681778, 1,
+                                ],
+                              )
+                                ? void 0
+                                : g,
+                            ) || I);
+                    }
+                    A.playerOverlays?.renderer &&
+                      (I = ng(A.playerOverlays.renderer, 37, M) || I),
+                      (I = ng(g, 216561405, (g) => Sg(g, [1], M)) || I),
+                      (I = ng(g, 386137609, l) || I),
+                      (I = ng(g, 408379376, R) || I);
+                    const C = g;
+                    C.element?.data && (I = ng(C.element.data, 2185, w) || I),
+                      C.videoLockup && (I = ng(C.videoLockup, 18, G) || I),
+                      g.videoContent?.videoLockup &&
+                        (I =
+                          ng(g, 6, (g) =>
+                            Sg(g, [188490103], (g) =>
+                              Q(g, 1, (g) => (c(g, [1], s, !0) ? void 0 : g)),
+                            ),
+                          ) || I);
+                  } catch (g) {
+                    console.log("YouTube AI controls: " + g);
+                  }
+                  return I;
+                })(I) || N);
+            const r = I[$];
+            for (const o of Object.keys(I)) {
+              if (!E && r?.deferred) {
+                const g = A[r.type].find(([, g]) => g === o);
+                if (
+                  g &&
+                  !C.has(g[2]) &&
+                  !Z.has(o) &&
+                  !z.has(o) &&
+                  "promotedContents" !== o &&
+                  (!a || ("tabs" !== o && "attachments" !== o))
+                )
+                  continue;
+              }
+              const e = I[o];
+              if (!e || "object" != typeof e || ArrayBuffer.isView(e)) continue;
+              if (!Array.isArray(e)) {
+                const I = g(e, E);
+                if (E && 1 & I) return 1;
+                (B = !!(1 & I) || B), 2 & I && _.has(o) && (i = !0);
+                continue;
+              }
+              let t;
+              const n = Z.has(o),
+                S = z.has(o),
+                h = a && "tabs" === o,
+                K = a && "attachments" === o,
+                s = "promotedContents" === o;
+              for (let I = 0; I < e.length; I++) {
+                const A = e[I],
+                  C = (h && X(A)) || (K && A.products?.length) || (s && P(A)),
+                  o = C && !E ? 0 : g(A, E || n);
+                if (E && 1 & o) return 1;
+                (B = !!(1 & o) || B),
+                  C || (n && 1 & o) || (S && 2 & o)
+                    ? (t ??= e.slice(0, I))
+                    : t && t.push(A);
+              }
+              t && (Cg(I, o, t), (N = !0), t.length || (!n && !S) || (i = !0)),
+                a &&
+                  "attachments" === o &&
+                  !(t ?? e).length &&
+                  void 0 !== I.attachmentStateKey &&
+                  (N = T(I, "attachmentStateKey") || N);
+            }
+            return (
+              h &&
+                I.smartSkipButton &&
+                (N =
+                  (function (g) {
+                    let I = !1;
+                    const A = g.controller;
+                    if (
+                      (!0 === A?.promotionMode &&
+                        (Cg(A, "promotionMode", !1), (I = !0)),
+                      g.actions?.items?.length)
+                    )
+                      for (const A of [g, ...g.actions.items])
+                        2147483647 !== A.displayLimit &&
+                          (Cg(A, "displayLimit", 2147483647), (I = !0));
+                    return I;
+                  })(I.smartSkipButton) || N),
+              (B ? 1 : 0) | (i ? 2 : 0)
+            );
+          })(E),
+          N
+        );
+      }
+      function z(g, I) {
+        let A = Z(g, I);
+        A = T(g, "paidPromotion") || A;
+        for (const I of ["adPlacements", "adSlots"])
+          g[I]?.length && (Cg(g, I, []), (A = !0));
+        const C = g.playerConfig?.granularVariableSpeedConfig;
+        void 0 !== C?.maximumPlaybackRate &&
+          C.maximumPlaybackRate > 0 &&
+          C.maximumPlaybackRate < 400 &&
+          (Cg(C, "maximumPlaybackRate", 400), (A = !0)),
+          g.playbackTracking &&
+            (A = T(g.playbackTracking, "pageadViewthroughconversion") || A);
+        const E = g.playabilityStatus;
+        if (E) {
+          const g = E.pictureInPictureRender ?? {};
+          Cg(E, "pictureInPictureRender", g);
+          const I = g.pictureInPictureAbility ?? {};
+          Cg(g, "pictureInPictureAbility", I),
+            (A = Cg(I, "active", !0) || A),
+            (A = Cg(I, "f4", 0) || A),
+            (A = Cg(I, "f6", 0) || A),
+            (A = Cg(I, "f8", 1) || A);
+          const C = E.backgroundPlayerRender ?? {};
+          Cg(E, "backgroundPlayerRender", C);
+          const o = C.backgroundAbility ?? {};
+          Cg(C, "backgroundAbility", o), (A = Cg(o, "active", !0) || A);
+        }
+        return A;
+      }
+      function T(g, I) {
+        return void 0 !== g[I] && (delete g[I], g[$] && gg(g[$], I), !0);
+      }
+      const _ = Object.create(null),
+        $ = Symbol("wireState");
+      function gg(g, I) {
+        for (; g; )
+          (g.changed ??= new Set()).add(I), (I = g.parentName), (g = g.parent);
+      }
+      function Ig(g, A, C) {
+        const [, E, o] = g.spec;
+        return "bytes" === o
+          ? g.data
+          : "string" === o
+            ? I.decode(g.data)
+            : "bool" === o
+              ? 0 !== i(g.data)
+              : "uint" === o
+                ? i(g.data)
+                : Ag(o, g.data, A + 1, C, E);
+      }
+      function Ag(g, I, E = 0, o, e) {
+        if (E > 64) throw new Error("Protobuf nesting limit");
+        const B = {},
+          t = S(I),
+          n = t.length > 1 ? new Map() : null,
+          i = { bytes: I, fields: t, parent: o, parentName: e },
+          r = (_[g] ??= new Map(A[g].map((g) => [g[0], g])));
+        Object.defineProperty(B, $, { value: i });
+        for (const [, I, , C] of A[g]) C && (B[I] = []);
+        if (n)
+          for (const g of t) {
+            const I = r.get(g.no);
+            I &&
+              g.wire === ("bool" === I[2] || "uint" === I[2] ? 0 : 2) &&
+              ((g.spec = I), I[3] || n.set(I[1], (n.get(I[1]) ?? 0) + 1));
+          }
+        let h;
+        for (const I of t) {
+          const o = n ? I.spec : r.get(I.no);
+          if (!o || I.wire !== ("bool" === o[2] || "uint" === o[2] ? 0 : 2))
+            continue;
+          I.spec = o;
+          const [, e, S, a] = o;
+          if (!a && (n?.get(e) ?? 0) > 1) delete I.spec;
+          else if (A[S] && !C.has(S)) {
+            if (h?.has(e)) continue;
+            (h ??= new Set()).add(e);
+            const I = t.filter((g) => g.spec?.[1] === e);
+            (i.type = g),
+              (i.deferred = !0),
+              Object.defineProperty(B, e, {
+                enumerable: !0,
+                configurable: !0,
+                get() {
+                  const g = a ? I.map((g) => Ig(g, E, i)) : Ig(I[0], E, i);
+                  return (
+                    Object.defineProperty(B, e, {
+                      value: g,
+                      enumerable: !0,
+                      writable: !0,
+                      configurable: !0,
+                    }),
+                    g
+                  );
+                },
+              });
+          } else {
+            const g = Ig(I, E, i);
+            a ? B[e].push(g) : (B[e] = g);
+          }
+        }
+        return B;
+      }
+      function Cg(g, I, A) {
+        const C = g[I];
+        return (
+          !(Array.isArray(C) && Array.isArray(A)
+            ? C.length === A.length && C.every((g, I) => g === A[I])
+            : C === A) && ((g[I] = A), g[$] && gg(g[$], I), !0)
+        );
+      }
+      function Eg(I, A) {
+        const [C, , E] = I,
+          o = "bool" === E || "uint" === E ? 0 : 2,
+          e =
+            "bytes" === E
+              ? A
+              : "string" === E
+                ? g.encode(A)
+                : "bool" === E
+                  ? n(A ? 1 : 0)
+                  : "uint" === E
+                    ? n(A)
+                    : og(E, A);
+        return B(2 === o ? [n(8 * C + o), n(e.length), e] : [n(8 * C), e]);
+      }
+      function og(g, I) {
+        const C = I[$];
+        if (C && !C.changed) return C.bytes;
+        const E = [],
+          o = new Map(),
+          e = new Set(),
+          n = (g, I) => (A[I] ? (g[$]?.bytes ?? g) : g);
+        function S(g) {
+          const [, A, , C] = g;
+          return C ? (I[A] ?? []) : void 0 === I[A] ? [] : [I[A]];
+        }
+        for (const I of A[g]) {
+          const [, g, A, E] = I;
+          E &&
+            C?.changed?.has(g) &&
+            o.set(g, new Map(S(I).map((g) => [n(g, A), g])));
+        }
+        for (const g of C?.fields ?? []) {
+          if (!g.spec || !C.changed.has(g.spec[1])) {
+            E.push(g.raw);
+            continue;
+          }
+          const [, B, t, S] = g.spec;
+          if ((e.add(B), S)) {
+            const I = o.get(B);
+            if (!I.has(g.data)) continue;
+            const C = I.get(g.data);
+            I.delete(g.data),
+              E.push(A[t] && C[$]?.changed ? Eg(g.spec, C) : g.raw);
+          } else {
+            const C = I[B];
+            void 0 !== C &&
+              E.push(
+                n(C, t) !== g.data || (A[t] && C[$]?.changed)
+                  ? Eg(g.spec, C)
+                  : g.raw,
+              );
+          }
+        }
+        for (const I of A[g]) {
+          const [, g, , A] = I;
+          if (!C || C.changed.has(g))
+            if (A && o.has(g))
+              for (const A of o.get(g).values()) E.push(Eg(I, A));
+            else if (!e.has(g)) for (const g of S(I)) E.push(Eg(I, g));
+        }
+        const i = B(E);
+        return C && t(i, C.bytes) ? C.bytes : i;
+      }
+      function eg(g) {
+        return { fromBinary: (I) => Ag(g, I), toBinary: (I) => og(g, I) };
+      }
+      const Bg = [];
+      function tg(g) {
+        const I = g[$];
+        if (!I) return Bg;
+        if (I.unknown) return I.unknown;
+        if (!I.fields.length || (1 === I.fields.length && I.fields[0].spec))
+          return Bg;
+        let A;
+        for (const g of I.fields) g.spec || (A ??= []).push(g);
+        return (I.unknown = A ?? Bg);
+      }
+      function ng(g, I, A) {
+        let C;
+        for (const E of tg(g)) {
+          if (E.no !== I || 2 !== E.wire) continue;
+          const g = A(E.data);
+          (g && t(g, E.data)) || (C ??= []).push({ field: E, data: g });
+        }
+        if (!C) return !1;
+        const E = g[$];
+        for (const { field: g, data: A } of C)
+          A
+            ? ((g.data = A), (g.raw = Eg([I, "", "bytes"], A)))
+            : E.fields.splice(E.fields.indexOf(g), 1);
+        return (E.unknown = void 0), gg(E, ""), !0;
+      }
+      function Sg(g, I, A) {
+        if (!I.length) return A(g);
+        let C = !1;
+        const E = S(g).map((g) => {
+          if (g.no !== I[0] || 2 !== g.wire) return g.raw;
+          const E = Sg(g.data, I.slice(1), A);
+          return t(E, g.data) ? g.raw : ((C = !0), Eg([g.no, "", "bytes"], E));
+        });
+        return C ? B(E) : g;
+      }
+      class ig {
+        constructor(g) {
+          (this.buffer = g), (this.offset = 0);
+        }
+        readByte() {
+          if (this.offset >= this.buffer.length)
+            throw new Error("Truncated UMP header");
+          return this.buffer[this.offset++];
+        }
+        readVarint() {
+          const g = this.readByte();
+          let I = 5;
+          for (let A = 1; A < 5; A++)
+            if (!(g & (128 >> (A - 1)))) {
+              I = A;
+              break;
+            }
+          let A = 5 === I ? 0 : 8 - I,
+            C = 5 === I ? 0 : g & ((1 << A) - 1);
+          for (let g = 1; g < I; g++, A += 8) C += this.readByte() * 2 ** A;
+          return C;
+        }
+        readPart() {
+          const g = this.offset,
+            I = this.readVarint(),
+            A = this.readVarint();
+          if (A > this.buffer.length - this.offset)
+            throw new Error(
+              `Truncated UMP payload: type=${I}, offset=${this.offset}, expected=${A}, available=${this.buffer.length - this.offset}`,
+            );
+          const C = this.buffer.subarray(this.offset, this.offset + A);
+          return (
+            (this.offset += A),
+            {
+              type: I,
+              data: C,
+              originalData: C,
+              raw: this.buffer.subarray(g, this.offset),
+            }
+          );
+        }
+        get hasNext() {
+          return this.offset < this.buffer.length;
+        }
+      }
+      class rg {
+        constructor(g = 1024) {
+          (this.buffer = new Uint8Array(g)), (this.length = 0);
+        }
+        ensureCapacity(g) {
+          if (this.length + g <= this.buffer.length) return;
+          const I = new Uint8Array(
+            Math.max(2 * this.buffer.length, this.length + g),
+          );
+          I.set(this.buffer), (this.buffer = I);
+        }
+        writeByte(g) {
+          this.ensureCapacity(1), (this.buffer[this.length++] = 255 & g);
+        }
+        writeVarint(g) {
+          if (!Number.isInteger(g) || g < 0 || g > 4294967295)
+            throw new Error("Invalid UMP integer");
+          const I =
+            g < 128
+              ? 1
+              : g < 16384
+                ? 2
+                : g < 2097152
+                  ? 3
+                  : g < 268435456
+                    ? 4
+                    : 5;
+          if (1 === I) return this.writeByte(g);
+          5 === I
+            ? this.writeByte(240)
+            : this.writeByte(
+                (256 - (256 >> (I - 1))) | (g & ((1 << (8 - I)) - 1)),
+              );
+          for (let A = 1, C = 5 === I ? 0 : 8 - I; A < I; A++, C += 8)
+            this.writeByte(Math.floor(g / 2 ** C));
+        }
+        writePart({ type: g, data: I }) {
+          this.writeVarint(g),
+            this.writeVarint(I.length),
+            this.ensureCapacity(I.length),
+            this.buffer.set(I, this.length),
+            (this.length += I.length);
+        }
+        finish() {
+          return this.buffer.subarray(0, this.length);
+        }
+      }
+      async function hg(g, I, A) {
+        let C;
+        const E = eg("EncryptedResponsePart"),
+          o = eg("OnesieInnertubeResponse"),
+          e = new ig(g),
+          n = [],
+          r = [];
+        let h = !1,
+          a = !1;
+        async function K(g) {
+          const e = E.fromBinary(g);
+          if (
+            !(e.encryptedContent instanceof Uint8Array) ||
+            16 !== e.iv?.length ||
+            32 !== e.hmac?.length
+          )
+            throw new Error("Malformed encrypted UMP envelope");
+          if ((e.compressionAlgorithm ?? 0) > 1)
+            throw new Error("Unsupported UMP compression");
+          if (!C) {
+            const { CryptoContext: g } =
+              /*
+    Third-party components bundled below use the MIT License.
+
+    @noble/ciphers
+    Copyright (c) 2022 Paul Miller (https://paulmillr.com)
+    Copyright (c) 2016 Thomas Pornin <pornin@bolet.org>
+
+    @noble/hashes
+    Copyright (c) 2022 Paul Miller (https://paulmillr.com)
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+    */
+              (function () {
+                function g(g, ...I) {
+                  if (
+                    !(
+                      g instanceof Uint8Array ||
+                      (ArrayBuffer.isView(g) &&
+                        "Uint8Array" === g.constructor.name)
+                    )
+                  )
+                    throw new Error("Uint8Array expected");
+                  if (I.length && !I.includes(g.length))
+                    throw new Error("Invalid byte length: " + g.length);
+                }
+                function I(g) {
+                  return new Uint32Array(
+                    g.buffer,
+                    g.byteOffset,
+                    Math.floor(g.byteLength / 4),
+                  );
+                }
+                function A(...g) {
+                  for (const I of g) I.fill(0);
+                }
+                function C(g) {
+                  return g.byteOffset % 4 == 0;
+                }
+                function E(g) {
+                  return Uint8Array.from(g);
+                }
+                if (
+                  68 !== new Uint8Array(new Uint32Array([287454020]).buffer)[0]
+                )
+                  throw new Error(
+                    "Non little-endian hardware is not yet supported",
+                  );
+                function o(g) {
+                  return (g << 1) ^ (283 & -(g >> 7));
+                }
+                function e(g, I) {
+                  let A = 0;
+                  for (; I > 0; I >>= 1) (A ^= g & -(1 & I)), (g = o(g));
+                  return A;
+                }
+                var B = (g) => (g << 24) | (g >>> 8),
+                  t = (g) => (g << 8) | (g >>> 24);
+                function n(g, I) {
+                  if (256 !== g.length) throw new Error("Wrong sbox length");
+                  let A = new Uint32Array(256).map((A, C) => I(g[C])),
+                    C = A.map(t),
+                    E = C.map(t),
+                    o = E.map(t),
+                    e = new Uint32Array(65536),
+                    B = new Uint32Array(65536),
+                    n = new Uint16Array(65536);
+                  for (let I = 0; I < 256; I++)
+                    for (let t = 0; t < 256; t++) {
+                      let S = 256 * I + t;
+                      (e[S] = A[I] ^ C[t]),
+                        (B[S] = E[I] ^ o[t]),
+                        (n[S] = (g[I] << 8) | g[t]);
+                    }
+                  return { sbox2: n, T01: e, T23: B };
+                }
+                var S = n(
+                    (() => {
+                      let g = new Uint8Array(256);
+                      for (let I = 0, A = 1; I < 256; I++, A ^= o(A)) g[I] = A;
+                      let I = new Uint8Array(256);
+                      I[0] = 99;
+                      for (let A = 0; A < 255; A++) {
+                        let C = g[255 - A];
+                        (C |= C << 8),
+                          (I[g[A]] =
+                            255 &
+                            (C ^
+                              (C >> 4) ^
+                              (C >> 5) ^
+                              (C >> 6) ^
+                              (C >> 7) ^
+                              99));
+                      }
+                      return A(g), I;
+                    })(),
+                    (g) => (e(g, 3) << 24) | (g << 16) | (g << 8) | e(g, 2),
+                  ),
+                  i = (() => {
+                    let g = new Uint8Array(16);
+                    for (let I = 0, A = 1; I < 16; I++, A = o(A)) g[I] = A;
+                    return g;
+                  })();
+                function r(g, I, A, C, E, o) {
+                  return (
+                    g[((A << 8) & 65280) | ((C >>> 8) & 255)] ^
+                    I[((E >>> 8) & 65280) | ((o >>> 24) & 255)]
+                  );
+                }
+                function h(g, I, A, C, E) {
+                  return (
+                    g[(255 & I) | (65280 & A)] |
+                    (g[((C >>> 16) & 255) | ((E >>> 16) & 65280)] << 16)
+                  );
+                }
+                function a(g, I, A, C, E) {
+                  let { sbox2: o, T01: e, T23: B } = S,
+                    t = 0;
+                  (I ^= g[t++]), (A ^= g[t++]), (C ^= g[t++]), (E ^= g[t++]);
+                  let n = g.length / 4 - 2;
+                  for (let o = 0; o < n; o++) {
+                    let o = g[t++] ^ r(e, B, I, A, C, E),
+                      n = g[t++] ^ r(e, B, A, C, E, I),
+                      S = g[t++] ^ r(e, B, C, E, I, A),
+                      i = g[t++] ^ r(e, B, E, I, A, C);
+                    (I = o), (A = n), (C = S), (E = i);
+                  }
+                  return {
+                    s0: g[t++] ^ h(o, I, A, C, E),
+                    s1: g[t++] ^ h(o, A, C, E, I),
+                    s2: g[t++] ^ h(o, C, E, I, A),
+                    s3: g[t++] ^ h(o, E, I, A, C),
+                  };
+                }
+                function K(o, e, B) {
+                  const t = E(e),
+                    n = C(B) ? B : E(B);
+                  try {
+                    return (function (C, E, o) {
+                      g(E, 16), g(o);
+                      let e = o.length;
+                      const B = new Uint8Array(e);
+                      let t = E,
+                        n = I(t),
+                        {
+                          s0: S,
+                          s1: i,
+                          s2: r,
+                          s3: h,
+                        } = a(C, n[0], n[1], n[2], n[3]),
+                        K = I(o),
+                        s = I(B);
+                      for (let g = 0; g + 4 <= K.length; g += 4) {
+                        (s[g + 0] = K[g + 0] ^ S),
+                          (s[g + 1] = K[g + 1] ^ i),
+                          (s[g + 2] = K[g + 2] ^ r),
+                          (s[g + 3] = K[g + 3] ^ h);
+                        let I = 1;
+                        for (let g = t.length - 1; g >= 0; g--)
+                          (I = (I + (255 & t[g])) | 0),
+                            (t[g] = 255 & I),
+                            (I >>>= 8);
+                        ({
+                          s0: S,
+                          s1: i,
+                          s2: r,
+                          s3: h,
+                        } = a(C, n[0], n[1], n[2], n[3]));
+                      }
+                      let c = 16 * Math.floor(K.length / 4);
+                      if (c < e) {
+                        let g = new Uint32Array([S, i, r, h]),
+                          I = new Uint8Array(g.buffer);
+                        for (let g = c, A = 0; g < e; g++, A++)
+                          B[g] = o[g] ^ I[A];
+                        A(g);
+                      }
+                      return B;
+                    })(o, t, n);
+                  } finally {
+                    A(t), n !== B && A(n);
+                  }
+                }
+                function s(g) {
+                  return new DataView(g.buffer, g.byteOffset, g.byteLength);
+                }
+                function c(g, I) {
+                  return (g << (32 - I)) | (g >>> I);
+                }
+                function Q(g, I, A) {
+                  return (g & I) ^ (~g & A);
+                }
+                function w(g, I, A) {
+                  return (g & I) ^ (g & A) ^ (I & A);
+                }
+                const l = Uint32Array.from([
+                  1779033703, 3144134277, 1013904242, 2773480762, 1359893119,
+                  2600822924, 528734635, 1541459225,
+                ]);
+                var R = Uint32Array.from([
+                    1116352408, 1899447441, 3049323471, 3921009573, 961987163,
+                    1508970993, 2453635748, 2870763221, 3624381080, 310598401,
+                    607225278, 1426881987, 1925078388, 2162078206, 2614888103,
+                    3248222580, 3835390401, 4022224774, 264347078, 604807628,
+                    770255983, 1249150122, 1555081692, 1996064986, 2554220882,
+                    2821834349, 2952996808, 3210313671, 3336571891, 3584528711,
+                    113926993, 338241895, 666307205, 773529912, 1294757372,
+                    1396182291, 1695183700, 1986661051, 2177026350, 2456956037,
+                    2730485921, 2820302411, 3259730800, 3345764771, 3516065817,
+                    3600352804, 4094571909, 275423344, 430227734, 506948616,
+                    659060556, 883997877, 958139571, 1322822218, 1537002063,
+                    1747873779, 1955562222, 2024104815, 2227730452, 2361852424,
+                    2428436474, 2756734187, 3204031479, 3329325298,
+                  ]),
+                  M = new Uint32Array(64),
+                  G = class {
+                    constructor() {
+                      (this.length = 0),
+                        (this.pos = 0),
+                        (this.buffer = new Uint8Array(64)),
+                        (this.view = s(this.buffer)),
+                        this.set(
+                          l[0],
+                          l[1],
+                          l[2],
+                          l[3],
+                          l[4],
+                          l[5],
+                          l[6],
+                          l[7],
+                        );
+                    }
+                    update(g) {
+                      const { view: I, buffer: C } = this,
+                        E = g.length;
+                      for (let A = 0; A < E; ) {
+                        const o = Math.min(64 - this.pos, E - A);
+                        if (64 === o) {
+                          const I = s(g);
+                          for (; 64 <= E - A; A += 64) this.process(I, A);
+                          continue;
+                        }
+                        C.set(g.subarray(A, A + o), this.pos),
+                          (this.pos += o),
+                          (A += o),
+                          64 === this.pos &&
+                            (this.process(I, 0), (this.pos = 0));
+                      }
+                      return (this.length += g.length), A(M), this;
+                    }
+                    digest() {
+                      const { buffer: g, view: I, pos: C } = this;
+                      (g[C] = 128),
+                        g.fill(0, C + 1),
+                        C >= 56 && (this.process(I, 0), g.fill(0)),
+                        I.setBigUint64(56, BigInt(8 * this.length), !1),
+                        this.process(I, 0);
+                      const E = new Uint8Array(32),
+                        o = s(E),
+                        { A: e, B, C: t, D: n, E: S, F: i, G: r, H: h } = this,
+                        a = [e, B, t, n, S, i, r, h];
+                      for (let g = 0; g < 8; g++) o.setUint32(4 * g, a[g], !1);
+                      return this.set(0, 0, 0, 0, 0, 0, 0, 0), A(g), E;
+                    }
+                    set(g, I, A, C, E, o, e, B) {
+                      (this.A = 0 | g),
+                        (this.B = 0 | I),
+                        (this.C = 0 | A),
+                        (this.D = 0 | C),
+                        (this.E = 0 | E),
+                        (this.F = 0 | o),
+                        (this.G = 0 | e),
+                        (this.H = 0 | B);
+                    }
+                    process(g, I) {
+                      for (let A = 0; A < 16; A++, I += 4)
+                        M[A] = g.getUint32(I, !1);
+                      for (let g = 16; g < 64; g++) {
+                        let I = M[g - 15],
+                          A = M[g - 2],
+                          C = c(I, 7) ^ c(I, 18) ^ (I >>> 3),
+                          E = c(A, 17) ^ c(A, 19) ^ (A >>> 10);
+                        M[g] = (E + M[g - 7] + C + M[g - 16]) | 0;
+                      }
+                      let {
+                        A,
+                        B: C,
+                        C: E,
+                        D: o,
+                        E: e,
+                        F: B,
+                        G: t,
+                        H: n,
+                      } = this;
+                      for (let g = 0; g < 64; g++) {
+                        let I =
+                            (n +
+                              (c(e, 6) ^ c(e, 11) ^ c(e, 25)) +
+                              Q(e, B, t) +
+                              R[g] +
+                              M[g]) |
+                            0,
+                          S =
+                            ((c(A, 2) ^ c(A, 13) ^ c(A, 22)) + w(A, C, E)) | 0;
+                        (n = t),
+                          (t = B),
+                          (B = e),
+                          (e = (o + I) | 0),
+                          (o = E),
+                          (E = C),
+                          (C = A),
+                          (A = (I + S) | 0);
+                      }
+                      (A = (A + this.A) | 0),
+                        (C = (C + this.B) | 0),
+                        (E = (E + this.C) | 0),
+                        (o = (o + this.D) | 0),
+                        (e = (e + this.E) | 0),
+                        (B = (B + this.F) | 0),
+                        (t = (t + this.G) | 0),
+                        (n = (n + this.H) | 0),
+                        this.set(A, C, E, o, e, B, t, n);
+                    }
+                  };
+                return {
+                  CryptoContext: class {
+                    constructor(o) {
+                      (this.expandedKey = (function (o) {
+                        g(o);
+                        let e = o.length;
+                        if (![16, 24, 32].includes(e))
+                          throw new Error(
+                            "aes: invalid key size, should be 16, 24 or 32, got " +
+                              e,
+                          );
+                        let { sbox2: t } = S,
+                          n = [];
+                        C(o) || n.push((o = E(o)));
+                        let r = I(o),
+                          a = r.length,
+                          K = (g) => h(t, g, g, g, g),
+                          s = new Uint32Array(e + 28);
+                        s.set(r);
+                        for (let g = a; g < s.length; g++) {
+                          let I = s[g - 1];
+                          g % a === 0
+                            ? (I = K(B(I)) ^ i[g / a - 1])
+                            : a > 6 && g % a === 4 && (I = K(I)),
+                            (s[g] = s[g - a] ^ I);
+                        }
+                        return A(...n), s;
+                      })(o.slice(0, 16))),
+                        (this.hmacKey = o.slice(16));
+                    }
+                    signature(g) {
+                      const I = new Uint8Array(64);
+                      I.set(
+                        this.hmacKey.length > 64
+                          ? new G().update(this.hmacKey).digest()
+                          : this.hmacKey,
+                      );
+                      for (let g = 0; g < I.length; g++) I[g] ^= 54;
+                      const C = new G()
+                        .update(I)
+                        .update(g)
+                        .update(this.iv)
+                        .digest();
+                      for (let g = 0; g < I.length; g++) I[g] ^= 106;
+                      const E = new G().update(I).update(C).digest();
+                      return A(I, C), E;
+                    }
+                    decrypt(g) {
+                      if (
+                        ((this.iv = g.iv),
+                        !(function (g, I) {
+                          if (g.length !== I.length) return !1;
+                          let A = 0;
+                          for (let C = 0; C < g.length; C++) A |= g[C] ^ I[C];
+                          return 0 === A;
+                        })(this.signature(g.encryptedContent), g.hmac))
+                      )
+                        throw new Error("HMAC verification failed");
+                      return K(this.expandedKey, this.iv, g.encryptedContent);
+                    }
+                    encrypt(g) {
+                      const I = K(this.expandedKey, this.iv, g);
+                      return { encryptedContent: I, hmac: this.signature(I) };
+                    }
+                  },
+                };
+              })();
+            C = I.map((I) => new g(I));
+          }
+          let B, n;
+          for (const g of C)
+            try {
+              (B = g.decrypt(e)), (n = g);
+              break;
+            } catch (g) {
+              if ("HMAC verification failed" !== g.message) throw g;
+            }
+          if (!B || !n) throw new Error("HMAC verification failed");
+          const S = 31 === B[0] && 139 === B[1];
+          if (1 === e.compressionAlgorithm && !S)
+            throw new Error("Invalid UMP gzip payload");
+          const i = S ? await ag(B, !0) : B,
+            h = o.fromBinary(i);
+          if (!1 !== A.autoHd)
+            for (const g of h.contents) g.player && r.push(g.player);
+          if (
+            !(function (g, I) {
+              let A = !1;
+              for (const C of g.contents)
+                C.player && (A = z(C.player, I) || A),
+                  C.next && (A = Z(C.next, I) || A);
+              return A;
+            })(h, A)
+          )
+            return g;
+          const a = o.toBinary(h);
+          if (t(a, i)) return g;
+          const K = S ? await ag(a, !1) : a,
+            s = n.encrypt(K);
+          return (
+            Cg(e, "encryptedContent", s.encryptedContent),
+            Cg(e, "hmac", s.hmac),
+            E.toBinary(e)
+          );
+        }
+        for (; e.hasNext; ) {
+          const g = e.readPart();
+          if (10 === g.type) {
+            const I = S(g.data).find((g) => 1 === g.no && 0 === g.wire);
+            a = !!I && 25 === i(I.data);
+          } else 11 === g.type && a && ((g.data = await K(g.data)), (a = !1));
+          if (g.data === g.originalData) n.push(g.raw);
+          else {
+            h = !0;
+            const I = new rg(g.data.length + 10);
+            I.writePart(g), n.push(I.finish());
+          }
+        }
+        return { body: h ? B(n) : g, players: r };
+      }
+      async function ag(g, I) {
+        const A = I
+            ? new DecompressionStream("gzip")
+            : new CompressionStream("gzip"),
+          C = A.readable.getReader(),
+          E = A.writable.getWriter(),
+          o = (async () => {
+            const g = [];
+            let A = 0;
+            for (;;) {
+              const { value: E, done: o } = await C.read();
+              if (o) break;
+              if (((A += E.length), I && A > 16777216))
+                throw new Error("UMP decompression exceeds 16 MiB");
+              g.push(E);
+            }
+            return B(g);
+          })(),
+          e = (async () => {
+            await E.write(g), await E.close();
+          })();
+        try {
+          return (await Promise.all([o, e]))[0];
+        } catch (g) {
+          throw (await Promise.allSettled([C.cancel(g), E.abort(g)]), g);
+        } finally {
+          C.releaseLock(), E.releaseLock();
+        }
+      }
+      !(async function () {
+        let A,
+          C,
+          B = !1;
+        try {
+          if (Number($response.status) >= 300 || !$response.body?.length)
+            return $done();
+          const E = Object.entries($response.headers ?? {}).find(
+            ([g]) => "content-type" === g.toLowerCase(),
+          )?.[1];
+          if (E && !/^application\/vnd\.yt-ump(?:\s*;|\s*$)/i.test(E))
+            return $done();
+          (n = $request),
+            (A = Object.entries(n.headers ?? {}).some(
+              ([g, I]) => "user-agent" === g.toLowerCase() && /music/i.test(I),
+            )
+              ? "youtubeMusic"
+              : "youtube"),
+            (C = e()[A]);
+          const K = [];
+          for (const g of (t = C)
+            ? [
+                t,
+                ...(Array.isArray(t.previous) ? t.previous.slice(0, 3) : []),
+              ].filter(
+                (g) =>
+                  g &&
+                  "string" == typeof g.clientKey &&
+                  "string" == typeof g.encryptKey &&
+                  g.clientKey.length > 0 &&
+                  g.clientKey.length <= 5500 &&
+                  g.encryptKey.length > 0 &&
+                  g.encryptKey.length <= 5500,
+              )
+            : [])
+            try {
+              const I = r(g.clientKey);
+              I.length >= 16 && K.push(I);
+            } catch {}
+          if (!K.length)
+            throw (
+              ((B = void 0 !== C),
+              new Error("YouTubeConfig requires a valid stored clientKey"))
+            );
+          const s = (function (g = {}) {
+              return "string" != typeof $argument || $argument.includes("{{{")
+                ? g
+                : { ...g, ...JSON.parse($argument) };
+            })({ blockGames: !0 }),
+            c = await hg($response.body, K, s);
+          !1 !== s.autoHd &&
+            (function (A) {
+              if (!A.length) return;
+              const C = A.map(
+                (g) => tg(g).find((g) => 4 === g.no && 2 === g.wire)?.data,
+              ).filter(Boolean);
+              if (!C.length) return;
+              let E;
+              try {
+                E = e(o, 65536);
+              } catch (g) {
+                return void console.log("YouTube quality read: " + g);
+              }
+              const B = Object.create(null);
+              let t = !1;
+              const n = Object.keys(E);
+              n.length > 16 && (t = !0);
+              for (const g of n.slice(-16)) {
+                const I = E[g];
+                g.length > 256 || !h(I)
+                  ? (t = !0)
+                  : ((B[g] = { height: I.height, itags: I.itags }),
+                    I.premiumItags?.length &&
+                      (B[g].premiumItags = I.premiumItags),
+                    Object.keys(I).length !== Object.keys(B[g]).length &&
+                      (t = !0));
+              }
+              for (const g of C)
+                try {
+                  const A = S(g),
+                    C = A.find((g) => 15 === g.no && 2 === g.wire),
+                    E = C && /[?&]id=([^&]+)/.exec(I.decode(C.data));
+                  if (!E) continue;
+                  const o = decodeURIComponent(E[1]),
+                    e = { height: 0, itags: [] };
+                  if (o.length > 256) continue;
+                  const n = new Set();
+                  let r = !1;
+                  for (const g of A) {
+                    if (3 !== g.no || 2 !== g.wire) continue;
+                    const A = S(g.data),
+                      C = A.find((g) => 5 === g.no && 2 === g.wire);
+                    if (!C || !I.decode(C.data).startsWith("video/")) continue;
+                    const E = (g) => {
+                        const I = A.find((I) => I.no === g && 0 === I.wire);
+                        return I ? i(I.data) : 0;
+                      },
+                      o = Math.min(E(7), E(8)),
+                      B = E(1);
+                    if (!B || !o || o > 2147483647 || o < e.height) continue;
+                    if (
+                      (o > e.height &&
+                        ((e.height = o),
+                        (e.itags = []),
+                        delete e.premiumItags,
+                        n.clear(),
+                        (r = !1)),
+                      r || n.has(B))
+                    )
+                      continue;
+                    if (256 === n.size) {
+                      r = !0;
+                      continue;
+                    }
+                    n.add(B), e.itags.push(B);
+                    const t = A.find((g) => 26 === g.no && 2 === g.wire);
+                    t &&
+                      /\bPremium\b/i.test(I.decode(t.data)) &&
+                      (e.premiumItags ??= []).push(B);
+                  }
+                  if (r || !h(e) || a(B[o], e)) continue;
+                  delete B[o], (B[o] = e), (t = !0);
+                } catch (g) {
+                  console.log("YouTube quality metadata: " + g);
+                }
+              if (t) {
+                const I = Object.keys(B);
+                for (const g of I.slice(0, Math.max(0, I.length - 16)))
+                  delete B[g];
+                try {
+                  let I = JSON.stringify(B);
+                  for (; g.encode(I).length > 65536; )
+                    delete B[Object.keys(B)[0]], (I = JSON.stringify(B));
+                  $persistentStore.write(I, o) ||
+                    console.log("YouTube quality write failed");
+                } catch (g) {
+                  console.log("YouTube quality cache: " + g);
+                }
+              }
+            })(c.players),
+            $done(c.body === $response.body ? void 0 : { body: c.body });
+        } catch (g) {
+          if (
+            (console.log(String(g)),
+            B || "HMAC verification failed" === g?.message)
+          )
+            try {
+              !(function (g, I) {
+                if (void 0 === g || void 0 === I) return;
+                const A = e();
+                if (!Object.hasOwn(A, g)) return;
+                const C = A[g],
+                  o = I;
+                JSON.stringify(C) === JSON.stringify(o) &&
+                  (delete A[g],
+                  (function (g, I = E) {
+                    $persistentStore.write(JSON.stringify(g), I);
+                  })(A));
+              })(A, C);
+            } catch (g) {
+              console.log("YouTube key recovery: " + g);
+            }
+          $done();
+        }
+        var t, n;
+      })();
+    })();
+  }
+
+  function nativeDownloadResponse($request, $response, $argument, $done) {
+    const textEncoder = new TextEncoder();
+
+    const utf8 = new TextDecoder("utf-8", { fatal: true });
+
+    const ROUTES = {
+      "navigation/resolve_url": ["ResolveUrl", transformNavigation],
+
+      browse: ["Browse", transformContent],
+
+      next: ["Next", transformContent],
+
+      player: ["Player", transformPlayer],
+
+      search: ["Search", transformContent],
+
+      "reel/reel_watch_sequence": ["Shorts", removeShortsAds],
+
+      guide: ["Guide", filterGuide],
+
+      "account/get_setting": ["Setting", addPremiumSettings],
+
+      "offline/get_download_action": ["DownloadAction", transformDownload],
+
+      get_watch: ["Watch", transformWatch],
+
+      config: ["Config", null],
+
+      log_event: ["Config", null],
+    };
+
+    function main() {
+      if ($request.url.includes("/initplayback")) handleUmpResponse();
+      else handleApiResponse();
+    }
+
+    function handleApiResponse() {
+      try {
+        const endpoint = $request.url.split("?")[0].split("/youtubei/v1/")[1];
+
+        const route = Object.hasOwn(ROUTES, endpoint) && ROUTES[endpoint];
+
+        if (!route || !$response.body?.length) return $done({});
+
+        const [type, transform] = route,
+          messageCodec = codec(type);
+
+        const message = messageCodec.fromBinary($response.body);
+
+        if (!transform) {
+          captureKeys(message);
+
+          return $done({});
+        }
+
+        const options = readOptions({
+          blockUpload: true,
+
+          blockShorts: false,
+        });
+
+        if (options.autoHd !== false)
+          cacheQuality(responsePlayers(type, message));
+
+        $done(
+          transform(message, options)
+            ? { body: messageCodec.toBinary(message) }
+            : {},
+        );
+      } catch (error) {
+        console.log("YouTube response: " + error);
+
+        $done({});
+      }
+    }
+
+    function handleUmpResponse() {
+      const platform = platformKey($request),
+        status = Number($response.status);
+
+      if (status >= 300 && status < 400) return $done({});
+
+      try {
+        const { clientKey } = readConfig()[platform] ?? {};
+
+        if (!clientKey) return $done({});
+
+        if (!$response.body) return $done({});
+
+        const options = readOptions({ blockGames: true });
+
+        const result = transformUmp(
+          $response.body,
+
+          decodeBase64(clientKey),
+
+          options,
+        );
+
+        if (options.autoHd !== false) cacheQuality(result.players);
+
+        $done({ body: result.body });
+      } catch (error) {
+        console.log(String(error));
+
+        $done({});
+      }
+    }
+
+    const CONFIG_KEY = "YouTubeConfig";
+
+    const QUALITY_KEY = "YouTubeQuality";
+
+    function readOptions(defaults = {}) {
+      return typeof $argument === "string" && !$argument.includes("{{{")
+        ? { ...defaults, ...JSON.parse($argument) }
+        : defaults;
+    }
+
+    function platformKey(request) {
+      return Object.entries(request.headers ?? {}).some(
+        ([name, value]) =>
+          name.toLowerCase() === "user-agent" && /music/i.test(value),
+      )
+        ? "youtubeMusic"
+        : "youtube";
+    }
+
+    function readConfig(key = CONFIG_KEY) {
+      try {
+        return JSON.parse($persistentStore.read(key) || "{}");
+      } catch {
+        return {};
+      }
+    }
+
+    function writeConfig(config, key = CONFIG_KEY) {
+      $persistentStore.write(JSON.stringify(config), key);
+    }
+
+    function clearKeys(platform) {
+      const config = readConfig();
+
+      if (config[platform]) {
+        delete config[platform];
+
+        writeConfig(config);
+      }
+    }
+
+    function captureKeys(message) {
+      const keys =
+        message.responseContext?.globalConfigGroup?.hotConfigGroup
+          ?.mediaHotConfig?.onesieHotConfig;
+
+      if (!keys?.clientKey?.length || !keys.encryptKey?.length) return;
+
+      const platform = platformKey($request),
+        config = readConfig();
+
+      const value = {
+        clientKey: encodeBase64(keys.clientKey),
+
+        encryptKey: encodeBase64(keys.encryptKey),
+      };
+
+      if (JSON.stringify(config[platform]) !== JSON.stringify(value)) {
+        config[platform] = value;
+
+        writeConfig(config);
+      }
+    }
+
+    function responsePlayers(type, message) {
+      if (type === "Player") return [message];
+
+      if (type === "Watch")
+        return message.contents
+
+          .map((content) => content.player)
+
+          .filter(Boolean);
+
+      if (type === "ResolveUrl") {
+        const player = message.endpoint?.watch?.embedded?.response?.player;
+
+        return player ? [player] : [];
+      }
+
+      return [];
+    }
+
+    function cacheQuality(players) {
+      if (!players.length) return;
+
+      const stored = readConfig(QUALITY_KEY);
+
+      const cache = Object.assign(
+        Object.create(null),
+
+        stored && typeof stored === "object" && !Array.isArray(stored)
+          ? stored
+          : {},
+      );
+
+      let changed = false;
+
+      for (const player of players) {
+        try {
+          const streaming = unknownFields(player).find(
+            (field) => field.no === 4 && field.wire === 2,
+          );
+
+          if (!streaming) continue;
+
+          const fields = wireFields(streaming.data);
+
+          const url = fields.find(
+            (field) => field.no === 15 && field.wire === 2,
+          );
+
+          const match = url && /[?&]id=([^&]+)/.exec(utf8.decode(url.data));
+
+          if (!match) continue;
+
+          const id = decodeURIComponent(match[1]),
+            quality = { height: 0, itags: [] };
+
+          for (const field of fields) {
+            if (field.no !== 3 || field.wire !== 2) continue;
+
+            const format = wireFields(field.data);
+
+            const mime = format.find(
+              (field) => field.no === 5 && field.wire === 2,
+            );
+
+            if (!mime || !utf8.decode(mime.data).startsWith("video/")) continue;
+
+            const value = (no) => {
+              const field = format.find(
+                (field) => field.no === no && field.wire === 0,
+              );
+
+              return field ? numberValue(field.data) : 0;
+            };
+
+            const height = Math.min(value(7), value(8)),
+              itag = value(1);
+
+            if (
+              !itag ||
+              !height ||
+              height > 0x7fffffff ||
+              height < quality.height
+            )
+              continue;
+
+            if (height > quality.height) {
+              quality.height = height;
+
+              quality.itags = [];
+            }
+
+            if (!quality.itags.includes(itag)) quality.itags.push(itag);
+          }
+
+          if (
+            !quality.height ||
+            JSON.stringify(cache[id]) === JSON.stringify(quality)
+          )
+            continue;
+
+          delete cache[id];
+
+          cache[id] = quality;
+
+          changed = true;
+        } catch (error) {
+          console.log("YouTube quality metadata: " + error);
+        }
+      }
+
+      if (changed) {
+        const keys = Object.keys(cache);
+
+        for (const key of keys.slice(0, Math.max(0, keys.length - 16)))
+          delete cache[key];
+
+        try {
+          writeConfig(cache, QUALITY_KEY);
+        } catch (error) {
+          console.log("YouTube quality cache: " + error);
+        }
+      }
+    }
+
+    const AD_LAYOUTS = new Set([
+      "inline_injection_entrypoint_layout.eml",
+
+      "video_display_button_group_layout.eml-fe",
+
+      "full_width_portrait_image_layout.eml-fe",
+
+      "full_width_square_image_layout.eml-fe",
+
+      "video_display_full_buttoned_layout.eml-fe",
+    ]);
+
+    const SHOPPING_LAYOUT =
+      /^(?:shopping_|products?_in_video_)[a-z0-9_]+\.eml(?:-js)?(?:-fe)?$/;
+
+    const AD_TRACKING = textEncoder.encode("/pagead/");
+
+    const GAME_CARD = textEncoder.encode("mini_game_card.eml");
+
+    const STORE_CARD = textEncoder.encode("shopping_item_card_list.eml");
+
+    const STORE_TAB = textEncoder.encode("store");
+
+    const LIVE_BADGE = textEncoder.encode(
+      "youtube_outline_experimental/live_24pt",
+    );
+
+    const IMMERSIVE_LIVE = textEncoder.encode("immersive_live");
+
+    function containsMarker(bytes, marker = AD_TRACKING) {
+      outer: for (let i = 0; i <= bytes.length - marker.length; i++) {
+        for (let j = 0; j < marker.length; j++)
+          if (bytes[i + j] !== marker[j]) continue outer;
+
+        return true;
+      }
+
+      return false;
+    }
+
+    function visitObjects(root, callback) {
+      const stack = [root];
+
+      while (stack.length) {
+        const object = stack.pop();
+
+        if (!object || typeof object !== "object" || ArrayBuffer.isView(object))
+          continue;
+
+        callback(object);
+
+        stack.push(...Object.values(object));
+      }
+    }
+
+    function hasVerticalLiveTarget(lockup) {
+      let bytes = unknownFields(lockup).find(
+        (field) => field.no === 18 && field.wire === 2,
+      )?.data;
+
+      try {
+        for (const no of [4, 169495254, 462702848, 1, 139608561, 50, 7, 3]) {
+          if (!bytes) return false;
+
+          bytes = wireFields(bytes).find(
+            (field) => field.no === no && field.wire === 2,
+          )?.data;
+        }
+
+        return !!bytes && sameBytes(bytes, IMMERSIVE_LIVE);
+      } catch {
+        return false;
+      }
+    }
+
+    function isStoreTab(item) {
+      const params = item.tabRenderer?.endpoint?.browse?.params;
+
+      if (!params) return false;
+
+      try {
+        const target = wireFields(
+          decodeBase64(decodeURIComponent(params)),
+        ).find((field) => field.no === 2 && field.wire === 2);
+
+        return !!target && sameBytes(target.data, STORE_TAB);
+      } catch {
+        return false;
+      }
+    }
+
+    function isBlockedItem(item, blockGames, blockVerticalLive, blockStore) {
+      let ad = false;
+
+      visitObjects(item, (object) => {
+        const layout = object.layoutRender?.eml?.split("|")[0];
+
+        if (
+          AD_LAYOUTS.has(layout) ||
+          (blockStore &&
+            (SHOPPING_LAYOUT.test(layout ?? "") || object.shoppingShelf)) ||
+          object.sponsoredVideo ||
+          object.sponsoredDisplay ||
+          (blockVerticalLive &&
+            object.videoLockup &&
+            hasVerticalLiveTarget(object.videoLockup))
+        )
+          ad = true;
+
+        if (
+          unknownFields(object).some(
+            (field) =>
+              field.wire === 2 &&
+              (containsMarker(field.data) ||
+                (blockStore && field.no === 400157044) ||
+                field.no === 455507059 ||
+                (blockVerticalLive &&
+                  field.no === 519005951 &&
+                  containsMarker(field.data, LIVE_BADGE)) ||
+                (field.no === 312131490 &&
+                  ((blockGames && containsMarker(field.data, GAME_CARD)) ||
+                    (blockStore && containsMarker(field.data, STORE_CARD))))),
+          )
+        )
+          ad = true;
+      });
+
+      return ad;
+    }
+
+    function transformContent(
+      message,
+
+      {
+        blockGames = true,
+
+        blockVerticalLive = false,
+
+        jumpAhead = true,
+
+        blockStore = true,
+      } = {},
+    ) {
+      let changed = transformMenus(message);
+
+      const emptied = new WeakSet();
+
+      visitObjects(message, (object) => {
+        const layout = object.renderInfo?.layoutRender?.eml?.split("|")[0];
+
+        if (
+          AD_LAYOUTS.has(layout) ||
+          (blockStore && SHOPPING_LAYOUT.test(layout ?? ""))
+        )
+          emptied.add(object);
+
+        if (jumpAhead && object.smartSkipButton)
+          changed = unlockJumpAhead(object.smartSkipButton) || changed;
+
+        if (blockStore && Array.isArray(object.tabs)) {
+          const keep = object.tabs.filter((tab) => !isStoreTab(tab));
+
+          changed = keep.length !== object.tabs.length || changed;
+
+          object.tabs = keep;
+        }
+
+        for (const field of ["richItemContents", "overlays"]) {
+          if (!Array.isArray(object[field])) continue;
+
+          const keep = object[field].filter(
+            (item) =>
+              !isBlockedItem(
+                item,
+
+                blockGames,
+
+                blockVerticalLive,
+
+                blockStore,
+              ),
+          );
+
+          changed = keep.length !== object[field].length || changed;
+
+          if (object[field].length && !keep.length) emptied.add(object);
+
+          object[field] = keep;
+        }
+
+        if (Array.isArray(object.promotedContents)) {
+          const keep = object.promotedContents.filter(
+            (bytes) => !containsMarker(bytes),
+          );
+
+          changed = keep.length !== object.promotedContents.length || changed;
+
+          object.promotedContents = keep;
+        }
+
+        if (blockStore && Array.isArray(object.attachments)) {
+          const keep = object.attachments.filter(
+            (attachment) => !attachment.products?.length,
+          );
+
+          changed = keep.length !== object.attachments.length || changed;
+
+          object.attachments = keep;
+
+          if (!keep.length && object.attachmentStateKey !== undefined) {
+            delete object.attachmentStateKey;
+
+            changed = true;
+          }
+        }
+      });
+
+      function emptyContainer(object) {
+        if (!object || typeof object !== "object") return false;
+
+        if (emptied.has(object)) return true;
+
+        return [
+          "videoWithContextRenderer",
+
+          "videoRendererContent",
+
+          "itemSectionRenderer",
+
+          "shelfRenderer",
+
+          "richSectionContent",
+
+          "reelShelfRenderer",
+
+          "renderer",
+
+          "content",
+
+          "item",
+        ].some((key) => emptyContainer(object[key]));
+      }
+
+      function prune(object) {
+        if (!object || typeof object !== "object" || ArrayBuffer.isView(object))
+          return;
+
+        for (const child of Object.values(object)) prune(child);
+
+        for (const field of [
+          "richItemContents",
+
+          "contents",
+
+          "sectionListSupportedRenderers",
+
+          "overlayCollections",
+        ]) {
+          if (!Array.isArray(object[field])) continue;
+
+          const keep = object[field].filter((item) => !emptyContainer(item));
+
+          if (keep.length === object[field].length) continue;
+
+          changed = true;
+
+          if (!keep.length) emptied.add(object);
+
+          object[field] = keep;
+        }
+      }
+
+      prune(message);
+
+      return changed;
+    }
+
+    function unlockJumpAhead(button) {
+      let changed = false;
+
+      const controller = button.controller;
+
+      if (controller?.promotionMode === true) {
+        controller.promotionMode = false;
+
+        changed = true;
+      }
+
+      if (button.actions?.items?.length)
+        for (const target of [button, ...button.actions.items]) {
+          if (target.displayLimit === 0x7fffffff) continue;
+
+          target.displayLimit = 0x7fffffff;
+
+          changed = true;
+        }
+
+      return changed;
+    }
+
+    function transformMenus(message) {
+      const overlay = message.playerOverlays?.renderer;
+
+      if (!overlay?.overflowMenu) return false;
+
+      try {
+        const menu = unlockSpeedMenu(overlay.overflowMenu);
+
+        const changed = !sameBytes(menu, overlay.overflowMenu);
+
+        overlay.overflowMenu = menu;
+
+        return changed;
+      } catch (error) {
+        console.log("YouTube speed menu: " + error);
+
+        return false;
+      }
+    }
+
+    function unlockSpeedMenu(bytes) {
+      const upsell = textEncoder.encode("PApremium_upsell");
+
+      return rewriteBinaryPath(
+        bytes,
+
+        [
+          66439850, 1, 153515154, 172660663, 1, 168777401, 5, 407694004,
+
+          4, 4, 170382688, 1, 169495254, 443434441, 1, 1, 441573002, 4,
+
+          153515154, 172660663, 1, 168777401, 5, 413471385, 1, 1602,
+        ],
+
+        (selector) => {
+          const fields = wireFields(selector);
+
+          const maximum = fields.find(
+            (field) => field.no === 5 && field.wire === 5,
+          );
+
+          if (!maximum) return selector;
+
+          const rate = new DataView(
+            maximum.data.buffer,
+
+            maximum.data.byteOffset,
+
+            4,
+          ).getFloat32(0, true);
+
+          if (!(rate > 0)) return selector;
+
+          const limit = new Uint8Array(4);
+
+          new DataView(limit.buffer).setFloat32(
+            0,
+
+            Math.max(4, rate),
+
+            true,
+          );
+
+          const expanded = concatBytes(
+            fields.map((field) =>
+              field === maximum ? concatBytes([varint(45), limit]) : field.raw,
+            ),
+          );
+
+          return rewriteBinaryPath(expanded, [10, 1674], (preset) =>
+            concatBytes(
+              wireFields(preset)
+                .filter(
+                  (field) =>
+                    field.no !== 3 ||
+                    field.wire !== 2 ||
+                    !containsMarker(field.data, upsell),
+                )
+
+                .map((field) => field.raw),
+            ),
+          );
+        },
+      );
+    }
+
+    function transformPlayer(player, parameters) {
+      transformContent(player, parameters);
+
+      delete player.paidPromotion;
+
+      player.adPlacements = [];
+
+      player.adSlots = [];
+
+      const speed = player.playerConfig?.granularVariableSpeedConfig;
+
+      if (speed?.maximumPlaybackRate > 0)
+        speed.maximumPlaybackRate = Math.max(
+          400,
+
+          speed.maximumPlaybackRate,
+        );
+
+      if (player.playbackTracking)
+        delete player.playbackTracking.pageadViewthroughconversion;
+
+      const status = player.playabilityStatus;
+
+      if (status) {
+        status.pictureInPictureRender ??= {};
+
+        status.pictureInPictureRender.pictureInPictureAbility ??= {};
+
+        Object.assign(
+          status.pictureInPictureRender.pictureInPictureAbility,
+
+          {
+            active: true,
+
+            f4: 0,
+
+            f6: 0,
+
+            f8: 1,
+          },
+        );
+
+        status.backgroundPlayerRender ??= {};
+
+        status.backgroundPlayerRender.backgroundAbility ??= {};
+
+        status.backgroundPlayerRender.backgroundAbility.active = true;
+      }
+
+      return true;
+    }
+
+    function removeShortsAds(message) {
+      const keep = message.entries.filter(
+        (entry) => !entry.command?.reelWatchEndpoint?.adClientParams?.isAd,
+      );
+
+      const changed = keep.length !== message.entries.length;
+
+      message.entries = keep;
+
+      return changed;
+    }
+
+    function filterGuide(message, parameters) {
+      const blocked = new Set(["SPunlimited"]);
+
+      if (parameters.blockUpload) blocked.add("FEuploads");
+
+      if (parameters.blockShorts) blocked.add("FEshorts");
+
+      let changed = false;
+
+      visitObjects(message, (object) => {
+        if (!Array.isArray(object.rendererItems)) return;
+
+        const keep = object.rendererItems.filter(
+          (item) =>
+            !blocked.has(
+              item.iconRender?.browseId ?? item.labelRender?.browseId,
+            ),
+        );
+
+        changed = keep.length !== object.rendererItems.length || changed;
+
+        object.rendererItems = keep;
+      });
+
+      return changed;
+    }
+
+    function addPremiumSettings(message) {
+      visitObjects(message, (category) => {
+        if (category.categoryId !== 10135) return;
+
+        const endpoint = (enabled) => ({
+          setClientSettingEndpoint: {
+            settingData: {
+              clientSettingEnum: { item: 151 },
+
+              boolValue: enabled,
+            },
+          },
+        });
+
+        if (
+          !category.subSettings.some(
+            (item) =>
+              item.settingBooleanRenderer?.enableServiceEndpoint
+                ?.setClientSettingEndpoint?.settingData?.clientSettingEnum
+                ?.item === 151,
+          )
+        )
+          category.subSettings.push({
+            settingBooleanRenderer: {
+              itemId: 0,
+
+              enableServiceEndpoint: endpoint(true),
+
+              disableServiceEndpoint: endpoint(false),
+            },
+          });
+      });
+
+      if (
+        !message.settingItems.some(
+          (item) => item.backgroundPlayBackSettingRenderer,
+        )
+      )
+        message.settingItems.push({
+          backgroundPlayBackSettingRenderer: {
+            backgroundPlayback: true,
+
+            download: true,
+
+            downloadQualitySelection: true,
+
+            smartDownload: true,
+
+            icon: { iconType: 1093 },
+          },
+        });
+
+      return true;
+    }
+
+    function transformWatch(message, parameters) {
+      for (const content of message.contents) {
+        if (content.player) transformPlayer(content.player, parameters);
+
+        if (content.next) transformContent(content.next, parameters);
+      }
+
+      return true;
+    }
+
+    function transformNavigation(message, parameters) {
+      const player = message.endpoint?.watch?.embedded?.response?.player;
+
+      return player ? transformPlayer(player, parameters) : false;
+    }
+
+    function transformDownload(message, { nativeDownload = false } = {}) {
+      const command = message.command,
+        gate = command?.gatedDownload;
+
+      if (
+        nativeDownload !== true ||
+        !/^[\w-]{11}$/.test(gate?.videoId ?? "") ||
+        !gate.params ||
+        command.executor ||
+        command.offlineVideo
+      )
+        return false;
+
+      const params = wireFields(decodeBase64(decodeURIComponent(gate.params)));
+
+      if (
+        !params.some(
+          (field) =>
+            field.no === 4 && field.wire === 0 && numberValue(field.data) === 1,
+        )
+      )
+        return false;
+
+      const renderer = { offlineable: true };
+
+      if (command.tracking?.length) {
+        const type = codec("DownloadTracking"),
+          tracking = type.fromBinary(command.tracking);
+
+        tracking.index = 1;
+
+        tracking.visualElement = 7111;
+
+        renderer.tracking = type.toBinary(tracking);
+      }
+
+      command.executor = {
+        commands: [
+          {
+            tracking: command.tracking,
+
+            offlineVideo: {
+              videoId: gate.videoId,
+
+              action: 1,
+
+              offlineability: { renderer },
+
+              actionParams: {
+                formatType: gate.formatType || 2,
+
+                settingsAction: 4,
+              },
+            },
+          },
+        ],
+      };
+
+      delete command.gatedDownload;
+
+      return true;
+    }
+
+    const schema = {
+      DownloadAction: [[2, "command", "DownloadCommand"]],
+
+      DownloadCommand: [
+        [2, "tracking", "bytes"],
+
+        [382320942, "gatedDownload", "GatedDownload"],
+
+        [174116574, "executor", "DownloadExecutor"],
+
+        [73080600, "offlineVideo", "OfflineVideo"],
+      ],
+
+      GatedDownload: [
+        [1, "videoId", "string"],
+
+        [3, "formatType", "uint"],
+
+        [5, "params", "string"],
+      ],
+
+      DownloadExecutor: [[1, "commands", "DownloadCommand", true]],
+
+      OfflineVideo: [
+        [1, "videoId", "string"],
+
+        [2, "action", "uint"],
+
+        [4, "offlineability", "Offlineability"],
+
+        [6, "actionParams", "DownloadParameters"],
+      ],
+
+      Offlineability: [[60572968, "renderer", "OfflineabilityRenderer"]],
+
+      OfflineabilityRenderer: [
+        [1, "offlineable", "bool"],
+
+        [4, "tracking", "bytes"],
+      ],
+
+      DownloadTracking: [
+        [1, "index", "uint"],
+
+        [2, "visualElement", "uint"],
+      ],
+
+      DownloadParameters: [
+        [1, "formatType", "uint"],
+
+        [2, "settingsAction", "uint"],
+      ],
+
+      Browse: [
+        [9, "content", "BrowseContent"],
+
+        [10, "onResponseReceivedAction", "BrowseContent"],
+      ],
+
+      BrowseContent: [
+        [
+          58173949,
+
+          "singleColumnResultsRenderer",
+
+          "SingleColumnResultsRenderer",
+        ],
+
+        [153515154, "elementRenderer", "ElementRenderer"],
+
+        [49399797, "sectionListRenderer", "SectionListRenderer"],
+      ],
+
+      SingleColumnResultsRenderer: [
+        [1, "tabs", "BrowseTabSupportedRenderer", true],
+      ],
+
+      BrowseTabSupportedRenderer: [[58174010, "tabRenderer", "TabRenderer"]],
+
+      TabRenderer: [
+        [1, "endpoint", "TabEndpoint"],
+
+        [4, "content", "BrowseContent"],
+      ],
+
+      TabEndpoint: [[48687626, "browse", "TabBrowseEndpoint"]],
+
+      TabBrowseEndpoint: [[3, "params", "string"]],
+
+      ElementRenderer: [
+        [172660663, "videoRendererContent", "VideoRendererContent"],
+      ],
+
+      VideoRendererContent: [
+        [1, "richItemContents", "VideoInfo", true],
+
+        [2, "renderInfo", "RenderInfo"],
+      ],
+
+      VideoInfo: [[168777401, "videoContext", "VideoContext"]],
+
+      VideoContext: [
+        [3, "layout", "ElementLayout"],
+
+        [5, "videoContent", "VideoContent"],
+      ],
+
+      ElementLayout: [[172035250, "layoutRender", "LayoutRender"]],
+
+      VideoContent: [
+        [413471385, "element", "ElementModel"],
+
+        [512694658, "smartSkipButton", "SmartSkipButton"],
+
+        [232954548, "videoLockup", "VideoLockup"],
+
+        [454362329, "sponsoredVideo", "bytes"],
+
+        [491441836, "sponsoredDisplay", "bytes"],
+      ],
+
+      ElementModel: [[1, "data", "ElementData"]],
+
+      ElementData: [[1829, "shoppingShelf", "bytes"]],
+
+      SmartSkipButton: [
+        [1, "actions", "SmartSkipActions"],
+
+        [13, "controller", "SmartSkipController"],
+
+        [17, "displayLimit", "uint"],
+      ],
+
+      SmartSkipActions: [[3, "items", "SmartSkipAction", true]],
+
+      SmartSkipAction: [[9, "displayLimit", "uint"]],
+
+      SmartSkipController: [[7, "promotionMode", "bool"]],
+
+      VideoLockup: [
+        [33, "attachments", "Attachment", true],
+
+        [34, "attachmentStateKey", "bytes"],
+      ],
+
+      Attachment: [[9, "products", "bytes", true]],
+
+      RenderInfo: [[183314536, "layoutRender", "LayoutRender"]],
+
+      LayoutRender: [[1, "eml", "string"]],
+
+      SectionListRenderer: [
+        [
+          1,
+
+          "sectionListSupportedRenderers",
+
+          "SectionListSupportedRenderer",
+
+          true,
+        ],
+
+        [32, "promotedContents", "bytes", true],
+      ],
+
+      SectionListSupportedRenderer: [
+        [50195462, "itemSectionRenderer", "ItemSectionRenderer"],
+
+        [51845067, "shelfRenderer", "ShelfRenderer"],
+      ],
+
+      ItemSectionRenderer: [[1, "richItemContents", "RichItemContent", true]],
+
+      RichItemContent: [
+        [153515154, "videoWithContextRenderer", "ElementRenderer"],
+      ],
+
+      ShelfRenderer: [[5, "richSectionContent", "RichSectionContent"]],
+
+      RichSectionContent: [
+        [51431404, "reelShelfRenderer", "ReelShelfRenderer"],
+      ],
+
+      ReelShelfRenderer: [[1, "richItemContents", "RichItemContent", true]],
+
+      Next: [
+        [7, "content", "NextContent"],
+
+        [8, "onResponseReceivedAction", "BrowseContent"],
+
+        [14, "playerOverlays", "PlayerOverlays"],
+
+        [25, "engagementPanels", "EngagementPanel", true],
+      ],
+
+      EngagementPanel: [[138681066, "renderer", "EngagementPanelRenderer"]],
+
+      EngagementPanelRenderer: [[3, "content", "BrowseContent"]],
+
+      NextContent: [[51779735, "nextResult", "NextResult"]],
+
+      NextResult: [[1, "content", "BrowseContent"]],
+
+      PlayerOverlays: [[78882851, "renderer", "PlayerOverlayRenderer"]],
+
+      PlayerOverlayRenderer: [
+        [2, "overflowMenu", "bytes"],
+
+        [3, "related", "RelatedOverlay"],
+
+        [42, "overlayCollections", "OverlayCollection", true],
+      ],
+
+      OverlayCollection: [[401855120, "renderer", "OverlayCollectionRenderer"]],
+
+      OverlayCollectionRenderer: [[2, "overlays", "OverlayItem", true]],
+
+      OverlayItem: [[401855122, "content", "OverlayContent"]],
+
+      OverlayContent: [[1, "item", "RichItemContent"]],
+
+      RelatedOverlay: [[29209665, "contents", "RelatedOverlayContents"]],
+
+      RelatedOverlayContents: [[2, "contents", "RichItemContent", true]],
+
+      Player: [
+        [15, "playerConfig", "PlayerConfig"],
+
+        [60, "overlayCollections", "OverlayCollection", true],
+
+        [61, "paidPromotion", "bytes"],
+
+        [7, "adPlacements", "bytes", true],
+
+        [2, "playabilityStatus", "PlayabilityStatus"],
+
+        [9, "playbackTracking", "PlaybackTracking"],
+
+        [68, "adSlots", "bytes", true],
+      ],
+
+      PlayerConfig: [[1, "granularVariableSpeedConfig", "PlaybackSpeedConfig"]],
+
+      PlaybackSpeedConfig: [
+        [1, "minimumPlaybackRate", "uint"],
+
+        [2, "maximumPlaybackRate", "uint"],
+      ],
+
+      PlayabilityStatus: [
+        [21, "pictureInPictureRender", "PictureInPictureSupportedRenderer"],
+
+        [11, "backgroundPlayerRender", "BackgroundSupportedRenderer"],
+      ],
+
+      PictureInPictureSupportedRenderer: [
+        [151635310, "pictureInPictureAbility", "PictureInPictureAbility"],
+      ],
+
+      PictureInPictureAbility: [
+        [1, "active", "bool"],
+
+        [4, "f4", "uint"],
+
+        [6, "f6", "uint"],
+
+        [8, "f8", "uint"],
+      ],
+
+      BackgroundSupportedRenderer: [
+        [64657230, "backgroundAbility", "BackgroundAbility"],
+      ],
+
+      BackgroundAbility: [[1, "active", "bool"]],
+
+      PlaybackTracking: [[18, "pageadViewthroughconversion", "bytes"]],
+
+      Search: [
+        [4, "content", "BrowseContent"],
+
+        [7, "onResponseReceivedCommand", "OnResponseReceivedCommand"],
+      ],
+
+      OnResponseReceivedCommand: [
+        [50195462, "itemSectionRenderer", "ItemSectionRenderer"],
+
+        [49399797, "appendContinuationItemsAction", "SectionListRenderer"],
+      ],
+
+      Shorts: [[2, "entries", "Entry", true]],
+
+      Entry: [[1, "command", "Command"]],
+
+      Command: [[139608561, "reelWatchEndpoint", "ReelWatchEndpoint"]],
+
+      ReelWatchEndpoint: [[16, "adClientParams", "AdClientParams"]],
+
+      AdClientParams: [[1, "isAd", "bool"]],
+
+      Guide: [
+        [4, "labelItems", "GuideItem", true],
+
+        [6, "iconItems", "GuideItem", true],
+      ],
+
+      GuideItem: [[117866661, "guideSectionRenderer", "GuideSectionRenderer"]],
+
+      GuideSectionRenderer: [[1, "rendererItems", "RendererItem", true]],
+
+      RendererItem: [
+        [318370163, "iconRender", "guideEntryRenderer"],
+
+        [117501096, "labelRender", "guideEntryRenderer"],
+      ],
+
+      guideEntryRenderer: [[1, "browseId", "string"]],
+
+      Setting: [
+        [6, "settingItems", "SettingItem", true],
+
+        [7, "collectionItems", "SettingItem", true],
+      ],
+
+      SettingItem: [
+        [
+          88478200,
+
+          "backgroundPlayBackSettingRenderer",
+
+          "BackgroundPlayBackSettingRenderer",
+        ],
+
+        [
+          66930374,
+
+          "settingCategoryCollectionRenderer",
+
+          "SettingCategoryCollectionRenderer",
+        ],
+      ],
+
+      BackgroundPlayBackSettingRenderer: [
+        [2, "backgroundPlayback", "bool"],
+
+        [3, "download", "bool"],
+
+        [9, "downloadQualitySelection", "bool"],
+
+        [10, "smartDownload", "bool"],
+
+        [14, "icon", "Icon"],
+      ],
+
+      Icon: [[1, "iconType", "uint"]],
+
+      SettingCategoryCollectionRenderer: [
+        [3, "subSettings", "SubSetting", true],
+
+        [4, "categoryId", "uint"],
+      ],
+
+      SubSetting: [
+        [61331416, "settingBooleanRenderer", "SettingBooleanRenderer"],
+      ],
+
+      SettingBooleanRenderer: [
+        [5, "enableServiceEndpoint", "ServiceEndpoint"],
+
+        [6, "disableServiceEndpoint", "ServiceEndpoint"],
+
+        [15, "itemId", "uint"],
+      ],
+
+      ServiceEndpoint: [
+        [81212182, "setClientSettingEndpoint", "SetClientSettingEndpoint"],
+      ],
+
+      SetClientSettingEndpoint: [[1, "settingData", "SettingData"]],
+
+      SettingData: [
+        [1, "clientSettingEnum", "ClientSettingEnum"],
+
+        [3, "boolValue", "bool"],
+      ],
+
+      ClientSettingEnum: [[1, "item", "uint"]],
+
+      Watch: [[1, "contents", "WatchContent", true]],
+
+      ResolveUrl: [[2, "endpoint", "NavigationEndpoint"]],
+
+      NavigationEndpoint: [[48687757, "watch", "NavigationWatch"]],
+
+      NavigationWatch: [[68146959, "embedded", "EmbeddedPlayer"]],
+
+      EmbeddedPlayer: [[68202535, "response", "EmbeddedPlayerBody"]],
+
+      EmbeddedPlayerBody: [[1, "player", "Player"]],
+
+      WatchContent: [
+        [2, "player", "Player"],
+
+        [3, "next", "Next"],
+      ],
+
+      Config: [[1, "responseContext", "ConfigResponseContext"]],
+
+      ConfigResponseContext: [[16, "globalConfigGroup", "GlobalConfigGroup"]],
+
+      GlobalConfigGroup: [[7, "hotConfigGroup", "HotConfigGroup"]],
+
+      HotConfigGroup: [[138536474, "mediaHotConfig", "MediaHotConfig"]],
+
+      MediaHotConfig: [[146311580, "onesieHotConfig", "OnesieHotConfig"]],
+
+      OnesieHotConfig: [
+        [1, "clientKey", "bytes"],
+
+        [2, "encryptKey", "bytes"],
+      ],
+
+      EncryptedResponsePart: [
+        [1, "encryptedContent", "bytes"],
+
+        [2, "hmac", "bytes"],
+
+        [3, "iv", "bytes"],
+
+        [4, "compressionAlgorithm", "uint"],
+      ],
+
+      OnesieInnertubeResponse: [[4, "contents", "WatchContent", true]],
+    };
+
+    const wireState = Symbol("wireState");
+
+    function concatBytes(chunks) {
+      const result = new Uint8Array(chunks.reduce((n, b) => n + b.length, 0));
+
+      let offset = 0;
+
+      for (const bytes of chunks) {
+        result.set(bytes, offset);
+
+        offset += bytes.length;
+      }
+
+      return result;
+    }
+
+    function sameBytes(a, b) {
+      return (
+        a === b ||
+        (a.length === b.length && a.every((value, i) => value === b[i]))
+      );
+    }
+
+    function varint(value) {
+      const bytes = [];
+
+      do {
+        bytes.push(value % 128 | (value > 127 ? 128 : 0));
+
+        value = Math.floor(value / 128);
+      } while (value);
+
+      return new Uint8Array(bytes);
+    }
+
+    function wireFields(bytes) {
+      const fields = [];
+
+      let offset = 0;
+
+      function read() {
+        let value = 0,
+          scale = 1;
+
+        for (let i = 0; i < 5; i++) {
+          if (offset >= bytes.length)
+            throw new Error("Truncated protobuf varint");
+
+          const byte = bytes[offset++];
+
+          value += (byte & 127) * scale;
+
+          if (!(byte & 128)) {
+            if (value > 0xffffffff)
+              throw new Error("Protobuf length/tag overflow");
+
+            return value;
+          }
+
+          scale *= 128;
+        }
+
+        throw new Error("Invalid protobuf varint");
+      }
+
+      while (offset < bytes.length) {
+        const start = offset,
+          tag = read(),
+          no = Math.floor(tag / 8),
+          wire = tag % 8;
+
+        if (!no) throw new Error("Invalid protobuf field");
+
+        let payloadStart = offset;
+
+        if (wire === 2) {
+          const length = read();
+
+          payloadStart = offset;
+
+          offset += length;
+        } else if (wire === 1) offset += 8;
+        else if (wire === 5) offset += 4;
+        else if (wire === 0) {
+          let count = 0,
+            byte;
+
+          do {
+            if (offset >= bytes.length || count++ === 10)
+              throw new Error("Invalid protobuf integer");
+
+            byte = bytes[offset++];
+
+            if (count === 10 && byte > 1)
+              throw new Error("Protobuf integer overflow");
+          } while (byte & 128);
+        } else throw new Error("Unsupported protobuf wire type " + wire);
+
+        if (offset > bytes.length) throw new Error("Truncated protobuf field");
+
+        fields.push({
+          no,
+
+          wire,
+
+          data: bytes.subarray(payloadStart, offset),
+
+          raw: bytes.subarray(start, offset),
+        });
+      }
+
+      return fields;
+    }
+
+    function numberValue(bytes) {
+      let value = 0,
+        scale = 1;
+
+      for (const byte of bytes) {
+        value += (byte & 127) * scale;
+
+        scale *= 128;
+      }
+
+      if (!Number.isSafeInteger(value))
+        throw new Error("Unsafe decoded integer");
+
+      return value;
+    }
+
+    function createMessage(type, values = {}) {
+      const message = { ...values };
+
+      for (const [, name, , repeated] of schema[type])
+        if (repeated && !message[name]) message[name] = [];
+
+      return message;
+    }
+
+    function decodeMessage(type, bytes, depth = 0) {
+      if (depth > 64) throw new Error("Protobuf nesting limit");
+
+      const message = createMessage(type),
+        fields = wireFields(bytes),
+        opaqueNames = new Set();
+
+      for (const field of fields) {
+        const spec = schema[type].find(([no]) => no === field.no);
+
+        if (!spec) continue;
+
+        const [, name, kind, repeated] = spec;
+
+        if (field.wire !== (kind === "bool" || kind === "uint" ? 0 : 2))
+          continue;
+
+        if (opaqueNames.has(name)) continue;
+
+        if (!repeated && Object.hasOwn(message, name)) {
+          for (const previous of fields)
+            if (previous.spec?.[1] === name) delete previous.spec;
+
+          delete message[name];
+
+          opaqueNames.add(name);
+
+          continue;
+        }
+
+        const value =
+          kind === "bytes"
+            ? field.data
+            : kind === "string"
+              ? utf8.decode(field.data)
+              : kind === "bool"
+                ? numberValue(field.data) !== 0
+                : kind === "uint"
+                  ? numberValue(field.data)
+                  : decodeMessage(kind, field.data, depth + 1);
+
+        field.spec = spec;
+
+        if (repeated) message[name].push(value);
+        else message[name] = value;
+      }
+
+      Object.defineProperty(message, wireState, { value: { bytes, fields } });
+
+      return message;
+    }
+
+    function encodeField(spec, value) {
+      const [no, , kind] = spec,
+        wire = kind === "bool" || kind === "uint" ? 0 : 2;
+
+      const data =
+        kind === "bytes"
+          ? value
+          : kind === "string"
+            ? textEncoder.encode(value)
+            : kind === "bool"
+              ? varint(value ? 1 : 0)
+              : kind === "uint"
+                ? varint(value)
+                : encodeMessage(kind, value);
+
+      return concatBytes(
+        wire === 2
+          ? [varint(no * 8 + wire), varint(data.length), data]
+          : [varint(no * 8), data],
+      );
+    }
+
+    function encodeMessage(type, message) {
+      const chunks = [],
+        positions = new Map(),
+        state = message[wireState];
+
+      for (const field of state?.fields ?? []) {
+        if (!field.spec) {
+          chunks.push(field.raw);
+
+          continue;
+        }
+
+        const [, name, , repeated] = field.spec,
+          index = positions.get(name) ?? 0;
+
+        const values = repeated
+          ? (message[name] ?? [])
+          : message[name] === undefined
+            ? []
+            : [message[name]];
+
+        if (index < values.length)
+          chunks.push(encodeField(field.spec, values[index]));
+
+        positions.set(name, index + 1);
+      }
+
+      for (const spec of schema[type]) {
+        const [, name, , repeated] = spec;
+
+        const values = repeated
+          ? (message[name] ?? [])
+          : message[name] === undefined
+            ? []
+            : [message[name]];
+
+        for (let i = positions.get(name) ?? 0; i < values.length; i++)
+          chunks.push(encodeField(spec, values[i]));
+      }
+
+      const output = concatBytes(chunks);
+
+      return state && sameBytes(output, state.bytes) ? state.bytes : output;
+    }
+
+    function codec(type) {
+      return {
+        fromBinary: (bytes) => decodeMessage(type, bytes),
+
+        toBinary: (message) => encodeMessage(type, message),
+      };
+    }
+
+    function unknownFields(message) {
+      return message[wireState]?.fields.filter((field) => !field.spec) ?? [];
+    }
+
+    function rewriteBinaryPath(bytes, path, transform) {
+      if (!path.length) return transform(bytes);
+
+      let changed = false;
+
+      const chunks = wireFields(bytes).map((field) => {
+        if (field.no !== path[0] || field.wire !== 2) return field.raw;
+
+        const data = rewriteBinaryPath(
+          field.data,
+
+          path.slice(1),
+
+          transform,
+        );
+
+        if (sameBytes(data, field.data)) return field.raw;
+
+        changed = true;
+
+        return encodeField([field.no, "", "bytes"], data);
+      });
+
+      return changed ? concatBytes(chunks) : bytes;
+    }
+
+    function encodeBase64(bytes) {
+      const alphabet =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+      let result = "";
+
+      for (let i = 0; i < bytes.length; i += 3) {
+        const value =
+          bytes[i] * 65536 + (bytes[i + 1] ?? 0) * 256 + (bytes[i + 2] ?? 0);
+
+        result +=
+          alphabet[value >>> 18] +
+          alphabet[(value >>> 12) & 63] +
+          (i + 1 < bytes.length ? alphabet[(value >>> 6) & 63] : "=") +
+          (i + 2 < bytes.length ? alphabet[value & 63] : "=");
+      }
+
+      return result;
+    }
+
+    function decodeBase64(value) {
+      let alphabet =
+          "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/",
+        output = [],
+        buffer = 0,
+        bits2 = 0;
+
+      for (let character of value.replace(/[-_]/g, (item) =>
+        item === "-" ? "+" : "/",
+      )) {
+        if (/\s|=/.test(character)) continue;
+
+        let index = alphabet.indexOf(character);
+
+        if (index < 0) throw new Error("invalid base64 string");
+
+        (buffer = (buffer << 6) | index),
+          (bits2 += 6),
+          bits2 >= 8 && ((bits2 -= 8), output.push((buffer >>> bits2) & 255));
+      }
+
+      return new Uint8Array(output);
+    }
+
+    class UmpReader {
+      constructor(buffer) {
+        this.buffer = buffer;
+
+        this.offset = 0;
+      }
+
+      readByte() {
+        if (this.offset >= this.buffer.length)
+          throw new Error("Truncated UMP header");
+
+        return this.buffer[this.offset++];
+      }
+
+      readVarint() {
+        const first = this.readByte();
+
+        let size = 5;
+
+        for (let candidate = 1; candidate < 5; candidate++) {
+          if (!(first & (128 >> (candidate - 1)))) {
+            size = candidate;
+
+            break;
+          }
+        }
+
+        let bits = size === 5 ? 0 : 8 - size;
+
+        let value = size === 5 ? 0 : first & ((1 << bits) - 1);
+
+        for (let index = 1; index < size; index++, bits += 8)
+          value += this.readByte() * 2 ** bits;
+
+        return value;
+      }
+
+      readPart() {
+        const type = this.readVarint(),
+          length = this.readVarint();
+
+        if (length > this.buffer.length - this.offset)
+          throw new Error("Truncated UMP payload");
+
+        const data = this.buffer.subarray(
+          this.offset,
+
+          this.offset + length,
+        );
+
+        this.offset += length;
+
+        return { type, data };
+      }
+
+      get hasNext() {
+        return this.offset < this.buffer.length;
+      }
+    }
+
+    class UmpWriter {
+      constructor(capacity = 1024) {
+        this.buffer = new Uint8Array(capacity);
+
+        this.length = 0;
+      }
+
+      ensureCapacity(length) {
+        if (this.length + length <= this.buffer.length) return;
+
+        const buffer = new Uint8Array(
+          Math.max(this.buffer.length * 2, this.length + length),
+        );
+
+        buffer.set(this.buffer);
+
+        this.buffer = buffer;
+      }
+
+      writeByte(value) {
+        this.ensureCapacity(1);
+
+        this.buffer[this.length++] = value & 255;
+      }
+
+      writeVarint(value) {
+        if (!Number.isInteger(value) || value < 0 || value > 0xffffffff)
+          throw new Error("Invalid UMP integer");
+
+        const size =
+          value < 128
+            ? 1
+            : value < 16384
+              ? 2
+              : value < 2097152
+                ? 3
+                : value < 268435456
+                  ? 4
+                  : 5;
+
+        if (size === 1) return this.writeByte(value);
+
+        if (size === 5) this.writeByte(240);
+        else
+          this.writeByte(
+            (256 - (256 >> (size - 1))) | (value & ((1 << (8 - size)) - 1)),
+          );
+
+        for (
+          let index = 1, shift = size === 5 ? 0 : 8 - size;
+          index < size;
+          index++, shift += 8
+        )
+          this.writeByte(Math.floor(value / 2 ** shift));
+      }
+
+      writePart({ type, data }) {
+        this.writeVarint(type);
+
+        this.writeVarint(data.length);
+
+        this.ensureCapacity(data.length);
+
+        this.buffer.set(data, this.length);
+
+        this.length += data.length;
+      }
+
+      finish() {
+        return this.buffer.subarray(0, this.length);
+      }
+    }
+
+    function transformUmp(body, key, options) {
+      const { CryptoContext, gzipSync, gunzipSync } = createUmpPrimitives();
+
+      const crypto = new CryptoContext(key);
+
+      const envelopeCodec = codec("EncryptedResponsePart");
+
+      const contentCodec = codec("OnesieInnertubeResponse");
+
+      const reader = new UmpReader(body),
+        writer = new UmpWriter(body.length);
+
+      const players = [];
+
+      let rewriteNextPart = false;
+
+      function rewritePayload(bytes) {
+        const part = envelopeCodec.fromBinary(bytes);
+
+        if (part.compressionAlgorithm > 1)
+          throw new Error("Unsupported UMP compression");
+
+        const decrypted = crypto.decrypt(part);
+
+        const gzipped = decrypted[0] === 31 && decrypted[1] === 139;
+
+        if (part.compressionAlgorithm === 1 && !gzipped)
+          throw new Error("Invalid UMP gzip payload");
+
+        const plaintext = gzipped ? gunzipSync(decrypted) : decrypted;
+
+        const content = contentCodec.fromBinary(plaintext);
+
+        for (const item of content.contents)
+          if (item.player) players.push(item.player);
+
+        transformWatch(content, options);
+
+        const output = contentCodec.toBinary(content);
+
+        if (sameBytes(output, plaintext)) return bytes;
+
+        const compressed = gzipped
+          ? gzipSync(output, { level: 0, mtime: 0 })
+          : output;
+
+        Object.assign(part, crypto.encrypt(compressed));
+
+        return envelopeCodec.toBinary(part);
+      }
+
+      while (reader.hasNext) {
+        const part = reader.readPart();
+
+        if (part.type === 10) {
+          const type = wireFields(part.data).find(
+            (field) => field.no === 1 && field.wire === 0,
+          );
+
+          rewriteNextPart = !!type && numberValue(type.data) === 25;
+        } else if (part.type === 11 && rewriteNextPart) {
+          part.data = rewritePayload(part.data);
+
+          rewriteNextPart = false;
+        }
+
+        writer.writePart(part);
+      }
+
+      return { body: writer.finish(), players };
+    }
+
+    function createUmpPrimitives() {
+      var u8 = Uint8Array,
+        u16 = Uint16Array,
+        i32 = Int32Array,
+        fleb = new u8([
+          0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4,
+
+          4, 4, 4, 5, 5, 5, 5, 0, 0, 0, 0,
+        ]),
+        fdeb = new u8([
+          0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9,
+
+          9, 10, 10, 11, 11, 12, 12, 13, 13, 0, 0,
+        ]),
+        clim = new u8([
+          16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1,
+
+          15,
+        ]),
+        freb = function (eb, start) {
+          for (var b = new u16(31), i = 0; i < 31; ++i)
+            b[i] = start += 1 << eb[i - 1];
+
+          for (var r = new i32(b[30]), i = 1; i < 30; ++i)
+            for (var j = b[i]; j < b[i + 1]; ++j) r[j] = ((j - b[i]) << 5) | i;
+
+          return { b, r };
+        },
+        _a = freb(fleb, 2),
+        fl = _a.b,
+        revfl = _a.r;
+
+      (fl[28] = 258), (revfl[258] = 28);
+
+      var _b = freb(fdeb, 0),
+        fd = _b.b,
+        revfd = _b.r,
+        rev = new u16(32768);
+
+      for (i = 0; i < 32768; ++i)
+        (x2 = ((i & 43690) >> 1) | ((i & 21845) << 1)),
+          (x2 = ((x2 & 52428) >> 2) | ((x2 & 13107) << 2)),
+          (x2 = ((x2 & 61680) >> 4) | ((x2 & 3855) << 4)),
+          (rev[i] = (((x2 & 65280) >> 8) | ((x2 & 255) << 8)) >> 1);
+
+      var x2,
+        i,
+        hMap = function (cd, mb, r) {
+          for (var s = cd.length, i = 0, l = new u16(mb); i < s; ++i)
+            cd[i] && ++l[cd[i] - 1];
+
+          var le2 = new u16(mb);
+
+          for (i = 1; i < mb; ++i) le2[i] = (le2[i - 1] + l[i - 1]) << 1;
+
+          var co;
+
+          if (r) {
+            co = new u16(1 << mb);
+
+            var rvb = 15 - mb;
+
+            for (i = 0; i < s; ++i)
+              if (cd[i])
+                for (
+                  var sv = (i << 4) | cd[i],
+                    r_1 = mb - cd[i],
+                    v2 = le2[cd[i] - 1]++ << r_1,
+                    m2 = v2 | ((1 << r_1) - 1);
+                  v2 <= m2;
+                  ++v2
+                )
+                  co[rev[v2] >> rvb] = sv;
+          } else
+            for (co = new u16(s), i = 0; i < s; ++i)
+              cd[i] && (co[i] = rev[le2[cd[i] - 1]++] >> (15 - cd[i]));
+
+          return co;
+        },
+        flt = new u8(288);
+
+      for (i = 0; i < 144; ++i) flt[i] = 8;
+
+      var i;
+
+      for (i = 144; i < 256; ++i) flt[i] = 9;
+
+      var i;
+
+      for (i = 256; i < 280; ++i) flt[i] = 7;
+
+      var i;
+
+      for (i = 280; i < 288; ++i) flt[i] = 8;
+
+      var i,
+        fdt = new u8(32);
+
+      for (i = 0; i < 32; ++i) fdt[i] = 5;
+
+      var i,
+        flm = hMap(flt, 9, 0),
+        flrm = hMap(flt, 9, 1),
+        fdm = hMap(fdt, 5, 0),
+        fdrm = hMap(fdt, 5, 1),
+        max = function (a) {
+          for (var m2 = a[0], i = 1; i < a.length; ++i)
+            a[i] > m2 && (m2 = a[i]);
+
+          return m2;
+        },
+        bits = function (d2, p2, m2) {
+          var o = (p2 / 8) | 0;
+
+          return ((d2[o] | (d2[o + 1] << 8)) >> (p2 & 7)) & m2;
+        },
+        bits16 = function (d2, p2) {
+          var o = (p2 / 8) | 0;
+
+          return (d2[o] | (d2[o + 1] << 8) | (d2[o + 2] << 16)) >> (p2 & 7);
+        },
+        shft = function (p2) {
+          return ((p2 + 7) / 8) | 0;
+        },
+        slc = function (v2, s, e) {
+          return (
+            (s == null || s < 0) && (s = 0),
+            (e == null || e > v2.length) && (e = v2.length),
+            new u8(v2.subarray(s, e))
+          );
+        };
+
+      var ec = [
+          "unexpected EOF",
+
+          "invalid block type",
+
+          "invalid length/literal",
+
+          "invalid distance",
+
+          "stream finished",
+
+          "no stream handler",
+
+          ,
+          "no callback",
+
+          "invalid UTF-8 data",
+
+          "extra field too long",
+
+          "date not in range 1980-2099",
+
+          "filename too long",
+
+          "stream finishing",
+
+          "invalid zip data",
+        ],
+        err = function (ind, msg, nt2) {
+          var e = new Error(msg || ec[ind]);
+
+          if (
+            ((e.code = ind),
+            Error.captureStackTrace && Error.captureStackTrace(e, err),
+            !nt2)
+          )
+            throw e;
+
+          return e;
+        },
+        inflt = function (dat, st2, buf, dict) {
+          var sl = dat.length,
+            dl2 = dict ? dict.length : 0;
+
+          if (!sl || (st2.f && !st2.l)) return buf || new u8(0);
+
+          var noBuf = !buf,
+            resize = noBuf || st2.i != 2,
+            noSt = st2.i;
+
+          noBuf && (buf = new u8(sl * 3));
+
+          var cbuf = function (l2) {
+              var bl = buf.length;
+
+              if (l2 > bl) {
+                var nbuf = new u8(Math.max(bl * 2, l2));
+
+                nbuf.set(buf), (buf = nbuf);
+              }
+            },
+            final = st2.f || 0,
+            pos = st2.p || 0,
+            bt2 = st2.b || 0,
+            lm = st2.l,
+            dm = st2.d,
+            lbt = st2.m,
+            dbt = st2.n,
+            tbts = sl * 8;
+
+          do {
+            if (!lm) {
+              final = bits(dat, pos, 1);
+
+              var type = bits(dat, pos + 1, 3);
+
+              if (((pos += 3), type))
+                if (type == 1) (lm = flrm), (dm = fdrm), (lbt = 9), (dbt = 5);
+                else if (type == 2) {
+                  var hLit = bits(dat, pos, 31) + 257,
+                    hcLen = bits(dat, pos + 10, 15) + 4,
+                    tl = hLit + bits(dat, pos + 5, 31) + 1;
+
+                  pos += 14;
+
+                  for (
+                    var ldt = new u8(tl), clt = new u8(19), i = 0;
+                    i < hcLen;
+                    ++i
+                  )
+                    clt[clim[i]] = bits(dat, pos + i * 3, 7);
+
+                  pos += hcLen * 3;
+
+                  for (
+                    var clb = max(clt),
+                      clbmsk = (1 << clb) - 1,
+                      clm = hMap(clt, clb, 1),
+                      i = 0;
+                    i < tl;
+
+                  ) {
+                    var r = clm[bits(dat, pos, clbmsk)];
+
+                    pos += r & 15;
+
+                    var s = r >> 4;
+
+                    if (s < 16) ldt[i++] = s;
+                    else {
+                      var c = 0,
+                        n = 0;
+
+                      for (
+                        s == 16
+                          ? ((n = 3 + bits(dat, pos, 3)),
+                            (pos += 2),
+                            (c = ldt[i - 1]))
+                          : s == 17
+                            ? ((n = 3 + bits(dat, pos, 7)), (pos += 3))
+                            : s == 18 &&
+                              ((n = 11 + bits(dat, pos, 127)), (pos += 7));
+                        n--;
+
+                      )
+                        ldt[i++] = c;
+                    }
+                  }
+
+                  var lt2 = ldt.subarray(0, hLit),
+                    dt2 = ldt.subarray(hLit);
+
+                  (lbt = max(lt2)),
+                    (dbt = max(dt2)),
+                    (lm = hMap(lt2, lbt, 1)),
+                    (dm = hMap(dt2, dbt, 1));
+                } else err(1);
+              else {
+                var s = shft(pos) + 4,
+                  l = dat[s - 4] | (dat[s - 3] << 8),
+                  t = s + l;
+
+                if (t > sl) {
+                  noSt && err(0);
+
+                  break;
+                }
+
+                resize && cbuf(bt2 + l),
+                  buf.set(dat.subarray(s, t), bt2),
+                  (st2.b = bt2 += l),
+                  (st2.p = pos = t * 8),
+                  (st2.f = final);
+
+                continue;
+              }
+
+              if (pos > tbts) {
+                noSt && err(0);
+
+                break;
+              }
+            }
+
+            resize && cbuf(bt2 + 131072);
+
+            for (
+              var lms = (1 << lbt) - 1, dms = (1 << dbt) - 1, lpos = pos;
+              ;
+              lpos = pos
+            ) {
+              var c = lm[bits16(dat, pos) & lms],
+                sym = c >> 4;
+
+              if (((pos += c & 15), pos > tbts)) {
+                noSt && err(0);
+
+                break;
+              }
+
+              if ((c || err(2), sym < 256)) buf[bt2++] = sym;
+              else if (sym == 256) {
+                (lpos = pos), (lm = null);
+
+                break;
+              } else {
+                var add = sym - 254;
+
+                if (sym > 264) {
+                  var i = sym - 257,
+                    b = fleb[i];
+
+                  (add = bits(dat, pos, (1 << b) - 1) + fl[i]), (pos += b);
+                }
+
+                var d2 = dm[bits16(dat, pos) & dms],
+                  dsym = d2 >> 4;
+
+                d2 || err(3), (pos += d2 & 15);
+
+                var dt2 = fd[dsym];
+
+                if (dsym > 3) {
+                  var b = fdeb[dsym];
+
+                  (dt2 += bits16(dat, pos) & ((1 << b) - 1)), (pos += b);
+                }
+
+                if (pos > tbts) {
+                  noSt && err(0);
+
+                  break;
+                }
+
+                resize && cbuf(bt2 + 131072);
+
+                var end = bt2 + add;
+
+                if (bt2 < dt2) {
+                  var shift = dl2 - dt2,
+                    dend = Math.min(dt2, end);
+
+                  for (shift + bt2 < 0 && err(3); bt2 < dend; ++bt2)
+                    buf[bt2] = dict[shift + bt2];
+                }
+
+                for (; bt2 < end; ++bt2) buf[bt2] = buf[bt2 - dt2];
+              }
+            }
+
+            (st2.l = lm),
+              (st2.p = lpos),
+              (st2.b = bt2),
+              (st2.f = final),
+              lm && ((final = 1), (st2.m = lbt), (st2.d = dm), (st2.n = dbt));
+          } while (!final);
+
+          return bt2 != buf.length && noBuf
+            ? slc(buf, 0, bt2)
+            : buf.subarray(0, bt2);
+        },
+        wbits = function (d2, p2, v2) {
+          v2 <<= p2 & 7;
+
+          var o = (p2 / 8) | 0;
+
+          (d2[o] |= v2), (d2[o + 1] |= v2 >> 8);
+        },
+        wbits16 = function (d2, p2, v2) {
+          v2 <<= p2 & 7;
+
+          var o = (p2 / 8) | 0;
+
+          (d2[o] |= v2), (d2[o + 1] |= v2 >> 8), (d2[o + 2] |= v2 >> 16);
+        },
+        hTree = function (d2, mb) {
+          for (var t = [], i = 0; i < d2.length; ++i)
+            d2[i] && t.push({ s: i, f: d2[i] });
+
+          var s = t.length,
+            t2 = t.slice();
+
+          if (!s) return { t: et2, l: 0 };
+
+          if (s == 1) {
+            var v2 = new u8(t[0].s + 1);
+
+            return (v2[t[0].s] = 1), { t: v2, l: 1 };
+          }
+
+          t.sort(function (a, b) {
+            return a.f - b.f;
+          }),
+            t.push({ s: -1, f: 25001 });
+
+          var l = t[0],
+            r = t[1],
+            i0 = 0,
+            i1 = 1,
+            i2 = 2;
+
+          for (t[0] = { s: -1, f: l.f + r.f, l, r }; i1 != s - 1; )
+            (l = t[t[i0].f < t[i2].f ? i0++ : i2++]),
+              (r = t[i0 != i1 && t[i0].f < t[i2].f ? i0++ : i2++]),
+              (t[i1++] = { s: -1, f: l.f + r.f, l, r });
+
+          for (var maxSym = t2[0].s, i = 1; i < s; ++i)
+            t2[i].s > maxSym && (maxSym = t2[i].s);
+
+          var tr2 = new u16(maxSym + 1),
+            mbt = ln2(t[i1 - 1], tr2, 0);
+
+          if (mbt > mb) {
+            var i = 0,
+              dt2 = 0,
+              lft = mbt - mb,
+              cst = 1 << lft;
+
+            for (
+              t2.sort(function (a, b) {
+                return tr2[b.s] - tr2[a.s] || a.f - b.f;
+              });
+              i < s;
+              ++i
+            ) {
+              var i2_1 = t2[i].s;
+
+              if (tr2[i2_1] > mb)
+                (dt2 += cst - (1 << (mbt - tr2[i2_1]))), (tr2[i2_1] = mb);
+              else break;
+            }
+
+            for (dt2 >>= lft; dt2 > 0; ) {
+              var i2_2 = t2[i].s;
+
+              tr2[i2_2] < mb ? (dt2 -= 1 << (mb - tr2[i2_2]++ - 1)) : ++i;
+            }
+
+            for (; i >= 0 && dt2; --i) {
+              var i2_3 = t2[i].s;
+
+              tr2[i2_3] == mb && (--tr2[i2_3], ++dt2);
+            }
+
+            mbt = mb;
+          }
+
+          return { t: new u8(tr2), l: mbt };
+        },
+        ln2 = function (n, l, d2) {
+          return n.s == -1
+            ? Math.max(ln2(n.l, l, d2 + 1), ln2(n.r, l, d2 + 1))
+            : (l[n.s] = d2);
+        },
+        lc = function (c) {
+          for (var s = c.length; s && !c[--s]; );
+
+          for (
+            var cl = new u16(++s),
+              cli = 0,
+              cln = c[0],
+              cls = 1,
+              w = function (v2) {
+                cl[cli++] = v2;
+              },
+              i = 1;
+            i <= s;
+            ++i
+          )
+            if (c[i] == cln && i != s) ++cls;
+            else {
+              if (!cln && cls > 2) {
+                for (; cls > 138; cls -= 138) w(32754);
+
+                cls > 2 &&
+                  (w(
+                    cls > 10
+                      ? ((cls - 11) << 5) | 28690
+                      : ((cls - 3) << 5) | 12305,
+                  ),
+                  (cls = 0));
+              } else if (cls > 3) {
+                for (w(cln), --cls; cls > 6; cls -= 6) w(8304);
+
+                cls > 2 && (w(((cls - 3) << 5) | 8208), (cls = 0));
+              }
+
+              for (; cls--; ) w(cln);
+
+              (cls = 1), (cln = c[i]);
+            }
+
+          return { c: cl.subarray(0, cli), n: s };
+        },
+        clen = function (cf, cl) {
+          for (var l = 0, i = 0; i < cl.length; ++i) l += cf[i] * cl[i];
+
+          return l;
+        },
+        wfblk = function (out, pos, dat) {
+          var s = dat.length,
+            o = shft(pos + 2);
+
+          (out[o] = s & 255),
+            (out[o + 1] = s >> 8),
+            (out[o + 2] = out[o] ^ 255),
+            (out[o + 3] = out[o + 1] ^ 255);
+
+          for (var i = 0; i < s; ++i) out[o + i + 4] = dat[i];
+
+          return (o + 4 + s) * 8;
+        },
+        wblk = function (
+          dat,
+
+          out,
+
+          final,
+
+          syms,
+
+          lf,
+
+          df,
+
+          eb,
+
+          li,
+
+          bs,
+
+          bl,
+
+          p2,
+        ) {
+          wbits(out, p2++, final), ++lf[256];
+
+          for (
+            var _a2 = hTree(lf, 15),
+              dlt = _a2.t,
+              mlb = _a2.l,
+              _b2 = hTree(df, 15),
+              ddt = _b2.t,
+              mdb = _b2.l,
+              _c = lc(dlt),
+              lclt = _c.c,
+              nlc = _c.n,
+              _d = lc(ddt),
+              lcdt = _d.c,
+              ndc = _d.n,
+              lcfreq = new u16(19),
+              i = 0;
+            i < lclt.length;
+            ++i
+          )
+            ++lcfreq[lclt[i] & 31];
+
+          for (var i = 0; i < lcdt.length; ++i) ++lcfreq[lcdt[i] & 31];
+
+          for (
+            var _e2 = hTree(lcfreq, 7), lct = _e2.t, mlcb = _e2.l, nlcc = 19;
+            nlcc > 4 && !lct[clim[nlcc - 1]];
+            --nlcc
+          );
+
+          var flen = (bl + 5) << 3,
+            ftlen = clen(lf, flt) + clen(df, fdt) + eb,
+            dtlen =
+              clen(lf, dlt) +
+              clen(df, ddt) +
+              eb +
+              14 +
+              3 * nlcc +
+              clen(lcfreq, lct) +
+              2 * lcfreq[16] +
+              3 * lcfreq[17] +
+              7 * lcfreq[18];
+
+          if (bs >= 0 && flen <= ftlen && flen <= dtlen)
+            return wfblk(out, p2, dat.subarray(bs, bs + bl));
+
+          var lm, ll, dm, dl2;
+
+          if ((wbits(out, p2, 1 + (dtlen < ftlen)), (p2 += 2), dtlen < ftlen)) {
+            (lm = hMap(dlt, mlb, 0)),
+              (ll = dlt),
+              (dm = hMap(ddt, mdb, 0)),
+              (dl2 = ddt);
+
+            var llm = hMap(lct, mlcb, 0);
+
+            wbits(out, p2, nlc - 257),
+              wbits(out, p2 + 5, ndc - 1),
+              wbits(out, p2 + 10, nlcc - 4),
+              (p2 += 14);
+
+            for (var i = 0; i < nlcc; ++i) wbits(out, p2 + 3 * i, lct[clim[i]]);
+
+            p2 += 3 * nlcc;
+
+            for (var lcts = [lclt, lcdt], it2 = 0; it2 < 2; ++it2)
+              for (var clct = lcts[it2], i = 0; i < clct.length; ++i) {
+                var len = clct[i] & 31;
+
+                wbits(out, p2, llm[len]),
+                  (p2 += lct[len]),
+                  len > 15 &&
+                    (wbits(out, p2, (clct[i] >> 5) & 127),
+                    (p2 += clct[i] >> 12));
+              }
+          } else (lm = flm), (ll = flt), (dm = fdm), (dl2 = fdt);
+
+          for (var i = 0; i < li; ++i) {
+            var sym = syms[i];
+
+            if (sym > 255) {
+              var len = (sym >> 18) & 31;
+
+              wbits16(out, p2, lm[len + 257]),
+                (p2 += ll[len + 257]),
+                len > 7 &&
+                  (wbits(out, p2, (sym >> 23) & 31), (p2 += fleb[len]));
+
+              var dst = sym & 31;
+
+              wbits16(out, p2, dm[dst]),
+                (p2 += dl2[dst]),
+                dst > 3 &&
+                  (wbits16(out, p2, (sym >> 5) & 8191), (p2 += fdeb[dst]));
+            } else wbits16(out, p2, lm[sym]), (p2 += ll[sym]);
+          }
+
+          return wbits16(out, p2, lm[256]), p2 + ll[256];
+        },
+        deo = new i32([
+          65540, 131080, 131088, 131104, 262176, 1048704, 1048832,
+
+          2114560, 2117632,
+        ]),
+        et2 = new u8(0),
+        dflt = function (dat, lvl, plvl, pre, post, st2) {
+          var s = st2.z || dat.length,
+            o = new u8(pre + s + 5 * (1 + Math.ceil(s / 7e3)) + post),
+            w = o.subarray(pre, o.length - post),
+            lst = st2.l,
+            pos = (st2.r || 0) & 7;
+
+          if (lvl) {
+            pos && (w[0] = st2.r >> 3);
+
+            for (
+              var opt = deo[lvl - 1],
+                n = opt >> 13,
+                c = opt & 8191,
+                msk_1 = (1 << plvl) - 1,
+                prev = st2.p || new u16(32768),
+                head = st2.h || new u16(msk_1 + 1),
+                bs1_1 = Math.ceil(plvl / 3),
+                bs2_1 = 2 * bs1_1,
+                hsh = function (i2) {
+                  return (
+                    (dat[i2] ^
+                      (dat[i2 + 1] << bs1_1) ^
+                      (dat[i2 + 2] << bs2_1)) &
+                    msk_1
+                  );
+                },
+                syms = new i32(25e3),
+                lf = new u16(288),
+                df = new u16(32),
+                lc_1 = 0,
+                eb = 0,
+                i = st2.i || 0,
+                li = 0,
+                wi2 = st2.w || 0,
+                bs = 0;
+              i + 2 < s;
+              ++i
+            ) {
+              var hv = hsh(i),
+                imod = i & 32767,
+                pimod = head[hv];
+
+              if (((prev[imod] = pimod), (head[hv] = imod), wi2 <= i)) {
+                var rem = s - i;
+
+                if ((lc_1 > 7e3 || li > 24576) && (rem > 423 || !lst)) {
+                  (pos = wblk(
+                    dat,
+
+                    w,
+
+                    0,
+
+                    syms,
+
+                    lf,
+
+                    df,
+
+                    eb,
+
+                    li,
+
+                    bs,
+
+                    i - bs,
+
+                    pos,
+                  )),
+                    (li = lc_1 = eb = 0),
+                    (bs = i);
+
+                  for (var j = 0; j < 286; ++j) lf[j] = 0;
+
+                  for (var j = 0; j < 30; ++j) df[j] = 0;
+                }
+
+                var l = 2,
+                  d2 = 0,
+                  ch_1 = c,
+                  dif = (imod - pimod) & 32767;
+
+                if (rem > 2 && hv == hsh(i - dif))
+                  for (
+                    var maxn = Math.min(n, rem) - 1,
+                      maxd = Math.min(32767, i),
+                      ml2 = Math.min(258, rem);
+                    dif <= maxd && --ch_1 && imod != pimod;
+
+                  ) {
+                    if (dat[i + l] == dat[i + l - dif]) {
+                      for (
+                        var nl = 0;
+                        nl < ml2 && dat[i + nl] == dat[i + nl - dif];
+                        ++nl
+                      );
+
+                      if (nl > l) {
+                        if (((l = nl), (d2 = dif), nl > maxn)) break;
+
+                        for (
+                          var mmd = Math.min(dif, nl - 2), md = 0, j = 0;
+                          j < mmd;
+                          ++j
+                        ) {
+                          var ti2 = (i - dif + j) & 32767,
+                            pti = prev[ti2],
+                            cd = (ti2 - pti) & 32767;
+
+                          cd > md && ((md = cd), (pimod = ti2));
+                        }
+                      }
+                    }
+
+                    (imod = pimod),
+                      (pimod = prev[imod]),
+                      (dif += (imod - pimod) & 32767);
+                  }
+
+                if (d2) {
+                  syms[li++] = 268435456 | (revfl[l] << 18) | revfd[d2];
+
+                  var lin = revfl[l] & 31,
+                    din = revfd[d2] & 31;
+
+                  (eb += fleb[lin] + fdeb[din]),
+                    ++lf[257 + lin],
+                    ++df[din],
+                    (wi2 = i + l),
+                    ++lc_1;
+                } else (syms[li++] = dat[i]), ++lf[dat[i]];
+              }
+            }
+
+            for (i = Math.max(i, wi2); i < s; ++i)
+              (syms[li++] = dat[i]), ++lf[dat[i]];
+
+            (pos = wblk(
+              dat,
+
+              w,
+
+              lst,
+
+              syms,
+
+              lf,
+
+              df,
+
+              eb,
+
+              li,
+
+              bs,
+
+              i - bs,
+
+              pos,
+            )),
+              lst ||
+                ((st2.r = (pos & 7) | (w[(pos / 8) | 0] << 3)),
+                (pos -= 7),
+                (st2.h = head),
+                (st2.p = prev),
+                (st2.i = i),
+                (st2.w = wi2));
+          } else {
+            for (var i = st2.w || 0; i < s + lst; i += 65535) {
+              var e = i + 65535;
+
+              e >= s && ((w[(pos / 8) | 0] = lst), (e = s)),
+                (pos = wfblk(w, pos + 1, dat.subarray(i, e)));
+            }
+
+            st2.i = s;
+          }
+
+          return slc(o, 0, pre + shft(pos) + post);
+        },
+        crct = (function () {
+          for (var t = new Int32Array(256), i = 0; i < 256; ++i) {
+            for (var c = i, k = 9; --k; ) c = (c & 1 && -306674912) ^ (c >>> 1);
+
+            t[i] = c;
+          }
+
+          return t;
+        })(),
+        crc = function () {
+          var c = -1;
+
+          return {
+            p: function (d2) {
+              for (var cr2 = c, i = 0; i < d2.length; ++i)
+                cr2 = crct[(cr2 & 255) ^ d2[i]] ^ (cr2 >>> 8);
+
+              c = cr2;
+            },
+
+            d: function () {
+              return ~c;
+            },
+          };
+        };
+
+      var dopt = function (dat, opt, pre, post, st2) {
+        if (!st2 && ((st2 = { l: 1 }), opt.dictionary)) {
+          var dict = opt.dictionary.subarray(-32768),
+            newDat = new u8(dict.length + dat.length);
+
+          newDat.set(dict),
+            newDat.set(dat, dict.length),
+            (dat = newDat),
+            (st2.w = dict.length);
+        }
+
+        return dflt(
+          dat,
+
+          opt.level == null ? 6 : opt.level,
+
+          opt.mem == null
+            ? st2.l
+              ? Math.ceil(Math.max(8, Math.min(13, Math.log(dat.length))) * 1.5)
+              : 20
+            : 12 + opt.mem,
+
+          pre,
+
+          post,
+
+          st2,
+        );
+      };
+
+      var wbytes = function (d2, b, v2) {
+          for (; v2; ++b) (d2[b] = v2), (v2 >>>= 8);
+        },
+        gzh = function (c, o) {
+          var fn2 = o.filename;
+
+          if (
+            ((c[0] = 31),
+            (c[1] = 139),
+            (c[2] = 8),
+            (c[8] = o.level < 2 ? 4 : o.level == 9 ? 2 : 0),
+            (c[9] = 3),
+            o.mtime != 0 &&
+              wbytes(
+                c,
+
+                4,
+
+                Math.floor(new Date(o.mtime || Date.now()) / 1e3),
+              ),
+            fn2)
+          ) {
+            c[3] = 8;
+
+            for (var i = 0; i <= fn2.length; ++i) c[i + 10] = fn2.charCodeAt(i);
+          }
+        },
+        gzs = function (d2) {
+          (d2[0] != 31 || d2[1] != 139 || d2[2] != 8) &&
+            err(6, "invalid gzip data");
+
+          var flg = d2[3],
+            st2 = 10;
+
+          flg & 4 && (st2 += (d2[10] | (d2[11] << 8)) + 2);
+
+          for (
+            var zs = ((flg >> 3) & 1) + ((flg >> 4) & 1);
+            zs > 0;
+            zs -= !d2[st2++]
+          );
+
+          return st2 + (flg & 2);
+        },
+        gzl = function (d2) {
+          var l = d2.length;
+
+          return (
+            (d2[l - 4] |
+              (d2[l - 3] << 8) |
+              (d2[l - 2] << 16) |
+              (d2[l - 1] << 24)) >>>
+            0
+          );
+        },
+        gzhl = function (o) {
+          return 10 + (o.filename ? o.filename.length + 1 : 0);
+        };
+
+      function gzipSync(data, opts) {
+        opts || (opts = {});
+
+        var c = crc(),
+          l = data.length;
+
+        c.p(data);
+
+        var d2 = dopt(data, opts, gzhl(opts), 8),
+          s = d2.length;
+
+        return (
+          gzh(d2, opts), wbytes(d2, s - 8, c.d()), wbytes(d2, s - 4, l), d2
+        );
+      }
+
+      function gunzipSync(data, opts) {
+        var st2 = gzs(data);
+
+        return (
+          st2 + 8 > data.length && err(6, "invalid gzip data"),
+          inflt(
+            data.subarray(st2, -8),
+
+            { i: 2 },
+
+            (opts && opts.out) || new u8(gzl(data)),
+
+            opts && opts.dictionary,
+          )
+        );
+      }
+
+      function isBytes(a) {
+        return (
+          a instanceof Uint8Array ||
+          (ArrayBuffer.isView(a) && a.constructor.name === "Uint8Array")
+        );
+      }
+
+      function abytes(b, ...lengths) {
+        if (!isBytes(b)) throw new Error("Uint8Array expected");
+
+        if (lengths.length > 0 && !lengths.includes(b.length))
+          throw new Error(
+            "Uint8Array expected of length " +
+              lengths +
+              ", got length=" +
+              b.length,
+          );
+      }
+
+      function u82(arr) {
+        return new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength);
+      }
+
+      function u32(arr) {
+        return new Uint32Array(
+          arr.buffer,
+
+          arr.byteOffset,
+
+          Math.floor(arr.byteLength / 4),
+        );
+      }
+
+      function clean(...arrays) {
+        for (let i = 0; i < arrays.length; i++) arrays[i].fill(0);
+      }
+
+      var isLE = new Uint8Array(new Uint32Array([287454020]).buffer)[0] === 68;
+
+      function overlapBytes(a, b) {
+        return (
+          a.buffer === b.buffer &&
+          a.byteOffset < b.byteOffset + b.byteLength &&
+          b.byteOffset < a.byteOffset + a.byteLength
+        );
+      }
+
+      function complexOverlapBytes(input, output) {
+        if (overlapBytes(input, output) && input.byteOffset < output.byteOffset)
+          throw new Error(
+            "complex overlap of input and output is not supported",
+          );
+      }
+
+      var wrapCipher = (params, constructor) => {
+        function wrappedCipher(key, ...args) {
+          if ((abytes(key), !isLE))
+            throw new Error("Non little-endian hardware is not yet supported");
+
+          if (params.nonceLength !== void 0) {
+            let nonce = args[0];
+
+            if (!nonce) throw new Error("nonce / iv required");
+
+            params.varSizeNonce
+              ? abytes(nonce)
+              : abytes(nonce, params.nonceLength);
+          }
+
+          let tagl = params.tagLength;
+
+          tagl && args[1] !== void 0 && abytes(args[1]);
+
+          let cipher = constructor(key, ...args),
+            checkOutput = (fnLength, output) => {
+              if (output !== void 0) {
+                if (fnLength !== 2)
+                  throw new Error("cipher output not supported");
+
+                abytes(output);
+              }
+            },
+            called = !1;
+
+          return {
+            encrypt(data, output) {
+              if (called)
+                throw new Error("cannot encrypt() twice with same key + nonce");
+
+              return (
+                (called = !0),
+                abytes(data),
+                checkOutput(cipher.encrypt.length, output),
+                cipher.encrypt(data, output)
+              );
+            },
+
+            decrypt(data, output) {
+              if ((abytes(data), tagl && data.length < tagl))
+                throw new Error(
+                  "invalid ciphertext length: smaller than tagLength=" + tagl,
+                );
+
+              return (
+                checkOutput(cipher.decrypt.length, output),
+                cipher.decrypt(data, output)
+              );
+            },
+          };
+        }
+
+        return Object.assign(wrappedCipher, params), wrappedCipher;
+      };
+
+      function getOutput(expectedLength, out, onlyAligned = !0) {
+        if (out === void 0) return new Uint8Array(expectedLength);
+
+        if (out.length !== expectedLength)
+          throw new Error(
+            "invalid output length, expected " +
+              expectedLength +
+              ", got: " +
+              out.length,
+          );
+
+        if (onlyAligned && !isAligned32(out))
+          throw new Error("invalid output, must be aligned");
+
+        return out;
+      }
+
+      function isAligned32(bytes) {
+        return bytes.byteOffset % 4 === 0;
+      }
+
+      function copyBytes(bytes) {
+        return Uint8Array.from(bytes);
+      }
+
+      var BLOCK_SIZE = 16,
+        BLOCK_SIZE32 = 4;
+
+      var POLY = 283;
+
+      function mul2(n) {
+        return (n << 1) ^ (POLY & -(n >> 7));
+      }
+
+      function mul(a, b) {
+        let res = 0;
+
+        for (; b > 0; b >>= 1) (res ^= a & -(b & 1)), (a = mul2(a));
+
+        return res;
+      }
+
+      var sbox = (() => {
+        let t = new Uint8Array(256);
+
+        for (let i = 0, x2 = 1; i < 256; i++, x2 ^= mul2(x2)) t[i] = x2;
+
+        let box = new Uint8Array(256);
+
+        box[0] = 99;
+
+        for (let i = 0; i < 255; i++) {
+          let x2 = t[255 - i];
+
+          (x2 |= x2 << 8),
+            (box[t[i]] =
+              (x2 ^ (x2 >> 4) ^ (x2 >> 5) ^ (x2 >> 6) ^ (x2 >> 7) ^ 99) & 255);
+        }
+
+        return clean(t), box;
+      })();
+
+      var rotr32_8 = (n) => (n << 24) | (n >>> 8),
+        rotl32_8 = (n) => (n << 8) | (n >>> 24);
+
+      function genTtable(sbox2, fn2) {
+        if (sbox2.length !== 256) throw new Error("Wrong sbox length");
+
+        let T0 = new Uint32Array(256).map((_2, j) => fn2(sbox2[j])),
+          T1 = T0.map(rotl32_8),
+          T2 = T1.map(rotl32_8),
+          T3 = T2.map(rotl32_8),
+          T01 = new Uint32Array(256 * 256),
+          T23 = new Uint32Array(256 * 256),
+          sbox22 = new Uint16Array(256 * 256);
+
+        for (let i = 0; i < 256; i++)
+          for (let j = 0; j < 256; j++) {
+            let idx = i * 256 + j;
+
+            (T01[idx] = T0[i] ^ T1[j]),
+              (T23[idx] = T2[i] ^ T3[j]),
+              (sbox22[idx] = (sbox2[i] << 8) | sbox2[j]);
+          }
+
+        return { sbox: sbox2, sbox2: sbox22, T0, T1, T2, T3, T01, T23 };
+      }
+
+      var tableEncoding = genTtable(
+        sbox,
+
+        (s) => (mul(s, 3) << 24) | (s << 16) | (s << 8) | mul(s, 2),
+      );
+
+      var xPowers = (() => {
+        let p2 = new Uint8Array(16);
+
+        for (let i = 0, x2 = 1; i < 16; i++, x2 = mul2(x2)) p2[i] = x2;
+
+        return p2;
+      })();
+
+      function expandKeyLE(key) {
+        abytes(key);
+
+        let len = key.length;
+
+        if (![16, 24, 32].includes(len))
+          throw new Error(
+            "aes: invalid key size, should be 16, 24 or 32, got " + len,
+          );
+
+        let { sbox2 } = tableEncoding,
+          toClean = [];
+
+        isAligned32(key) || toClean.push((key = copyBytes(key)));
+
+        let k32 = u32(key),
+          Nk = k32.length,
+          subByte = (n) => applySbox(sbox2, n, n, n, n),
+          xk = new Uint32Array(len + 28);
+
+        xk.set(k32);
+
+        for (let i = Nk; i < xk.length; i++) {
+          let t = xk[i - 1];
+
+          i % Nk === 0
+            ? (t = subByte(rotr32_8(t)) ^ xPowers[i / Nk - 1])
+            : Nk > 6 && i % Nk === 4 && (t = subByte(t)),
+            (xk[i] = xk[i - Nk] ^ t);
+        }
+
+        return clean(...toClean), xk;
+      }
+
+      function apply0123(T01, T23, s0, s1, s2, s3) {
+        return (
+          T01[((s0 << 8) & 65280) | ((s1 >>> 8) & 255)] ^
+          T23[((s2 >>> 8) & 65280) | ((s3 >>> 24) & 255)]
+        );
+      }
+
+      function applySbox(sbox2, s0, s1, s2, s3) {
+        return (
+          sbox2[(s0 & 255) | (s1 & 65280)] |
+          (sbox2[((s2 >>> 16) & 255) | ((s3 >>> 16) & 65280)] << 16)
+        );
+      }
+
+      function encrypt(xk, s0, s1, s2, s3) {
+        let { sbox2, T01, T23 } = tableEncoding,
+          k = 0;
+
+        (s0 ^= xk[k++]), (s1 ^= xk[k++]), (s2 ^= xk[k++]), (s3 ^= xk[k++]);
+
+        let rounds = xk.length / 4 - 2;
+
+        for (let i = 0; i < rounds; i++) {
+          let t02 = xk[k++] ^ apply0123(T01, T23, s0, s1, s2, s3),
+            t12 = xk[k++] ^ apply0123(T01, T23, s1, s2, s3, s0),
+            t22 = xk[k++] ^ apply0123(T01, T23, s2, s3, s0, s1),
+            t32 = xk[k++] ^ apply0123(T01, T23, s3, s0, s1, s2);
+
+          (s0 = t02), (s1 = t12), (s2 = t22), (s3 = t32);
+        }
+
+        let t0 = xk[k++] ^ applySbox(sbox2, s0, s1, s2, s3),
+          t1 = xk[k++] ^ applySbox(sbox2, s1, s2, s3, s0),
+          t2 = xk[k++] ^ applySbox(sbox2, s2, s3, s0, s1),
+          t3 = xk[k++] ^ applySbox(sbox2, s3, s0, s1, s2);
+
+        return { s0: t0, s1: t1, s2: t2, s3: t3 };
+      }
+
+      function ctrCounter(xk, nonce, src, dst) {
+        abytes(nonce, BLOCK_SIZE), abytes(src);
+
+        let srcLen = src.length;
+
+        (dst = getOutput(srcLen, dst)), complexOverlapBytes(src, dst);
+
+        let ctr2 = nonce,
+          c32 = u32(ctr2),
+          { s0, s1, s2, s3 } = encrypt(
+            xk,
+
+            c32[0],
+
+            c32[1],
+
+            c32[2],
+
+            c32[3],
+          ),
+          src32 = u32(src),
+          dst32 = u32(dst);
+
+        for (let i = 0; i + 4 <= src32.length; i += 4) {
+          (dst32[i + 0] = src32[i + 0] ^ s0),
+            (dst32[i + 1] = src32[i + 1] ^ s1),
+            (dst32[i + 2] = src32[i + 2] ^ s2),
+            (dst32[i + 3] = src32[i + 3] ^ s3);
+
+          let carry = 1;
+
+          for (let i2 = ctr2.length - 1; i2 >= 0; i2--)
+            (carry = (carry + (ctr2[i2] & 255)) | 0),
+              (ctr2[i2] = carry & 255),
+              (carry >>>= 8);
+
+          ({ s0, s1, s2, s3 } = encrypt(
+            xk,
+
+            c32[0],
+
+            c32[1],
+
+            c32[2],
+
+            c32[3],
+          ));
+        }
+
+        let start = BLOCK_SIZE * Math.floor(src32.length / BLOCK_SIZE32);
+
+        if (start < srcLen) {
+          let b32 = new Uint32Array([s0, s1, s2, s3]),
+            buf = u82(b32);
+
+          for (let i = start, pos = 0; i < srcLen; i++, pos++)
+            dst[i] = src[i] ^ buf[pos];
+
+          clean(b32);
+        }
+
+        return dst;
+      }
+
+      var ctr = wrapCipher(
+        { blockSize: 16, nonceLength: 16 },
+
+        function (key, nonce) {
+          function processCtr(buf, dst) {
+            if (
+              (abytes(buf), dst !== void 0 && (abytes(dst), !isAligned32(dst)))
+            )
+              throw new Error("unaligned destination");
+
+            let xk = expandKeyLE(key),
+              n = copyBytes(nonce),
+              toClean = [xk, n];
+
+            isAligned32(buf) || toClean.push((buf = copyBytes(buf)));
+
+            let out = ctrCounter(xk, n, buf, dst);
+
+            return clean(...toClean), out;
+          }
+
+          return {
+            encrypt: (plaintext, dst) => processCtr(plaintext, dst),
+
+            decrypt: (ciphertext, dst) => processCtr(ciphertext, dst),
+          };
+        },
+      );
+
+      function isBytes2(a) {
+        return (
+          a instanceof Uint8Array ||
+          (ArrayBuffer.isView(a) && a.constructor.name === "Uint8Array")
+        );
+      }
+
+      function anumber(n) {
+        if (!Number.isSafeInteger(n) || n < 0)
+          throw new Error("positive integer expected, got " + n);
+      }
+
+      function abytes2(b, ...lengths) {
+        if (!isBytes2(b)) throw new Error("Uint8Array expected");
+
+        if (lengths.length > 0 && !lengths.includes(b.length))
+          throw new Error(
+            "Uint8Array expected of length " +
+              lengths +
+              ", got length=" +
+              b.length,
+          );
+      }
+
+      function ahash(h2) {
+        if (typeof h2 != "function" || typeof h2.create != "function")
+          throw new Error("Hash should be wrapped by utils.createHasher");
+
+        anumber(h2.outputLen), anumber(h2.blockLen);
+      }
+
+      function aexists(instance, checkFinished = !0) {
+        if (instance.destroyed)
+          throw new Error("Hash instance has been destroyed");
+
+        if (checkFinished && instance.finished)
+          throw new Error("Hash#digest() has already been called");
+      }
+
+      function aoutput(out, instance) {
+        abytes2(out);
+
+        let min = instance.outputLen;
+
+        if (out.length < min)
+          throw new Error(
+            "digestInto() expects output buffer of length at least " + min,
+          );
+      }
+
+      function clean2(...arrays) {
+        for (let i = 0; i < arrays.length; i++) arrays[i].fill(0);
+      }
+
+      function createView2(arr) {
+        return new DataView(arr.buffer, arr.byteOffset, arr.byteLength);
+      }
+
+      function rotr(word, shift) {
+        return (word << (32 - shift)) | (word >>> shift);
+      }
+
+      function utf8ToBytes(str) {
+        if (typeof str != "string") throw new Error("string expected");
+
+        return new Uint8Array(new TextEncoder().encode(str));
+      }
+
+      function toBytes(data) {
+        return (
+          typeof data == "string" && (data = utf8ToBytes(data)),
+          abytes2(data),
+          data
+        );
+      }
+
+      function concatBytes2(...arrays) {
+        let sum = 0;
+
+        for (let i = 0; i < arrays.length; i++) {
+          let a = arrays[i];
+
+          abytes2(a), (sum += a.length);
+        }
+
+        let res = new Uint8Array(sum);
+
+        for (let i = 0, pad = 0; i < arrays.length; i++) {
+          let a = arrays[i];
+
+          res.set(a, pad), (pad += a.length);
+        }
+
+        return res;
+      }
+
+      var Hash = class {};
+
+      function createHasher(hashCons) {
+        let hashC = (msg) => hashCons().update(toBytes(msg)).digest(),
+          tmp = hashCons();
+
+        return (
+          (hashC.outputLen = tmp.outputLen),
+          (hashC.blockLen = tmp.blockLen),
+          (hashC.create = () => hashCons()),
+          hashC
+        );
+      }
+
+      var HMAC = class extends Hash {
+          constructor(hash, _key) {
+            super(), (this.finished = !1), (this.destroyed = !1), ahash(hash);
+
+            let key = toBytes(_key);
+
+            if (
+              ((this.iHash = hash.create()),
+              typeof this.iHash.update != "function")
+            )
+              throw new Error(
+                "Expected instance of class which extends utils.Hash",
+              );
+
+            (this.blockLen = this.iHash.blockLen),
+              (this.outputLen = this.iHash.outputLen);
+
+            let blockLen = this.blockLen,
+              pad = new Uint8Array(blockLen);
+
+            pad.set(
+              key.length > blockLen ? hash.create().update(key).digest() : key,
+            );
+
+            for (let i = 0; i < pad.length; i++) pad[i] ^= 54;
+
+            this.iHash.update(pad), (this.oHash = hash.create());
+
+            for (let i = 0; i < pad.length; i++) pad[i] ^= 106;
+
+            this.oHash.update(pad), clean2(pad);
+          }
+
+          update(buf) {
+            return aexists(this), this.iHash.update(buf), this;
+          }
+
+          digestInto(out) {
+            aexists(this),
+              abytes2(out, this.outputLen),
+              (this.finished = !0),
+              this.iHash.digestInto(out),
+              this.oHash.update(out),
+              this.oHash.digestInto(out),
+              this.destroy();
+          }
+
+          digest() {
+            let out = new Uint8Array(this.oHash.outputLen);
+
+            return this.digestInto(out), out;
+          }
+
+          _cloneInto(to) {
+            to || (to = Object.create(Object.getPrototypeOf(this), {}));
+
+            let {
+              oHash,
+
+              iHash,
+
+              finished,
+
+              destroyed,
+
+              blockLen,
+
+              outputLen,
+            } = this;
+
+            return (
+              (to = to),
+              (to.finished = finished),
+              (to.destroyed = destroyed),
+              (to.blockLen = blockLen),
+              (to.outputLen = outputLen),
+              (to.oHash = oHash._cloneInto(to.oHash)),
+              (to.iHash = iHash._cloneInto(to.iHash)),
+              to
+            );
+          }
+
+          clone() {
+            return this._cloneInto();
+          }
+
+          destroy() {
+            (this.destroyed = !0), this.oHash.destroy(), this.iHash.destroy();
+          }
+        },
+        hmac = (hash, key, message) =>
+          new HMAC(hash, key).update(message).digest();
+
+      hmac.create = (hash, key) => new HMAC(hash, key);
+
+      function setBigUint642(view, byteOffset, value, isLE2) {
+        if (typeof view.setBigUint64 == "function")
+          return view.setBigUint64(byteOffset, value, isLE2);
+
+        let _32n = BigInt(32),
+          _u32_max = BigInt(4294967295),
+          wh = Number((value >> _32n) & _u32_max),
+          wl = Number(value & _u32_max),
+          h2 = isLE2 ? 4 : 0,
+          l = isLE2 ? 0 : 4;
+
+        view.setUint32(byteOffset + h2, wh, isLE2),
+          view.setUint32(byteOffset + l, wl, isLE2);
+      }
+
+      function Chi(a, b, c) {
+        return (a & b) ^ (~a & c);
+      }
+
+      function Maj(a, b, c) {
+        return (a & b) ^ (a & c) ^ (b & c);
+      }
+
+      var HashMD = class extends Hash {
+          constructor(blockLen, outputLen, padOffset, isLE2) {
+            super(),
+              (this.finished = !1),
+              (this.length = 0),
+              (this.pos = 0),
+              (this.destroyed = !1),
+              (this.blockLen = blockLen),
+              (this.outputLen = outputLen),
+              (this.padOffset = padOffset),
+              (this.isLE = isLE2),
+              (this.buffer = new Uint8Array(blockLen)),
+              (this.view = createView2(this.buffer));
+          }
+
+          update(data) {
+            aexists(this), (data = toBytes(data)), abytes2(data);
+
+            let { view, buffer, blockLen } = this,
+              len = data.length;
+
+            for (let pos = 0; pos < len; ) {
+              let take = Math.min(blockLen - this.pos, len - pos);
+
+              if (take === blockLen) {
+                let dataView = createView2(data);
+
+                for (; blockLen <= len - pos; pos += blockLen)
+                  this.process(dataView, pos);
+
+                continue;
+              }
+
+              buffer.set(data.subarray(pos, pos + take), this.pos),
+                (this.pos += take),
+                (pos += take),
+                this.pos === blockLen &&
+                  (this.process(view, 0), (this.pos = 0));
+            }
+
+            return (this.length += data.length), this.roundClean(), this;
+          }
+
+          digestInto(out) {
+            aexists(this), aoutput(out, this), (this.finished = !0);
+
+            let { buffer, view, blockLen, isLE: isLE2 } = this,
+              { pos } = this;
+
+            (buffer[pos++] = 128),
+              clean2(this.buffer.subarray(pos)),
+              this.padOffset > blockLen - pos &&
+                (this.process(view, 0), (pos = 0));
+
+            for (let i = pos; i < blockLen; i++) buffer[i] = 0;
+
+            setBigUint642(
+              view,
+
+              blockLen - 8,
+
+              BigInt(this.length * 8),
+
+              isLE2,
+            ),
+              this.process(view, 0);
+
+            let oview = createView2(out),
+              len = this.outputLen;
+
+            if (len % 4)
+              throw new Error("_sha2: outputLen should be aligned to 32bit");
+
+            let outLen = len / 4,
+              state = this.get();
+
+            if (outLen > state.length)
+              throw new Error("_sha2: outputLen bigger than state");
+
+            for (let i = 0; i < outLen; i++)
+              oview.setUint32(4 * i, state[i], isLE2);
+          }
+
+          digest() {
+            let { buffer, outputLen } = this;
+
+            this.digestInto(buffer);
+
+            let res = buffer.slice(0, outputLen);
+
+            return this.destroy(), res;
+          }
+
+          _cloneInto(to) {
+            to || (to = new this.constructor()), to.set(...this.get());
+
+            let { blockLen, buffer, length, finished, destroyed, pos } = this;
+
+            return (
+              (to.destroyed = destroyed),
+              (to.finished = finished),
+              (to.length = length),
+              (to.pos = pos),
+              length % blockLen && to.buffer.set(buffer),
+              to
+            );
+          }
+
+          clone() {
+            return this._cloneInto();
+          }
+        },
+        SHA256_IV = Uint32Array.from([
+          1779033703, 3144134277, 1013904242, 2773480762, 1359893119,
+
+          2600822924, 528734635, 1541459225,
+        ]);
+
+      var SHA256_K = Uint32Array.from([
+          1116352408, 1899447441, 3049323471, 3921009573, 961987163,
+
+          1508970993, 2453635748, 2870763221, 3624381080, 310598401,
+
+          607225278, 1426881987, 1925078388, 2162078206, 2614888103,
+
+          3248222580, 3835390401, 4022224774, 264347078, 604807628,
+
+          770255983, 1249150122, 1555081692, 1996064986, 2554220882,
+
+          2821834349, 2952996808, 3210313671, 3336571891, 3584528711,
+
+          113926993, 338241895, 666307205, 773529912, 1294757372,
+
+          1396182291, 1695183700, 1986661051, 2177026350, 2456956037,
+
+          2730485921, 2820302411, 3259730800, 3345764771, 3516065817,
+
+          3600352804, 4094571909, 275423344, 430227734, 506948616,
+
+          659060556, 883997877, 958139571, 1322822218, 1537002063,
+
+          1747873779, 1955562222, 2024104815, 2227730452, 2361852424,
+
+          2428436474, 2756734187, 3204031479, 3329325298,
+        ]),
+        SHA256_W = new Uint32Array(64),
+        SHA256 = class extends HashMD {
+          constructor(outputLen = 32) {
+            super(64, outputLen, 8, !1),
+              (this.A = SHA256_IV[0] | 0),
+              (this.B = SHA256_IV[1] | 0),
+              (this.C = SHA256_IV[2] | 0),
+              (this.D = SHA256_IV[3] | 0),
+              (this.E = SHA256_IV[4] | 0),
+              (this.F = SHA256_IV[5] | 0),
+              (this.G = SHA256_IV[6] | 0),
+              (this.H = SHA256_IV[7] | 0);
+          }
+
+          get() {
+            let { A, B, C, D: D2, E: E2, F, G, H: H2 } = this;
+
+            return [A, B, C, D2, E2, F, G, H2];
+          }
+
+          set(A, B, C, D2, E2, F, G, H2) {
+            (this.A = A | 0),
+              (this.B = B | 0),
+              (this.C = C | 0),
+              (this.D = D2 | 0),
+              (this.E = E2 | 0),
+              (this.F = F | 0),
+              (this.G = G | 0),
+              (this.H = H2 | 0);
+          }
+
+          process(view, offset) {
+            for (let i = 0; i < 16; i++, offset += 4)
+              SHA256_W[i] = view.getUint32(offset, !1);
+
+            for (let i = 16; i < 64; i++) {
+              let W15 = SHA256_W[i - 15],
+                W2 = SHA256_W[i - 2],
+                s0 = rotr(W15, 7) ^ rotr(W15, 18) ^ (W15 >>> 3),
+                s1 = rotr(W2, 17) ^ rotr(W2, 19) ^ (W2 >>> 10);
+
+              SHA256_W[i] = (s1 + SHA256_W[i - 7] + s0 + SHA256_W[i - 16]) | 0;
+            }
+
+            let { A, B, C, D: D2, E: E2, F, G, H: H2 } = this;
+
+            for (let i = 0; i < 64; i++) {
+              let sigma1 = rotr(E2, 6) ^ rotr(E2, 11) ^ rotr(E2, 25),
+                T1 =
+                  (H2 + sigma1 + Chi(E2, F, G) + SHA256_K[i] + SHA256_W[i]) | 0,
+                T2 =
+                  ((rotr(A, 2) ^ rotr(A, 13) ^ rotr(A, 22)) + Maj(A, B, C)) | 0;
+
+              (H2 = G),
+                (G = F),
+                (F = E2),
+                (E2 = (D2 + T1) | 0),
+                (D2 = C),
+                (C = B),
+                (B = A),
+                (A = (T1 + T2) | 0);
+            }
+
+            (A = (A + this.A) | 0),
+              (B = (B + this.B) | 0),
+              (C = (C + this.C) | 0),
+              (D2 = (D2 + this.D) | 0),
+              (E2 = (E2 + this.E) | 0),
+              (F = (F + this.F) | 0),
+              (G = (G + this.G) | 0),
+              (H2 = (H2 + this.H) | 0),
+              this.set(A, B, C, D2, E2, F, G, H2);
+          }
+
+          roundClean() {
+            clean2(SHA256_W);
+          }
+
+          destroy() {
+            this.set(0, 0, 0, 0, 0, 0, 0, 0), clean2(this.buffer);
+          }
+        };
+
+      var sha256 = createHasher(() => new SHA256());
+
+      var CryptoContext = class {
+        constructor(key) {
+          (this.aesKey = key.slice(0, 16)), (this.hmacKey = key.slice(16));
+        }
+
+        signature(content) {
+          return hmac(
+            sha256,
+
+            this.hmacKey,
+
+            concatBytes2(content, this.iv),
+          );
+        }
+
+        decrypt(part) {
+          this.iv = part.iv;
+
+          let signature = this.signature(part.encryptedContent);
+
+          if (!equalBytes2(signature, part.hmac))
+            throw new Error("HMAC verification failed");
+
+          return ctr(this.aesKey, this.iv).decrypt(part.encryptedContent);
+        }
+
+        encrypt(content) {
+          let encryptedContent = ctr(this.aesKey, this.iv).encrypt(content);
+
+          return {
+            encryptedContent,
+
+            hmac: this.signature(encryptedContent),
+          };
+        }
+      };
+
+      function equalBytes2(left, right) {
+        if (left.length !== right.length) return !1;
+
+        let difference = 0;
+
+        for (let index = 0; index < left.length; index++)
+          difference |= left[index] ^ right[index];
+
+        return difference === 0;
+      }
+
+      return { gzipSync, gunzipSync, CryptoContext };
+    }
+
+    main();
+  }
+
+  function dualSubtitles($request, $response, $argument, $done) {
+    (() => {
+      const hostResponse =
+        typeof $response !== "undefined" ? $response : undefined;
+      const hostDone = typeof $done !== "undefined" ? $done : undefined;
+
+      function runSubtitle(hostResponse, hostDone) {
+        const rawBody = hostResponse ? hostResponse.body : undefined;
+        let textBody = "";
+        if (rawBody instanceof Uint8Array) {
+          textBody = new TextDecoder().decode(rawBody);
+        } else if (typeof rawBody === "string") {
+          textBody = rawBody;
+        } else if (rawBody) {
+          textBody = String(rawBody);
+        }
+        const $response = hostResponse
+          ? Object.assign(
+              Object.create(Object.getPrototypeOf(hostResponse) || null),
+              hostResponse,
+              { body: textBody },
+            )
+          : { body: textBody };
+        const __origDone = hostDone;
+        const $done = (result) => {
+          if (result && typeof result.body === "string") {
+            __origDone({
+              ...result,
+              body: new TextEncoder().encode(result.body),
+            });
+          } else {
+            __origDone(result);
+          }
+        };
+
+        const $ = {
+          request: typeof $request !== "undefined" ? $request : {},
+
+          response: typeof $response !== "undefined" ? $response : {},
+
+          argument: typeof $argument !== "undefined" ? $argument : "",
+
+          done: (o) => $done(o),
+        };
+
+        if (!$response || !$response.body) {
+          $.done({});
+        } else {
+          main().catch((e) => {
+            console.log("[YT DualSubs] " + e);
+
+            $.done({});
+          });
+        }
+
+        async function main() {
+          const params = parseArgument($.argument);
+
+          const subtitleType = String(
+            params.subtitle_type || "Translate",
+          ).toLowerCase();
+
+          if (subtitleType === "official" || subtitleType === "offical") {
+            $.done({});
+
+            return;
+          }
+
+          const showOnly = toBool(params.show_only_auto_translation, false);
+
+          const requestUrl = $.request.url || "";
+
+          const explicitTarget = queryParam(requestUrl, "tlang");
+
+          let targetLang = normalizeLang(
+            explicitTarget ||
+              params.subtitle_language ||
+              storeGet("ytdual:lastTarget") ||
+              "zh-CN",
+            "zh-CN",
+          );
+
+          const sourceLang = normalizeLang(
+            queryParam(requestUrl, "lang"),
+            "auto",
+          );
+
+          const fmt = (
+            queryParam(requestUrl, "fmt") ||
+            queryParam(requestUrl, "format") ||
+            ""
+          ).toLowerCase();
+
+          if (/^zh(?:-|$)/i.test(sourceLang)) {
+            $.done({});
+
+            return;
+          }
+
+          if (!explicitTarget && sameBaseLang(sourceLang, targetLang))
+            targetLang = "zh-CN";
+
+          if (explicitTarget) storeSet("ytdual:lastTarget", targetLang);
+
+          let body = $.response.body;
+
+          if (typeof body !== "string") body = String(body || "");
+
+          if (!body) {
+            $.done({});
+
+            return;
+          }
+
+          const headers = $.response.headers || {};
+
+          const contentType = (
+            headers["Content-Type"] ||
+            headers["content-type"] ||
+            ""
+          )
+            .split(";")[0]
+            .toLowerCase();
+
+          const trimmed = body.trim();
+
+          const bodyCacheKey = responseCacheKey(
+            body,
+            sourceLang,
+            targetLang,
+            fmt,
+            showOnly,
+            requestUrl,
+          );
+
+          const cached = storeGet(bodyCacheKey);
+
+          if (cached) {
+            $.done({ body: cached });
+
+            return;
+          }
+
+          let outText = "";
+
+          if (
+            contentType.indexOf("json") >= 0 ||
+            fmt.indexOf("json") >= 0 ||
+            trimmed.charAt(0) === "{"
+          ) {
+            outText = await translateJson(
+              body,
+              sourceLang,
+              targetLang,
+              showOnly,
+            );
+          } else if (
+            contentType.indexOf("vtt") >= 0 ||
+            fmt.indexOf("vtt") >= 0 ||
+            /^WEBVTT/i.test(trimmed)
+          ) {
+            outText = await translateVtt(
+              body,
+              sourceLang,
+              targetLang,
+              showOnly,
+            );
+          } else if (
+            contentType.indexOf("xml") >= 0 ||
+            fmt === "srv3" ||
+            fmt === "ttml" ||
+            trimmed.charAt(0) === "<"
+          ) {
+            outText = await translateXml(
+              body,
+              sourceLang,
+              targetLang,
+              fmt,
+              showOnly,
+            );
+          }
+
+          if (!outText) {
+            $.done({});
+
+            return;
+          }
+
+          storeSet(bodyCacheKey, outText);
+
+          $.done({ body: outText });
+        }
+
+        function parseArgument(arg) {
+          const result = {};
+
+          if (!arg) return result;
+
+          String(arg)
+            .split("&")
+            .forEach((pair) => {
+              const eq = pair.indexOf("=");
+
+              if (eq < 0) return;
+
+              const key = decodeURIComponent(pair.slice(0, eq).trim());
+
+              const value = decodeURIComponent(pair.slice(eq + 1).trim());
+
+              if (key) result[key] = value;
+            });
+
+          return result;
+        }
+
+        function toBool(v, fb) {
+          if (v === undefined || v === null || v === "") return fb;
+
+          const s = String(v).toLowerCase();
+
+          return s === "1" || s === "true" || s === "on" || s === "yes";
+        }
+
+        function queryParam(url, name) {
+          const query =
+            String(url || "")
+              .split("#")[0]
+              .split("?")[1] || "";
+
+          for (const part of query.split("&")) {
+            const eq = part.indexOf("=");
+
+            const key = decode(eq >= 0 ? part.slice(0, eq) : part);
+
+            if (key === name) return decode(eq >= 0 ? part.slice(eq + 1) : "");
+          }
+
+          return "";
+        }
+
+        function decode(v) {
+          v = String(v == null ? "" : v).replace(/\+/g, " ");
+
+          try {
+            return decodeURIComponent(v);
+          } catch (_) {
+            return v;
+          }
+        }
+
+        function encodeQuery(v) {
+          return encodeURIComponent(String(v == null ? "" : v));
+        }
+
+        function normalizeLang(value, fallback) {
+          value = String(value || fallback || "").trim();
+
+          if (!value || value.toLowerCase() === "und")
+            return fallback || "auto";
+
+          const lower = value.toLowerCase();
+
+          if (lower === "zh" || lower === "zh-hans" || lower === "zh-cn")
+            return "zh-CN";
+
+          if (lower === "zh-hant" || lower === "zh-tw" || lower === "zh-hk")
+            return "zh-TW";
+
+          return value;
+        }
+
+        function sameBaseLang(a, b) {
+          a = String(a || "")
+            .toLowerCase()
+            .split(/[-_]/)[0];
+
+          b = String(b || "")
+            .toLowerCase()
+            .split(/[-_]/)[0];
+
+          return !!a && a !== "auto" && a === b;
+        }
+
+        function storeGet(k) {
+          try {
+            return $persistentStore.read(k) || "";
+          } catch (_) {
+            return "";
+          }
+        }
+
+        function storeSet(k, v) {
+          try {
+            $persistentStore.write(String(v), k);
+          } catch (_) {}
+        }
+
+        function hashText(value) {
+          value = String(value == null ? "" : value);
+
+          let h = 2166136261;
+
+          for (let i = 0; i < value.length; i++) {
+            h ^= value.charCodeAt(i);
+
+            h = Math.imul(h, 16777619);
+          }
+
+          return (h >>> 0).toString(36);
+        }
+
+        function responseCacheKey(text, sl, tl, fmt, showOnly, url) {
+          return (
+            "ytdualproxy:rowfix1:body:" +
+            (queryParam(url, "v") || "-") +
+            ":" +
+            (sl || "auto") +
+            ":" +
+            (tl || "zh-CN") +
+            ":" +
+            (fmt || "-") +
+            ":" +
+            showOnly +
+            ":" +
+            text.length +
+            ":" +
+            hashText(text)
+          );
+        }
+
+        function htmlDecode(value) {
+          const entities = {
+            "&amp;": "&",
+            "&lt;": "<",
+            "&gt;": ">",
+            "&quot;": '"',
+            "&apos;": "'",
+          };
+
+          return String(value == null ? "" : value).replace(
+            /(&(?:lt|gt|amp|apos|quot|#(?:\d{1,7}|x[0-9a-fA-F]{1,6}));)/g,
+            (entity) => {
+              if (entity.charAt(1) === "#") {
+                const code =
+                  entity.charAt(2) === "x"
+                    ? parseInt(entity.slice(3), 16)
+                    : parseInt(entity.slice(2), 10);
+
+                if (
+                  code >= 0 &&
+                  code <= 0x10ffff &&
+                  !(code >= 0xd800 && code <= 0xdfff)
+                )
+                  return String.fromCodePoint(code);
+              }
+
+              return entities[entity] || entity;
+            },
+          );
+        }
+
+        function htmlEncode(value) {
+          return String(value == null ? "" : value)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+        }
+
+        function cleanCueText(value) {
+          return String(value == null ? "" : value)
+            .replace(/<[^>]*>/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+        }
+
+        function combine(source, translated, showOnly, xmlMode) {
+          translated = xmlMode
+            ? String(translated == null ? "" : translated)
+                .replace(/\s+/g, " ")
+                .trim()
+            : cleanCueText(translated);
+
+          if (!translated) return source;
+
+          source = String(source == null ? "" : source);
+
+          if (showOnly) return translated || source;
+
+          return source ? source + "\n" + translated : translated;
+        }
+
+        function googleText(data) {
+          const out = [];
+
+          if (Array.isArray(data) && Array.isArray(data[0])) {
+            for (let i = 0; i < data[0].length; i++)
+              if (Array.isArray(data[0][i]) && data[0][i][0])
+                out.push(data[0][i][0]);
+          }
+
+          return out.join("");
+        }
+
+        async function translateRows(rows, sourceLang, targetLang) {
+          const out = new Array(rows.length);
+
+          const sep = "\r";
+
+          const sepCost = encodeQuery(sep).length;
+
+          const maxChunks = 16,
+            maxEncoded = 14000;
+
+          const chunks = [];
+
+          let current = [],
+            currentEncoded = 0;
+
+          const costs = rows.map(
+            (r) => encodeQuery(String(r == null ? "" : r)).length,
+          );
+
+          if (costs.some((c) => c > maxEncoded)) return null;
+
+          function pushChunk() {
+            if (!current.length) return;
+
+            chunks.push({ offset: 0, rows: current, encoded: currentEncoded });
+
+            current = [];
+            currentEncoded = 0;
+          }
+
+          for (let ri = 0; ri < rows.length; ri++) {
+            const row = String(rows[ri] == null ? "" : rows[ri]);
+
+            let cost = costs[ri] + (current.length ? sepCost : 0);
+
+            if (current.length && currentEncoded + cost > maxEncoded) {
+              pushChunk();
+              cost = costs[ri];
+            }
+
+            current.push(row);
+            currentEncoded += cost;
+          }
+
+          pushChunk();
+
+          if (chunks.length > maxChunks) return null;
+
+          let offset = 0;
+
+          for (const c of chunks) {
+            c.offset = offset;
+            offset += c.rows.length;
+          }
+
+          function httpGet(url) {
+            return new Promise((resolve, reject) => {
+              $httpClient.get(
+                {
+                  url,
+                  headers: {
+                    Accept: "application/json",
+                    "Accept-Encoding": "identity",
+                  },
+                  timeout: 8,
+                },
+                (err, resp, data) => {
+                  if (err) reject(err);
+                  else resolve({ status: resp.status, body: data });
+                },
+              );
+            });
+          }
+
+          async function translateChunk(chunk) {
+            const url =
+              "https://translate.googleapis.com/translate_a/single?client=gtx&dt=t" +
+              "&sl=" +
+              encodeQuery(sourceLang || "auto") +
+              "&tl=" +
+              encodeQuery(targetLang || "zh-CN") +
+              "&q=" +
+              encodeQuery(chunk.rows.join(sep));
+
+            let res;
+
+            try {
+              res = await httpGet(url);
+            } catch (_) {
+              return null;
+            }
+
+            if (
+              (res.status || 0) < 200 ||
+              (res.status || 0) >= 300 ||
+              !res.body
+            )
+              return null;
+
+            let translated;
+
+            try {
+              translated = googleText(JSON.parse(res.body));
+            } catch (_) {
+              return null;
+            }
+
+            let parts = translated.split(/\r\n?|\n/);
+
+            if (parts.length !== chunk.rows.length)
+              parts =
+                chunk.rows.length === 1
+                  ? [translated]
+                  : translated.split(/\n+/);
+
+            return chunk.rows.map((_, j) => (parts[j] || "").trim());
+          }
+
+          for (let ci = 0; ci < chunks.length; ci += 4) {
+            const batch = chunks.slice(ci, ci + 4);
+
+            const results = await Promise.all(batch.map(translateChunk));
+
+            for (let bi = 0; bi < results.length; bi++) {
+              if (!results[bi]) return null;
+
+              const chunk = batch[bi];
+
+              for (let rj = 0; rj < chunk.rows.length; rj++)
+                out[chunk.offset + rj] = results[bi][rj] || "";
+            }
+          }
+
+          return out;
+        }
+
+        async function translateJson(text, sl, tl, showOnly) {
+          let data;
+          try {
+            data = JSON.parse(text);
+          } catch (_) {
+            return "";
+          }
+
+          const slots = [];
+
+          (data.events || []).forEach((event) => {
+            const segs = Array.isArray(event && event.segs) ? event.segs : [];
+
+            const source = segs
+              .map((s) => (s && s.utf8 ? s.utf8 : ""))
+              .join("")
+              .trim();
+
+            if (source) slots.push({ event, source });
+          });
+
+          if (!slots.length) return "";
+
+          const translated = await translateRows(
+            slots.map((i) => i.source),
+            sl,
+            tl,
+          );
+
+          if (!translated) return "";
+
+          slots.forEach((item, i) => {
+            item.event.segs = [
+              { utf8: combine(item.source, translated[i], showOnly, false) },
+            ];
+
+            delete item.event.wWinId;
+          });
+
+          return JSON.stringify(data);
+        }
+
+        async function translateVtt(text, sl, tl, showOnly) {
+          const blocks = text.replace(/\r\n/g, "\n").split(/\n\n+/);
+
+          const cueSlots = [];
+
+          blocks.forEach((block, blockIndex) => {
+            const lines = block.split("\n");
+
+            let timeIndex = -1;
+
+            for (let i = 0; i < lines.length; i++)
+              if (lines[i].indexOf("-->") >= 0) {
+                timeIndex = i;
+                break;
+              }
+
+            if (timeIndex < 0) return;
+
+            const cueText = cleanCueText(lines.slice(timeIndex + 1).join(" "));
+
+            if (cueText)
+              cueSlots.push({ blockIndex, lines, timeIndex, source: cueText });
+          });
+
+          if (!cueSlots.length) return "";
+
+          const translated = await translateRows(
+            cueSlots.map((i) => i.source),
+            sl,
+            tl,
+          );
+
+          if (!translated) return "";
+
+          cueSlots.forEach((item, i) => {
+            item.lines.splice(
+              item.timeIndex + 1,
+              item.lines.length - item.timeIndex - 1,
+              combine(item.source, translated[i], showOnly, false),
+            );
+
+            blocks[item.blockIndex] = item.lines.join("\n");
+          });
+
+          return blocks.join("\n\n");
+        }
+
+        function normalizeTimedtextHead(xml) {
+          let seen = 0;
+
+          return xml.replace(/<wp\b([^>]*)>/g, (full, attrs) => {
+            seen++;
+
+            if (seen === 2 && /\brc="[^"]*"/.test(attrs))
+              return "<wp" + attrs.replace(/\brc="[^"]*"/, 'rc="1"') + ">";
+
+            return full;
+          });
+        }
+
+        async function translateXml(text, sl, tl, fmt, showOnly) {
+          let re = /<(text|p)\b([^>]*)>([\s\S]*?)<\/\1>/g;
+
+          const matches = [];
+
+          let match;
+
+          while ((match = re.exec(text))) {
+            const cleanSource = htmlDecode(cleanCueText(match[3]));
+
+            if (cleanSource)
+              matches.push({
+                tag: match[1],
+                attrs: match[2],
+                source: cleanSource,
+              });
+          }
+
+          if (!matches.length && (fmt === "srv3" || /<s\b/i.test(text))) {
+            re = /<(s)\b([^>]*)>([\s\S]*?)<\/\1>/g;
+
+            while ((match = re.exec(text))) {
+              const cleanSegment = htmlDecode(cleanCueText(match[3]));
+
+              if (cleanSegment)
+                matches.push({
+                  tag: match[1],
+                  attrs: match[2],
+                  source: cleanSegment,
+                });
+            }
+          }
+
+          if (!matches.length) return "";
+
+          const translated = await translateRows(
+            matches.map((i) => i.source),
+            sl,
+            tl,
+          );
+
+          if (!translated) return "";
+
+          let idx = 0;
+
+          return normalizeTimedtextHead(text).replace(
+            re,
+            (full, tag, attrs, body) => {
+              const displaySource = htmlDecode(cleanCueText(body));
+
+              if (!displaySource) return full;
+
+              const translatedText = String(translated[idx++] || "")
+                .replace(/\s+/g, " ")
+                .trim();
+
+              const newline = tag === "text" ? "&#10;" : "&#x000A;";
+
+              return (
+                "<" +
+                tag +
+                attrs +
+                ">" +
+                htmlEncode(
+                  combine(displaySource, translatedText, showOnly, true),
+                ).replace(/\n/g, newline) +
+                "</" +
+                tag +
+                ">"
+              );
+            },
+          );
+        }
+      }
+
+      runSubtitle(hostResponse, hostDone);
+    })();
+  }
+
+  const finish = youtubeFinish($done);
+  try {
+    const request = { ...$request, body: youtubeBytes($request.body) };
+    const response = { ...$response, body: youtubeBytes($response.body) };
+    const options = youtubeArguments(
+      typeof $argument === "string" ? $argument : "",
+    );
+    if (!(response.status >= 200 && response.status < 300)) return finish({});
+    const pathname = request.url.split("?")[0];
+    const endpoint = pathname.split("/youtubei/v1/")[1];
+    const argument = JSON.stringify(options);
+    if (/^https:\/\/(?:www|m)\.youtube\.com\/api\/timedtext$/.test(pathname)) {
+      if (!options.dualSubtitles) return finish({});
+      const subtitleArgument =
+        "subtitle_type=Translate&subtitle_language=" +
+        encodeURIComponent(options.subtitleLanguage) +
+        "&show_only_auto_translation=" +
+        options.showOnlyAutoTranslation;
+      dualSubtitles(request, response, subtitleArgument, finish);
+    } else if (
+      /^https?:\/\/[\w-]+\.googlevideo\.com\/initplayback$/.test(pathname)
+    ) {
+      compatibleUMP(request, response, argument, finish);
+    } else if (
+      /^https:\/\/youtubei\.googleapis\.com\/youtubei\/v1\//.test(pathname)
+    ) {
+      if (endpoint === "offline/get_download_action") {
+        if (!options.nativeDownload) return finish({});
+        nativeDownloadResponse(request, response, argument, finish);
+      } else if (endpoint === "config" || endpoint === "log_event") {
+        compatibleKeys(request, response, argument, finish);
+      } else if (endpoint === "account/get_setting" && options.nativeDownload) {
+        // The Egern schema contains the three download-setting booleans missing from the 7-script candidate.
+        nativeDownloadResponse(request, response, argument, finish);
+      } else if (
+        /^(?:navigation\/resolve_url|browse|next|player|search|reel\/reel_watch_sequence|guide|account\/get_setting|get_watch)$/.test(
+          endpoint || "",
+        )
+      ) {
+        compatibleResponse(request, response, argument, finish);
+      } else finish({});
+    } else finish({});
+  } catch (error) {
+    console.log("ios-youtube-response: " + error.message);
+    finish({});
+  }
+})();

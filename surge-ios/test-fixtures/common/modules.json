@@ -1,0 +1,66 @@
+{
+  "modules": [
+    {
+      "id": 6,
+      "sgmodule": "modules/common-cainiao-adblock.sgmodule",
+      "scripts": [
+        {
+          "sourcePath": "scripts/common-cainiao-adblock.js"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "sgmodule": "modules/common-amap-cleaner.sgmodule",
+      "scripts": [
+        {
+          "sourcePath": "scripts/common-amap-cleaner.js"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "sgmodule": "modules/common-jd-adblock.sgmodule",
+      "scripts": [
+        {
+          "sourcePath": "scripts/common-jd-adblock.js"
+        },
+        {
+          "sourcePath": "scripts/common-jd-post-capture.js"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "sgmodule": "modules/common-xianyu-adblock.sgmodule",
+      "scripts": [
+        {
+          "sourcePath": "scripts/common-xianyu-adblock.js"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "sgmodule": "modules/common-pdd-adblock.sgmodule",
+      "scripts": [
+        {
+          "sourcePath": "scripts/common-pdd-adblock.js"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "sgmodule": "modules/common-hongguo-adblock.sgmodule",
+      "scripts": []
+    },
+    {
+      "id": 15,
+      "sgmodule": "modules/common-jyjt-member.sgmodule",
+      "scripts": [
+        {
+          "sourcePath": "scripts/common-jyjt-member.js"
+        }
+      ]
+    }
+  ]
+}

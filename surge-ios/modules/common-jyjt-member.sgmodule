@@ -1,0 +1,8 @@
+#!name=戒烟军团解锁会员
+#!desc=Surge iOS 6.x 迁移：1.0.0 原生版；只改已知 SOAP 响应内原有的完整零值与空日期，HTTP 错误及 SOAP Fault 放行。
+#!author=Pier
+#!homepage=https://github.com/atopsecret/SurgeScripts/tree/main/jyjt
+# 当前 Egern 功能范围；不启用纯展示 widget，不改全局DNS、证书或代理。
+
+[Script]
+ios-jyjt-member-response = type=http-response,pattern=^http://smoke\.nxnresearch\.com/webservice510\.asmx(?:[/?]|$),requires-body=true,max-size=1048576,binary-body-mode=true,full-header-mode=true,engine=webview,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/surge-ios/scripts/common-jyjt-member.js,timeout=10

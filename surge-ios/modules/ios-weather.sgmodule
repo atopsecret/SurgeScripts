@@ -1,0 +1,19 @@
+#!name=Apple 天气增强 · Surge iOS
+#!desc=ID7；保留 Egern 1.0.0、WeatherKit v3.1.0 和 FlatBuffers 24.12.23。默认彩云天气/下一小时降水，AQI EU_EAQI。
+#!author=VirgilClyne, WordlessEcho, 001, atopsecret
+#!homepage=https://github.com/atopsecret/SurgeScripts/tree/main/apple-weather
+#!version=1.0.0-surge-ios-adapter.1
+
+[Rule]
+DOMAIN,weather-analytics-events.apple.com,REJECT
+DOMAIN,tether.edge.apple,REJECT
+DOMAIN-SUFFIX,tthr.apple.com,REJECT
+AND,((OR,((IP-ASN,714,no-resolve),(IP-ASN,6185,no-resolve))),(PROTOCOL,QUIC)),REJECT
+
+[Script]
+weather-availability = type=http-response,pattern=(?i)^https?://weatherkit\.apple\.com/api/v1/availability/,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/surge-ios/scripts/weather-availability.js,requires-body=true,binary-body-mode=false,max-size=4194304,timeout=30,engine=webview,argument=Weather.Provider=ColorfulClouds&NextHour.Provider=ColorfulClouds&AirQuality.Calculate.Algorithm=EU_EAQI&API.ColorfulClouds.Token=&API.QWeather.Host=devapi.qweather.com&API.QWeather.Token=&API.WAQI.Token=&LogLevel=WARN
+weather-data = type=http-response,pattern=(?i)^https?://weatherkit\.apple\.com/api/v2/weather/,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/surge-ios/scripts/weather-data.js,requires-body=true,binary-body-mode=true,max-size=4194304,timeout=30,engine=webview,argument=Weather.Provider=ColorfulClouds&NextHour.Provider=ColorfulClouds&AirQuality.Calculate.Algorithm=EU_EAQI&API.ColorfulClouds.Token=&API.QWeather.Host=devapi.qweather.com&API.QWeather.Token=&API.WAQI.Token=&LogLevel=WARN
+weather-diagnostic = type=generic,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/surge-ios/scripts/weather-diagnostic.js,timeout=10,engine=webview,argument=Weather.Provider=ColorfulClouds&NextHour.Provider=ColorfulClouds&AirQuality.Calculate.Algorithm=EU_EAQI&API.ColorfulClouds.Token=&API.QWeather.Host=devapi.qweather.com&API.QWeather.Token=&API.WAQI.Token=&LogLevel=WARN
+
+[MITM]
+hostname = %APPEND% weatherkit.apple.com

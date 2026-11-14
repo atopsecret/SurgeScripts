@@ -1,0 +1,791 @@
+// Surge iOS | 6.0+ | Standalone JavaScript
+// Build: node --check output/camscanner-nio/scripts/nio-auto-checkin-ios.js
+// Run: install the companion module; capture your own NIO request on this device.
+// Deps: $persistentStore, $httpClient, $notification, $script, $done.
+// Source business version: 3.2.0; native adapter revision: 1.0.0.
+// Capture, statistics observation, 09:00 cron and read-only diagnostics share one file.
+// HTTP timeouts use seconds; storage is isolated under ios_nio_v3_* keys.
+(function () {
+"use strict";
+const CONFIG = Object.freeze({
+    version: "3.2.0",
+    stateKey: "ios_nio_v3_auth_state_v1",
+    journalKey: "ios_nio_v3_checkin_v1",
+    statisticsKey: "ios_nio_v3_statistics_v1",
+    captureNoticeKey: "ios_nio_v3_capture_notice_v1",
+    captureStatusKey: "ios_nio_v3_capture_status_v1",
+    captureNoticeCooldownMs: 30000,
+    endpoint: "https://gateway-front-external.nio.com/moat/10086/c/award_cn/checkin",
+    budgetMs: 24000,
+    requestTimeoutMs: 5000,
+    leaseMs: 30000,
+    maxObservationBytes: 262144,
+    maxAttempts: 3,
+    fallbackUA: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 NIOAppCN/6.10.0 (com.do1.WeiLaiApp; build:2682; OS:iOS) webview/lg _dsbridge"
+});
+const record = value => value !== null && typeof value === "object" && !Array.isArray(value);
+const validId = value => typeof value === "string" && /^[A-Za-z0-9_-]{1,80}$/.test(value);
+const validTime = value => typeof value === "number" && Number.isFinite(value) && value > 0 && value <= Date.now() + 300000;
+const statNumber = value => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+const validStats = value => record(value) && Object.keys(value).every(key =>
+    ["consecutive", "total"].includes(key) && statNumber(value[key]));
+class StateFormatError extends Error {}
+class CaptureStorageError extends Error {
+    constructor(code) { super(code); this.code = code; }
+}
+class TimeoutError extends Error {}
+class TaskStop extends Error {
+    constructor(title, body, keepLease = false) { super(title); this.title = title; this.body = body; this.keepLease = keepLease; }
+}
+
+function validToken(value) {
+    return typeof value === "string" && /^Bearer [^\s\x00-\x1f\x7f]{16,4096}$/i.test(value);
+}
+function validUA(value) {
+    return typeof value === "string" && /NIOAppCN\//.test(value) && value.length <= 1024 && !/[\x00-\x1f\x7f]/.test(value);
+}
+function captureURL(url) {
+    return /^https:\/\/(?:gateway-front-external\.nio\.com|app\.nio\.com|api\.nio\.com)\/(?:moat\/10086\/+(?:n\/c\/award\/|c\/award_cn\/)|(?:n\/c\/)?(?:account\/user\/|user\/|profile\/)|app\/api\/|api\/)/i.test(String(url || ""));
+}
+function header(headers, name) {
+    const value = headers && headers.get(name);
+    return typeof value === "string" ? value : "";
+}
+function storedJSON(raw) {
+    if (raw === null) return null;
+    if (typeof raw !== "string" || !raw) throw new StateFormatError("invalid-storage");
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch (_) { throw new StateFormatError("invalid-json"); }
+    if (parsed === null) throw new StateFormatError("invalid-null");
+    return parsed;
+}
+function readJSON(runtime, key) {
+    // 原生 get() 先区分“没有键”和损坏的 JSON；仅读取本迁移命名空间，不读取任何旧凭据键。
+    return storedJSON(runtime.storage.get(key));
+}
+function writeVerified(runtime, key, value) {
+    // 原生 JSON 编码器不保证对象键顺序；统一存取原始字符串，仍回读验证真正写入。
+    const encoded = JSON.stringify(value);
+    runtime.storage.set(key, encoded);
+    if (runtime.storage.get(key) !== encoded) throw new Error("storage-not-confirmed");
+}
+function validatedState(state) {
+    if (state === null) return null;
+    if (!record(state) || !validToken(state.token) || !validTime(state.observedAt) ||
+        typeof state.invalid !== "boolean" || !validId(state.generation)) throw new StateFormatError("invalid-state");
+    return state;
+}
+function readState(runtime) { return validatedState(readJSON(runtime, CONFIG.stateKey)); }
+const CAPTURE_RESULTS = Object.freeze({
+    "C-SAVED": "凭据已保存",
+    "C-UNCHANGED": "凭据未变化，无需重写",
+    "C-COALESCED": "同凭据并发捕获已合并",
+    "C-SUPERSEDED": "当前状态已由其它请求更新",
+    "E-READ": "捕获前读取异常",
+    "E-WRITE": "写入 API 异常",
+    "E-READBACK": "写后读取 API 异常",
+    "E-EMPTY": "写后未读到凭据",
+    "E-FORMAT": "写后状态格式异常",
+    "E-MISMATCH": "写后状态不匹配"
+});
+function captureResult(runtime, code) {
+    // 只记录固定结果码、时间和版本。记录失败不能回滚凭据或触发重试。
+    console.log("[蔚来捕获] Surge 原生脚本 " + CONFIG.version + "；" + code + "；" + CAPTURE_RESULTS[code]);
+    let previous;
+    try { previous = readJSON(runtime, CONFIG.captureStatusKey); }
+    catch (error) {
+        if (error instanceof StateFormatError) previous = null;
+        else return;
+    }
+    try {
+        const at = Date.now();
+        if (record(previous) && previous.version === CONFIG.version && previous.code === code &&
+            validTime(previous.at) && previous.at <= at && code === "C-UNCHANGED" && at - previous.at < 30000) return;
+        runtime.storage.set(CONFIG.captureStatusKey, JSON.stringify({ version: CONFIG.version, at, code }));
+    } catch (_) { /* 可选诊断记录不可用时，固定结果码仍留在捕获脚本日志。 */ }
+}
+function sameCaptureState(a, b) {
+    return a && b && a.token === b.token && a.observedAt === b.observedAt && a.invalid === b.invalid &&
+        a.generation === b.generation && (a.userAgent === undefined ? "" : a.userAgent) === (b.userAgent === undefined ? "" : b.userAgent);
+}
+function saveCapture(runtime, expected, previous) {
+    const encoded = JSON.stringify(expected);
+    try { runtime.storage.set(CONFIG.stateKey, encoded); }
+    catch (_) { throw new CaptureStorageError("E-WRITE"); }
+    let raw;
+    try { raw = runtime.storage.get(CONFIG.stateKey); }
+    catch (_) { throw new CaptureStorageError("E-READBACK"); }
+    if (raw === encoded) return "C-SAVED";
+    let current;
+    try { current = validatedState(storedJSON(raw)); }
+    catch (_) { throw new CaptureStorageError("E-FORMAT"); }
+    if (!current) throw new CaptureStorageError("E-EMPTY");
+    const ua = current.userAgent === undefined ? "" : current.userAgent;
+    if (!(ua === "" || validUA(ua))) throw new CaptureStorageError("E-FORMAT");
+    if (sameCaptureState(current, expected)) return "C-SAVED";
+    // 仍是捕获前的快照，只能说明原凭据还在，不能证明这次更新已写入。
+    if (sameCaptureState(current, previous)) throw new CaptureStorageError("E-MISMATCH");
+    // 原文不同不等于没有保存：字段相同可确认，更新的同凭据快照可合并。
+    // 仅捕获允许这个判断；任务锁、签到确认仍使用严格回读，不放宽其归属检查。
+    if (current.token === expected.token && current.invalid === expected.invalid && current.observedAt >= expected.observedAt) {
+        return "C-COALESCED";
+    }
+    if (current.observedAt >= expected.observedAt &&
+        (current.token !== expected.token || current.generation !== expected.generation || current.invalid !== expected.invalid)) {
+        // 不回写旧快照，也不把其它请求保存的凭据说成本次保存成功。
+        return "C-SUPERSEDED";
+    }
+    throw new CaptureStorageError("E-MISMATCH");
+}
+function uniqueId() {
+    return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2) + "-" + Math.random().toString(36).slice(2);
+}
+function report(runtime, title, body, notify = true) {
+    console.log("[蔚来签到] " + title);
+    if (body) for (const line of body.split("\n")) console.log("[蔚来签到] " + line);
+    if (notify) {
+        // 通知用简短展示文案；日志、成功判断和每日去重保持原样。
+        const confirmed = title === "今日签到已确认" || title === "今日签到已确认（本地记录）";
+        const subtitle = !confirmed ? title : title === "今日签到已确认（本地记录）" ? "今日已签到 ✅" : "签到成功 ✅";
+        const noticeBody = confirmed ? (body || "").replace(/^连续签到：/m, "🔥 连续签到：")
+            .replace(/^累计签到：/m, "📊 累计签到：").replace(/\n本次未发送签到请求。$/, "") : body;
+        try { runtime.notify({ title: "蔚来签到", subtitle, body: noticeBody, sound: false }); }
+        catch (_) { /* 通知失败不改变已完成的请求、状态和本地日志。 */ }
+    }
+}
+function claimCaptureNotice(runtime) {
+    // 只合并凭据提醒；每次有效捕获仍照常保存，提醒记录不含 Token 或账号代号。
+    try {
+        const now = Date.now(), raw = runtime.storage.get(CONFIG.captureNoticeKey);
+        const previous = typeof raw === "string" && /^[0-9]{1,16}$/.test(raw) ? Number(raw) : 0;
+        if (statNumber(previous) && previous > 0 && previous <= now && now - previous < CONFIG.captureNoticeCooldownMs) return false;
+        writeVerified(runtime, CONFIG.captureNoticeKey, now);
+        return true;
+    } catch (_) {
+        // 可选提醒失败不能把已经保存成功的凭据说成保存失败，也不补发网络请求。
+        console.log("[蔚来签到] 凭据提醒暂未发送。");
+        return false;
+    }
+}
+function capture(runtime) {
+    if (!captureURL(runtime.request.url)) return;
+    const token = header(runtime.request.headers, "authorization");
+    if (!validToken(token)) return;
+    let previous;
+    try { previous = readState(runtime); }
+    catch (error) {
+        // 真正的新请求可以修复损坏的状态；读取 API 不可用时则停止，不猜旧状态。
+        if (error instanceof StateFormatError) previous = null;
+        else { captureResult(runtime, "E-READ"); report(runtime, "凭据状态无法读取", "请查看蔚来本地诊断。错误：E-READ"); return; }
+    }
+    const same = previous && previous.token === token;
+    const ua = header(runtime.request.headers, "user-agent");
+    const userAgent = validUA(ua) ? ua : (same && validUA(previous.userAgent) ? previous.userAgent : "");
+    if (same && (previous.userAgent === undefined ? "" : previous.userAgent) === userAgent) {
+        // observedAt 不承担过期判断；同凭据同 UA 没有必要让每个请求争写整个状态。
+        captureResult(runtime, "C-UNCHANGED");
+        return;
+    }
+    const state = {
+        token, observedAt: Date.now(), invalid: Boolean(same && previous.invalid),
+        userAgent,
+        generation: same ? previous.generation : uniqueId()
+    };
+    let result;
+    try { result = saveCapture(runtime, state, previous); }
+    catch (error) {
+        const code = error instanceof CaptureStorageError ? error.code : "E-WRITE";
+        captureResult(runtime, code);
+        report(runtime, "凭据保存失败", "请查看蔚来本地诊断。错误：" + code);
+        return;
+    }
+    captureResult(runtime, result);
+    if (result === "C-SUPERSEDED") return;
+    if (!same) report(runtime, "凭据已更新", "", claimCaptureNotice(runtime));
+}
+
+// 蔚来中国业务使用 UTC+8 日界；cron 仍使用 Surge 的设备时区，不猜测服务器奖励时间。
+function businessDay(now = Date.now()) { return new Date(now + 8 * 3600000).toISOString().slice(0, 10); }
+function readJournal(runtime) {
+    const saved = readJSON(runtime, CONFIG.journalKey);
+    if (saved === null) return { version: 1, lock: null, confirmed: null };
+    if (!record(saved) || saved.version !== 1 || !(saved.lock === null || record(saved.lock)) ||
+        !(saved.confirmed === null || record(saved.confirmed))) throw new StateFormatError("invalid-journal");
+    if (saved.lock) {
+        const lock = saved.lock;
+        if (!validId(lock.id) || !validId(lock.generation) || !validTime(lock.acquiredAt) ||
+            !Number.isFinite(lock.expiresAt) || lock.expiresAt !== lock.acquiredAt + CONFIG.leaseMs) {
+            throw new StateFormatError("invalid-lock");
+        }
+    }
+    if (saved.confirmed) {
+        const item = saved.confirmed;
+        if (!validId(item.generation) || !validTime(item.confirmedAt) ||
+            typeof item.day !== "string" || item.day !== businessDay(item.confirmedAt) ||
+            !validStats(item.stats)) {
+            throw new StateFormatError("invalid-confirmation");
+        }
+        if (item.fields !== undefined && !validFieldTypes(item.fields)) {
+            // 可选诊断元数据损坏时只丢弃本次读取的元数据，不作废有效签到和锁。
+            console.log("[蔚来签到] 统计字段诊断不可用；签到确认仍有效。");
+            return { version: 1, lock: saved.lock, confirmed: { ...item, fields: undefined } };
+        }
+    }
+    return { version: 1, lock: saved.lock, confirmed: saved.confirmed };
+}
+function statisticFields(data) {
+    const stats = record(data.stats) ? data.stats : {};
+    const award = record(data.award_info) ? data.award_info : {};
+    const consecutiveFields = [
+        ["stats.continuous_checkin_days", stats.continuous_checkin_days],
+        ["stats.continuous_days", stats.continuous_days],
+        ["continuous_checkin_days", data.continuous_checkin_days],
+        ["continuous_days", data.continuous_days]
+    ];
+    // 保留现有两个字段的优先级，再兼容旧版累计字段；不把缺失值当作零。
+    const totalFields = [
+        ["stats.accumulate_days", stats.accumulate_days], ["accumulate_days", data.accumulate_days],
+        ["stats.accumulateDays", stats.accumulateDays], ["accumulateDays", data.accumulateDays],
+        ["stats.total_days", stats.total_days], ["total_days", data.total_days],
+        ["award_info.accumulate_days", award.accumulate_days], ["award_info.total_days", award.total_days]
+    ];
+    return { consecutiveFields, totalFields };
+}
+function fieldTypes(data) {
+    const { consecutiveFields, totalFields } = statisticFields(data);
+    return Object.fromEntries(consecutiveFields.concat(totalFields).map(([name, value]) => [name,
+        value === undefined ? "missing" : value === null ? "null" : Array.isArray(value) ? "array" : typeof value]));
+}
+function validFieldTypes(value) {
+    if (!record(value)) return false;
+    const names = Object.keys(fieldTypes({}));
+    const types = ["missing", "null", "array", "string", "number", "boolean", "object"];
+    return Object.keys(value).length === names.length && names.every(name =>
+        Object.prototype.hasOwnProperty.call(value, name) && types.includes(value[name]));
+}
+function statistics(data) {
+    const { consecutiveFields, totalFields } = statisticFields(data);
+    const first = fields => fields.map(([, value]) => {
+        // 只转换有限长度的纯数字串；不接受布尔值、指数、小数或任意文本。
+        if (typeof value === "string" && /^[0-9]{1,16}$/.test(value)) value = Number(value);
+        return statNumber(value) ? value : undefined;
+    }).find(value => value !== undefined);
+    const consecutive = first(consecutiveFields), total = first(totalFields);
+    if (consecutive === undefined || total === undefined) {
+        // 固定字段名与类型便于诊断缺统计，不记录响应值或整包正文。
+        const types = Object.entries(fieldTypes(data)).map(([name, type]) => name + "=" + type);
+        console.log("[蔚来签到] 统计字段类型：" + types.join(", "));
+    }
+    const output = {};
+    if (consecutive !== undefined) output.consecutive = consecutive;
+    if (total !== undefined) output.total = total;
+    return output;
+}
+function matchingObservation(runtime, state, now = Date.now()) {
+    try {
+        const saved = readJSON(runtime, CONFIG.statisticsKey);
+        if (saved === null) return null;
+        if (!record(saved) || saved.version !== 1 || !validId(saved.generation) ||
+            !validTime(saved.observedAt) || saved.observedAt > now ||
+            saved.day !== businessDay(saved.observedAt) || !validStats(saved.stats)) {
+            throw new StateFormatError("invalid-statistics");
+        }
+        if (saved.generation !== state.generation || saved.day !== businessDay(now)) return null;
+        if (!validFieldTypes(saved.fields)) {
+            console.log("[蔚来签到] 统计观察的字段诊断不可用；仅保留已校验数字。");
+            return { ...saved, fields: undefined };
+        }
+        return saved;
+    } catch (_) {
+        // 可选统计观察损坏不能作废凭据、覆盖任务锁或阻止已确认签到。
+        console.log("[蔚来签到] 本地统计观察记录不可用；未改动签到状态。");
+        return null;
+    }
+}
+function completeStatistics(base, observed) {
+    const output = { ...base };
+    for (const name of ["consecutive", "total"]) {
+        if (!statNumber(output[name]) && observed && statNumber(observed.stats[name])) output[name] = observed.stats[name];
+    }
+    return output;
+}
+// 与项目其它原生模块相同：保留原字节后严格解码，不依赖额外运行时。
+function decodeUTF8(bytes) {
+    const parts = [];
+    let chunk = "";
+    for (let i = 0; i < bytes.length;) {
+        const first = bytes[i++];
+        let point = first, count = 0, minimum = 0;
+        if (first >= 0xc2 && first <= 0xdf) { point &= 0x1f; count = 1; minimum = 0x80; }
+        else if (first >= 0xe0 && first <= 0xef) { point &= 0x0f; count = 2; minimum = 0x800; }
+        else if (first >= 0xf0 && first <= 0xf4) { point &= 0x07; count = 3; minimum = 0x10000; }
+        else if (first > 0x7f) throw new Error("invalid-utf8");
+        for (let j = 0; j < count; j++) {
+            const next = bytes[i++];
+            if (next === undefined || (next & 0xc0) !== 0x80) throw new Error("invalid-utf8");
+            point = point * 64 + (next & 0x3f);
+        }
+        if (point < minimum || point > 0x10ffff || (point >= 0xd800 && point <= 0xdfff)) throw new Error("invalid-utf8");
+        chunk += String.fromCodePoint(point);
+        if (chunk.length >= 8192) { parts.push(chunk); chunk = ""; }
+    }
+    parts.push(chunk);
+    return parts.join("");
+}
+async function observeStatistics(runtime) {
+    if (!runtime.request || !/^https:\/\/gateway-front-external\.nio\.com\/moat\/10086\/c\/award_cn\/checkin(?:\?|$)/i.test(String(runtime.request.url || "")) ||
+        !["GET", "POST"].includes(String(runtime.request.method || "").toUpperCase()) || runtime.response.status !== 200 ||
+        runtime.response.body === null) return;
+    let snapshot;
+    const startedAt = Date.now();
+    try {
+        snapshot = readState(runtime);
+        if (!snapshot || snapshot.invalid || header(runtime.request.headers, "authorization") !== snapshot.token) return;
+        const charset = /charset\s*=\s*["']?([^\s;"']+)/i.exec(header(runtime.response.headers, "Content-Type"));
+        if (charset && !/^(?:utf-8|utf8|us-ascii)$/i.test(charset[1])) return;
+    } catch (_) { return; }
+    let bytes;
+    // 不独立 race 正文读取：超时后底层读取未取消，提前返回会丢掉稍后读完的原字节。
+    // 执行超时与正文大小由原生 YAML 负责，正文只消费一次并显式回传。
+    try { bytes = new Uint8Array(await runtime.response.arrayBuffer()); }
+    catch (_) {
+        // 读取失败没有足够字节重建正文；不二次消费，也不伪造空响应。
+        console.log("[蔚来签到] 统计观察正文未读完；未补发请求。");
+        return;
+    }
+    try {
+        if (bytes.length > CONFIG.maxObservationBytes) return { body: bytes };
+        const result = JSON.parse(decodeUTF8(bytes).replace(/^\uFEFF/, ""));
+        if (!record(result) || result.result_code !== "success" || !record(result.data) || result.data.checked_in !== true) return { body: bytes };
+        const now = Date.now(), current = readState(runtime);
+        if (!current || current.invalid || current.token !== snapshot.token || current.generation !== snapshot.generation ||
+            businessDay(startedAt) !== businessDay(now)) return { body: bytes };
+        const previous = matchingObservation(runtime, current, now);
+        const stats = { ...(previous ? previous.stats : {}), ...statistics(result.data) };
+        writeVerified(runtime, CONFIG.statisticsKey, {
+            version: 1, generation: current.generation, day: businessDay(now), observedAt: now,
+            stats, fields: fieldTypes(result.data)
+        });
+        console.log("[蔚来签到] 当日统计已观察；未额外发送请求。");
+    } catch (_) {
+        console.log("[蔚来签到] 统计观察未保存；原响应保持不变。");
+    }
+    // 只返回已取得的原字节，不修改状态码、请求头或响应头，也不写任务记录键。
+    return { body: bytes };
+}
+function statsMessage(stats) {
+    return "连续签到：" + (statNumber(stats.consecutive) ? stats.consecutive + " 天" : "未知") +
+        "\n累计签到：" + (statNumber(stats.total) ? stats.total + " 天" : "未知");
+}
+function guard(runtime, snapshot, lease, deadline) {
+    let current, journal;
+    try { current = readState(runtime); journal = readJournal(runtime); }
+    catch (_) { throw new TaskStop("凭据状态无法读取", "任务已停止，请检查本地存储；不继续使用旧快照。"); }
+    if (!current || current.invalid || current.token !== snapshot.token || current.generation !== snapshot.generation) {
+        throw new TaskStop("凭据状态已变化", "本次旧任务已停止，不切换账号继续提交或保存旧响应。");
+    }
+    if (!journal.lock || journal.lock.id !== lease.id || journal.lock.generation !== snapshot.generation ||
+        journal.lock.expiresAt <= Date.now()) {
+        throw new TaskStop("任务锁已变化", "本次任务已停止，不覆盖其他运行的状态。");
+    }
+    if (Date.now() >= deadline) throw new TaskStop("签到结果未确认", "已超过时间预算，请在 App 查看；不自动重复提交。", true);
+    return { current, journal };
+}
+function release(runtime, lease) {
+    try {
+        const journal = readJournal(runtime);
+        if (journal.lock && journal.lock.id === lease.id) {
+            writeVerified(runtime, CONFIG.journalKey, { ...journal, lock: null });
+        }
+    } catch (_) { console.log("[蔚来签到] 任务锁未确认释放，将在到期后允许新任务。"); }
+}
+function limited(operation, milliseconds) {
+    // runtime.http 的原生超时负责请求；此兜底同时限制异常挂起的 Promise 和响应流。
+    // 没有文档化的 AbortSignal，不声称 Promise 超时能自行取消已发送的 POST。
+    return new Promise((resolve, reject) => {
+        let settled = false;
+        const timer = setTimeout(() => { if (!settled) { settled = true; reject(new TimeoutError("timeout")); } }, Math.max(1, milliseconds));
+        const finish = (callback, value) => {
+            if (settled) return;
+            settled = true;
+            if (typeof clearTimeout === "function") clearTimeout(timer);
+            callback(value);
+        };
+        let result;
+        try { result = operation(); } catch (error) { finish(reject, error); return; }
+        Promise.resolve(result).then(value => finish(resolve, value), error => finish(reject, error));
+    });
+}
+function retryDelay(value, now = Date.now()) {
+    if (!value) return 2000;
+    const text = value.trim();
+    if (!text) return 2000;
+    let delay;
+    if (/^\d+$/.test(text)) delay = Number(text) * 1000;
+    else if (/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d{2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4} \d{2}:\d{2}:\d{2} GMT$/.test(text)) {
+        const time = Date.parse(text);
+        // 拒绝 Date.parse() 宽松归一化出的不存在日期或错误星期。
+        delay = Number.isFinite(time) && new Date(time).toUTCString() === text ? time - now : NaN;
+    } else return NaN;
+    return Number.isFinite(delay) ? Math.max(1000, delay) : NaN;
+}
+function invalidate(runtime, snapshot, lease, deadline) {
+    const { current } = guard(runtime, snapshot, lease, deadline);
+    writeVerified(runtime, CONFIG.stateKey, { ...current, invalid: true });
+}
+function checkinRequest(state, timeout = CONFIG.requestTimeoutMs) {
+    return {
+        url: CONFIG.endpoint + "?app_id=10086&timestamp=" + Math.floor(Date.now() / 1000),
+        options: {
+            headers: { authorization: state.token, "content-type": "application/x-www-form-urlencoded", accept: "application/json",
+                "user-agent": validUA(state.userAgent) ? state.userAgent : CONFIG.fallbackUA },
+            body: "event=checkin", timeout,
+            redirect: "manual", credentials: "omit", insecureTls: false
+        }
+    };
+}
+function confirmedJournal(runtime, state, lease, day) {
+    // 复查失败不推翻已确认结果；仍严格检查账号、锁与日界。
+    const { journal } = guard(runtime, state, lease, Infinity);
+    if (!journal.confirmed || journal.confirmed.generation !== state.generation ||
+        journal.confirmed.day !== day || businessDay() !== day) {
+        throw new TaskStop("签到日期已变化", "本次统计复查已停止，请查看当前日期的签到记录。");
+    }
+    return journal;
+}
+async function refreshConfirmedStatistics(runtime, state, lease, deadline, day) {
+    let current = confirmedJournal(runtime, state, lease, day);
+    const initial = completeStatistics(current.confirmed.stats, matchingObservation(runtime, state));
+    let supplement = {}, fields;
+    if (!statNumber(initial.total)) {
+        const milliseconds = Math.min(CONFIG.requestTimeoutMs, deadline - Date.now() - 500);
+        if (milliseconds >= 500) {
+            // 旧版的 fetchCheckinStats 也是这个 POST；仅在成功标记已保存后复查一次。
+            // 它不是读取控制台日志或新猜测的 GET，不重试限流、超时或未知响应。
+            console.log("[蔚来签到] 累计统计复查 1/1；完成后统一通知。");
+            try {
+                const { url, options } = checkinRequest(state, milliseconds);
+                const requestDeadline = Date.now() + milliseconds;
+                const response = await limited(() => {
+                    confirmedJournal(runtime, state, lease, day);
+                    if (Date.now() >= requestDeadline) throw new TimeoutError("timeout");
+                    return runtime.http.post(url, options);
+                }, requestDeadline - Date.now());
+                confirmedJournal(runtime, state, lease, day);
+                if (!response || response.status !== 200) throw new Error("statistics-unavailable");
+                const text = await limited(() => response.text(), requestDeadline - Date.now());
+                confirmedJournal(runtime, state, lease, day);
+                const result = JSON.parse(text.replace(/^\uFEFF/, ""));
+                if (!record(result) || result.result_code !== "success" || !record(result.data) ||
+                    result.data.checked_in !== true) throw new Error("statistics-unconfirmed");
+                supplement = statistics(result.data);
+                fields = fieldTypes(result.data);
+            } catch (error) {
+                if (error instanceof TaskStop) throw error;
+                console.log("[蔚来签到] 累计统计复查未补齐；保留已确认签到。");
+            }
+        } else console.log("[蔚来签到] 剩余预算不足，未追加统计复查。");
+    }
+    // 再读一次当日观察，接上等待复查期间才写入的真实统计。
+    current = confirmedJournal(runtime, state, lease, day);
+    const observed = completeStatistics(current.confirmed.stats, matchingObservation(runtime, state));
+    const stats = completeStatistics(observed, { stats: supplement });
+    if (!statNumber(current.confirmed.stats.total) && statNumber(stats.total) &&
+        statNumber(stats.consecutive) && stats.total < stats.consecutive) delete stats.total;
+    if (["consecutive", "total"].some(name => stats[name] !== current.confirmed.stats[name])) {
+        const updatedFields = fields && validFieldTypes(current.confirmed.fields) ? {
+            ...current.confirmed.fields, ...Object.fromEntries(Object.entries(fields).filter(([, type]) => type !== "missing"))
+        } : fields || current.confirmed.fields;
+        try {
+            writeVerified(runtime, CONFIG.journalKey, { ...current, confirmed: { ...current.confirmed, stats,
+                ...(updatedFields ? { fields: updatedFields } : {}) } });
+        } catch (_) { console.log("[蔚来签到] 补充统计未确认保存；本次使用已校验结果。"); }
+    }
+    confirmedJournal(runtime, state, lease, day);
+    return stats;
+}
+async function runCheckin(runtime) {
+    console.log("[蔚来签到] Surge 原生脚本版本 " + CONFIG.version);
+    let state, journal;
+    try { state = readState(runtime); journal = readJournal(runtime); }
+    catch (_) { report(runtime, "凭据或任务状态损坏", "请检查 Surge 本地存储并重新捕获凭据；不会读取任何旧凭据键。"); return; }
+    if (!state || state.invalid) { report(runtime, "需要更新凭据", "请在 Surge 开启解密后，重新登录蔚来 App 并打开签到或个人页面。"); return; }
+    const alreadyConfirmed = journal.confirmed && journal.confirmed.generation === state.generation && journal.confirmed.day === businessDay();
+    if (alreadyConfirmed) {
+        const stats = completeStatistics(journal.confirmed.stats, matchingObservation(runtime, state));
+        if (statNumber(stats.total)) {
+            report(runtime, "今日签到已确认（本地记录）", statsMessage(stats) + "\n本次未发送签到请求。"); return;
+        }
+    }
+    if (journal.lock && journal.lock.expiresAt > Date.now()) {
+        if (alreadyConfirmed) {
+            report(runtime, "已有统计复查任务", "等待持锁任务补齐统计并统一通知。", false); return;
+        }
+        report(runtime, "已有签到任务", "本地任务锁尚未到期，本次不重复提交。"); return;
+    }
+    const acquiredAt = Date.now();
+    const lease = { id: uniqueId(), generation: state.generation, acquiredAt, expiresAt: acquiredAt + CONFIG.leaseMs };
+    const deadline = lease.acquiredAt + CONFIG.budgetMs;
+    let acquired = false, keepLease = false, posted = false;
+    try {
+        // 短同步临界段 + 写入回读防止常见重入；storage 无 CAS，不宣称跨进程绝对互斥。
+        writeVerified(runtime, CONFIG.journalKey, { ...journal, lock: lease });
+        acquired = true;
+        if (alreadyConfirmed) {
+            const stats = await refreshConfirmedStatistics(runtime, state, lease, deadline, journal.confirmed.day);
+            report(runtime, "今日签到已确认（本地记录）", statsMessage(stats)); return;
+        }
+        for (let attempt = 1; attempt <= CONFIG.maxAttempts; attempt++) {
+            guard(runtime, state, lease, deadline);
+            if (deadline - Date.now() < CONFIG.requestTimeoutMs + 500) {
+                report(runtime, "签到未完成", "剩余时间不足，请在 App 查看或稍后手动运行。"); return;
+            }
+            const attemptDeadline = Date.now() + CONFIG.requestTimeoutMs;
+            const { url, options } = checkinRequest(state);
+            console.log("[蔚来签到] 提交尝试 " + attempt + "/" + CONFIG.maxAttempts);
+            let response;
+            try {
+                response = await limited(() => {
+                    // 在真正调用 POST 前再次校验，不能只依赖进入 Promise 之前的快照。
+                    guard(runtime, state, lease, deadline);
+                    if (Date.now() >= attemptDeadline) throw new TaskStop("签到未完成", "请求发出前已超过单次预算，本次不提交。");
+                    posted = true;
+                    return runtime.http.post(url, options);
+                }, attemptDeadline - Date.now());
+            } catch (error) {
+                if (error instanceof TaskStop) throw error;
+                keepLease = posted;
+                guard(runtime, state, lease, deadline);
+                report(runtime, "签到结果未确认", "请求失败或超时，服务端可能已处理；不自动重复提交，任务锁保留至到期。"); return;
+            }
+            guard(runtime, state, lease, deadline);
+            const status = response && response.status;
+            if (status === 401) {
+                try { invalidate(runtime, state, lease, deadline); }
+                catch (error) {
+                    if (error instanceof TaskStop) throw error;
+                    report(runtime, "授权失败", "失效标记未确认保存，请检查存储并重新登录。"); return;
+                }
+                report(runtime, "授权失败", "请重新登录蔚来 App 并捕获新凭据。"); return;
+            }
+            if (status === 429) {
+                const delay = retryDelay(header(response.headers, "retry-after"));
+                if (!Number.isFinite(delay)) { report(runtime, "请求被限流", "无法识别 Retry-After，本次不自动重试。"); return; }
+                if (attempt === CONFIG.maxAttempts || delay + CONFIG.requestTimeoutMs + 500 >= deadline - Date.now()) {
+                    report(runtime, "请求被限流", "已达到次数或时间预算，本次不再提交。"); return;
+                }
+                await new Promise(resolve => setTimeout(resolve, delay));
+                guard(runtime, state, lease, deadline);
+                continue;
+            }
+            if (status !== 200 && status !== 403) {
+                keepLease = true;
+                report(runtime, "签到结果未确认", "HTTP 状态异常，未作废凭据；请在 App 查看，不自动重复提交。"); return;
+            }
+            let result = null;
+            try {
+                const text = await limited(() => response.text(), Math.min(attemptDeadline, deadline) - Date.now());
+                try { result = JSON.parse(text); } catch (_) { /* 不输出服务端正文。 */ }
+            } catch (_) {
+                keepLease = true;
+                guard(runtime, state, lease, deadline);
+                report(runtime, "签到结果未确认", "响应读取失败或超时，请在 App 查看；不自动重复提交。"); return;
+            }
+            guard(runtime, state, lease, deadline);
+            const code = record(result) ? result.result_code : undefined;
+            if (["invalid_token", "token_expired", "unauthorized"].includes(code)) {
+                try { invalidate(runtime, state, lease, deadline); }
+                catch (error) {
+                    if (error instanceof TaskStop) throw error;
+                    report(runtime, "授权失败", "失效标记未确认保存，请检查存储并重新登录。"); return;
+                }
+                report(runtime, "授权失败", "请重新登录蔚来 App 并捕获新凭据。"); return;
+            }
+            if (status === 403) { report(runtime, "访问被拒绝", "普通 HTTP 403 可能是权限或风控，未作废凭据；请在 App 检查。"); return; }
+            if (!record(result) || code !== "success" || !record(result.data) || result.data.checked_in !== true) {
+                keepLease = true;
+                report(runtime, "签到未确认", "响应格式或业务状态未确认已签到；不自动重试，也不写每日成功记录。"); return;
+            }
+            let stats = completeStatistics(statistics(result.data), matchingObservation(runtime, state));
+            const latest = guard(runtime, state, lease, deadline).journal;
+            const confirmedAt = Date.now();
+            try {
+                writeVerified(runtime, CONFIG.journalKey, { ...latest, confirmed: {
+                    generation: state.generation, day: businessDay(confirmedAt), confirmedAt, stats, fields: fieldTypes(result.data)
+                } });
+            } catch (_) {
+                keepLease = true;
+                report(runtime, "今日签到已确认", statsMessage(stats) + "\n本地防重复记录未确认保存，请勿因存储错误立即重复提交。"); return;
+            }
+            stats = await refreshConfirmedStatistics(runtime, state, lease, deadline, businessDay(confirmedAt));
+            // checked_in=true 不能区分新奖励与已签到，只报告已确认结果。
+            report(runtime, "今日签到已确认", statsMessage(stats)); return;
+        }
+    } catch (error) {
+        keepLease = keepLease || (error instanceof TaskStop ? error.keepLease : posted);
+        if (error instanceof TaskStop) report(runtime, error.title, error.body);
+        else report(runtime, "本地任务未完成", "本地 API 或存储异常，未继续提交；请检查 Surge 日志和 App。");
+    } finally {
+        // 网络/解析结果未知时保留短租约，不假装可以取消在途请求或马上安全重发。
+        if (acquired && !keepLease) release(runtime, lease);
+    }
+}
+function diagnostic(runtime) {
+    const lines = ["Surge 原生脚本 " + CONFIG.version];
+    if (runtime.app && typeof runtime.app.version === "string" && /^\d+(?:\.\d+){1,3}$/.test(runtime.app.version)) lines.push("Surge 版本：" + runtime.app.version);
+    try {
+        const state = readState(runtime), journal = readJournal(runtime);
+        lines.push("凭据：" + (!state ? "尚未捕获" : state.invalid ? "已标记失效，请重新登录" : "已捕获（不显示内容）"));
+        const confirmed = state && journal.confirmed && journal.confirmed.generation === state.generation && journal.confirmed.day === businessDay();
+        lines.push("今日记录：" + (confirmed ? "已确认" : "未确认"));
+        if (confirmed) {
+            const observed = matchingObservation(runtime, state), stats = completeStatistics(journal.confirmed.stats, observed);
+            lines.push(statsMessage(stats));
+            if (!statNumber(journal.confirmed.stats.total) && observed && statNumber(observed.stats.total)) {
+                lines.push("累计来源：当日同凭据的已观察响应");
+            }
+            if (!statNumber(stats.total)) {
+                const fields = (observed && observed.fields) || journal.confirmed.fields;
+                lines.push(fields ? "累计字段类型：" + statisticFields({}).totalFields.map(([name]) => name + "=" + fields[name]).join(", ") :
+                    "旧记录没有字段类型；可打开蔚来签到页等待新响应观察。");
+            }
+        }
+        lines.push("任务锁：" + (journal.lock && journal.lock.expiresAt > Date.now() ? "有效，等待任务结束或到期" : "无有效锁"));
+    } catch (_) { lines.push("本地状态无法读取；此诊断不发送签到请求。"); }
+    try {
+        const status = readJSON(runtime, CONFIG.captureStatusKey);
+        if (record(status) && typeof status.version === "string" && /^\d+(?:\.\d+){1,3}$/.test(status.version) &&
+            validTime(status.at) && typeof status.code === "string" && Object.prototype.hasOwnProperty.call(CAPTURE_RESULTS, status.code)) {
+            lines.push("捕获记录：" + CAPTURE_RESULTS[status.code] + "（" + status.code + "）");
+            lines.push("捕获版本：" + status.version + "；记录时间：" + new Date(status.at).toISOString());
+        } else lines.push("捕获记录：暂无新版记录；可打开蔚来 App 后再查看。");
+    } catch (_) { lines.push("捕获记录无法读取；请查看凭据捕获脚本日志。"); }
+    lines.push("此诊断只读本地状态，不发送签到请求。");
+    for (const line of lines) console.log("[蔚来诊断] " + line);
+    return { title: "蔚来本地诊断", content: lines.join("\n") };
+}
+
+
+function nativeHeaders(values) {
+    return { get(name) {
+        const target = String(name).toLowerCase();
+        if (Array.isArray(values)) {
+            const found = values.find(item => item && String(item.field || item.name || "").toLowerCase() === target);
+            return found && typeof found.value === "string" ? found.value : "";
+        }
+        if (!values || typeof values !== "object") return "";
+        const key = Object.keys(values).find(item => item.toLowerCase() === target);
+        return key !== undefined && typeof values[key] === "string" ? values[key] : "";
+    } };
+}
+function utf8Bytes(text) {
+    const bytes = [];
+    for (let i = 0; i < text.length; i++) {
+        let point = text.charCodeAt(i);
+        if (point >= 0xd800 && point <= 0xdbff) {
+            const low = text.charCodeAt(++i);
+            if (!(low >= 0xdc00 && low <= 0xdfff)) throw new Error("invalid-utf16");
+            point = 0x10000 + ((point - 0xd800) << 10) + (low - 0xdc00);
+        } else if (point >= 0xdc00 && point <= 0xdfff) throw new Error("invalid-utf16");
+        if (point < 0x80) bytes.push(point);
+        else if (point < 0x800) bytes.push(0xc0 | (point >> 6), 0x80 | (point & 0x3f));
+        else if (point < 0x10000) bytes.push(0xe0 | (point >> 12), 0x80 | ((point >> 6) & 0x3f), 0x80 | (point & 0x3f));
+        else bytes.push(0xf0 | (point >> 18), 0x80 | ((point >> 12) & 0x3f), 0x80 | ((point >> 6) & 0x3f), 0x80 | (point & 0x3f));
+    }
+    return new Uint8Array(bytes);
+}
+function bodyBytes(value) {
+    if (value instanceof Uint8Array) return value;
+    if (typeof value === "string") return utf8Bytes(value);
+    if (value instanceof ArrayBuffer) return new Uint8Array(value);
+    if (ArrayBuffer.isView(value)) return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+    throw new Error("unsupported-body");
+}
+function nativeRuntime(type) {
+    const runtime = {
+        storage: {
+            get(key) { return $persistentStore.read(key); },
+            set(key, value) {
+                if (typeof value !== "string" || $persistentStore.write(value, key) !== true) throw new Error("storage-write-failed");
+            }
+        },
+        notify(notice) {
+            $notification.post(notice.title, notice.subtitle || "", notice.body || "", { sound: false });
+        },
+        app: { version: typeof $environment === "object" ? $environment["surge-version"] : undefined },
+        http: {
+            post(url, options) {
+                return new Promise((resolve, reject) => {
+                    if (typeof $httpClient !== "object" || typeof $httpClient.post !== "function") { reject(new Error("http-api-unavailable")); return; }
+                    const seconds = Number(options.timeout) / 1000;
+                    if (!Number.isFinite(seconds) || seconds <= 0) { reject(new Error("invalid-http-timeout")); return; }
+                    const request = {
+                        url, headers: options.headers, body: options.body, timeout: seconds,
+                        "auto-redirect": false, "auto-cookie": false, insecure: false
+                    };
+                    try {
+                        $httpClient.post(request, (error, response, data) => {
+                            if (error) { reject(new Error("http-transport-error")); return; }
+                            if (!response) { resolve(null); return; }
+                            resolve({
+                                status: Number(response.status === undefined ? response.statusCode : response.status),
+                                headers: nativeHeaders(response.headers),
+                                text() {
+                                    try {
+                                        if (data === undefined || data === null) return Promise.resolve("");
+                                        return Promise.resolve(typeof data === "string" ? data : decodeUTF8(bodyBytes(data)));
+                                    } catch (_) { return Promise.reject(new Error("http-response-decode")); }
+                                }
+                            });
+                        });
+                    } catch (_) { reject(new Error("http-api-failed")); }
+                });
+            }
+        }
+    };
+    if ((type === "http-request" || type === "http-response") && typeof $request === "object") {
+        runtime.request = { url: $request.url, method: $request.method, headers: nativeHeaders($request.headers) };
+    }
+    if (type === "http-response" && typeof $response === "object") {
+        runtime.response = {
+            status: Number($response.status), headers: nativeHeaders($response.headers),
+            body: $response.body === undefined ? null : $response.body,
+            arrayBuffer() {
+                try {
+                    const bytes = bodyBytes($response.body);
+                    return Promise.resolve(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+                } catch (_) { return Promise.reject(new Error("observation-body-unavailable")); }
+            }
+        };
+    }
+    return runtime;
+}
+let finished = false;
+function complete(result) {
+    if (finished) return;
+    finished = true;
+    $done(result === undefined ? {} : result);
+}
+const type = typeof $script === "object" && typeof $script.type === "string" ? $script.type :
+    typeof $response === "object" ? "http-response" : typeof $request === "object" ? "http-request" :
+    typeof $cronexp === "string" ? "cron" : "generic";
+async function main() {
+    const runtime = nativeRuntime(type);
+    if (type === "http-response") {
+        if (!runtime.response) return;
+        return observeStatistics(runtime);
+    }
+    if (type === "http-request") {
+        if (!runtime.request) return;
+        try { capture(runtime); }
+        catch (_) { report(runtime, "凭据处理未完成", "本地 API 异常，请检查 Surge 后重新打开蔚来 App。"); }
+        return;
+    }
+    if (type === "cron") { await runCheckin(runtime); return; }
+    return diagnostic(runtime);
+}
+Promise.resolve().then(main).then(complete, () => {
+    console.log("[蔚来迁移] 本地脚本执行异常；未输出账号凭据或业务响应。");
+    complete({});
+});
+})();

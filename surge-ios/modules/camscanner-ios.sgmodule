@@ -1,0 +1,10 @@
+#!name=扫描全能王 · iOS 迁移
+#!desc=保持现用规则语义：仅修改 query_property 响应的 data.psnl_vip_property.expiry 字符串，其他响应字段保持；两个 API 主机。
+#!author=atopsecret / iOS migration
+#!homepage=https://github.com/atopsecret/SurgeScripts/tree/main/camscanner
+
+[Script]
+ios-camscanner-expiry = type=http-response,pattern=^https://api(?:-cs)?\.intsig\.net(?::443)?/purchase/cs/query_property(?:\?[^#\s]*)?(?![\s\S]),requires-body=true,binary-body-mode=false,max-size=1048576,engine=jsc,timeout=5,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/surge-ios/scripts/camscanner-expiry-ios.js
+
+[MITM]
+hostname = %APPEND% api.intsig.net, api-cs.intsig.net

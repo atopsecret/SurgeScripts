@@ -1,0 +1,2 @@
+# Public source matcher excerpts only; no account or configuration parameters.
+match: '^https://api(?:-cs)?\.intsig\.net(?::443)?/purchase/cs/query_property(?:\?[^#\s]*)?(?![\s\S])'

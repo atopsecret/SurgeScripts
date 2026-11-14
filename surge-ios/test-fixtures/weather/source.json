@@ -1,0 +1,10 @@
+{
+  "source": {
+    "scriptURL": "https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/apple-weather/apple-weather-enhancer.egern.js?v=1.0.0",
+    "repositoryCommit": "5015215c1d0627ac019bd3c657842a83077daffc",
+    "weatherKitVersion": "v3.1.0",
+    "weatherKitCommit": "77d06d5525297ba5f85543934db505aab6ef7547",
+    "flatBuffersVersion": "24.12.23",
+    "scriptSHA256": "d37a5d41045bfc58449a1028c86388aa06771a8ec3cd6b8bb32df3a013e54e1e"
+  }
+}

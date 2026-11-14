@@ -1,0 +1,13 @@
+#!name=蔚来自动签到 · iOS 迁移
+#!desc=完整3.2.0业务迁移：请求凭据捕获、原字节统计观察、每天09:00签到和只读诊断四入口。新客户端存储独立，首次需在手机重新捕获自己的请求。
+#!author=atopsecret / iOS migration
+#!homepage=https://github.com/atopsecret/SurgeScripts/tree/main/weilai
+
+[Script]
+ios-nio-capture = type=http-request,pattern=^https://(?:gateway-front-external\.nio\.com|app\.nio\.com|api\.nio\.com)/(?:moat/10086/+(?:n/c/award/|c/award_cn/)|(?:n/c/)?(?:account/user/|user/|profile/)|app/api/|api/),requires-body=false,engine=jsc,timeout=10,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/surge-ios/scripts/nio-auto-checkin-ios.js
+ios-nio-observe = type=http-response,pattern=^https://gateway-front-external\.nio\.com/moat/10086/c/award_cn/checkin(?:\?|$),requires-body=true,binary-body-mode=true,max-size=262144,engine=jsc,timeout=5,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/surge-ios/scripts/nio-auto-checkin-ios.js
+ios-nio-checkin = type=cron,cronexp="0 9 * * *",wake-system=1,engine=webview,timeout=30,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/surge-ios/scripts/nio-auto-checkin-ios.js
+ios-nio-diagnostic = type=generic,engine=jsc,timeout=10,script-path=https://raw.githubusercontent.com/atopsecret/SurgeScripts/main/surge-ios/scripts/nio-auto-checkin-ios.js
+
+[MITM]
+hostname = %APPEND% gateway-front-external.nio.com, app.nio.com, api.nio.com
